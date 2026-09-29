@@ -16,12 +16,13 @@ class AppointmentAvailabilityService
      * randevuya uygun olup olmadığını kontrol eder.
      */
     public function isAvailable(
-        Doctor $doctor,
-        int $branchId,
-        Treatment $treatment,
-        Carbon $startsAt,
-        ?int $ignoreAppointmentId = null
-    ): bool {
+    Doctor $doctor,
+    int $branchId,
+    Treatment $treatment,
+    Carbon $startsAt,
+    ?int $ignoreAppointmentId = null,
+    bool $requireOnlineBookable = true
+): bool {
         $durationMinutes = $this->getDurationMinutes(
             $doctor,
             $branchId,
@@ -59,13 +60,17 @@ class AppointmentAvailabilityService
             return false;
         }
 
-        // 4. Tedavi online randevuya açık mı?
-        if (! $this->isOnlineBookable(
-            $branchId,
-            $treatment->id
-        )) {
-            return false;
-        }
+        // 4. Medloby üzerinden online randevu ise
+// online booking şartını kontrol et.
+if (
+    $requireOnlineBookable &&
+    ! $this->isOnlineBookable(
+        $branchId,
+        $treatment->id
+    )
+) {
+    return false;
+}
 
         // 5. Doktorun çalışma saatleri uygun mu?
         if (! $this->isWithinWorkingHours(
