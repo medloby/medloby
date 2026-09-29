@@ -43,6 +43,13 @@ class AppointmentBookingService
             $requireOnlineBookable,
             $notes
         ) {
+            $this->validateBookingContext(
+                $businessId,
+                $branchId,
+                $doctor,
+                $treatment
+            );
+
             $startsAt = $startsAt->copy();
 
             $durationMinutes = $this->availabilityService
@@ -86,11 +93,11 @@ class AppointmentBookingService
                 'status' => 'pending',
                 'source' => $source,
                 'patient_name' => trim(
-    $patient->first_name . ' ' . $patient->last_name
-),
-'patient_phone' => $patient->phone,
-'patient_email' => $patient->user?->email,
-'notes' => $notes,
+                    $patient->first_name . ' ' . $patient->last_name
+                ),
+                'patient_phone' => $patient->phone,
+                'patient_email' => $patient->user?->email,
+                'notes' => $notes,
             ]);
 
             AppointmentStatusHistory::create([
@@ -111,5 +118,66 @@ class AppointmentBookingService
                 'statusHistories',
             ]);
         });
+    }
+
+    /**
+     * Randevunun işletme, şube, doktor ve tedavi
+     * bağlamının birbiriyle uyumlu olduğunu doğrular.
+     */
+    protected function validateBookingContext(
+        int $businessId,
+        int $branchId,
+        Doctor $doctor,
+        Treatment $treatment
+    ): void {
+        // Şube gerçekten bu işletmeye mi ait?
+        $branchBelongsToBusiness = DB::table('branches')
+            ->where('id', $branchId)
+            ->where('business_id', $businessId)
+            ->exists();
+
+        if (! $branchBelongsToBusiness) {
+            throw new RuntimeException(
+                'Seçilen şube bu işletmeye ait değil.'
+            );
+        }
+
+        // Doktorun bağlı olduğu kişi kaydı bu işletmeye mi ait?
+        $doctorBelongsToBusiness = DB::table('doctors')
+            ->join(
+                'people',
+                'people.id',
+                '=',
+                'doctors.person_id'
+            )
+            ->where('doctors.id', $doctor->id)
+            ->where('people.business_id', $businessId)
+            ->exists();
+
+        if (! $doctorBelongsToBusiness) {
+            throw new RuntimeException(
+                'Seçilen doktor bu işletmeye ait değil.'
+            );
+        }
+
+        // Doktor bu şubede aktif olarak görev yapıyor mu?
+        $doctorBelongsToBranch = DB::table('doctor_branch')
+            ->where('doctor_id', $doctor->id)
+            ->where('branch_id', $branchId)
+            ->where('status', 'active')
+            ->exists();
+
+        if (! $doctorBelongsToBranch) {
+            throw new RuntimeException(
+                'Seçilen doktor bu şubede aktif olarak çalışmıyor.'
+            );
+        }
+
+        // Tedavi gerçekten mevcut ve aktif mi?
+        if (! $treatment->is_active) {
+            throw new RuntimeException(
+                'Seçilen tedavi aktif değil.'
+            );
+        }
     }
 }
