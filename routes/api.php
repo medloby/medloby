@@ -40,7 +40,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::prefix('conversations')->group(function () {
             Route::get('/', [ConversationController::class, 'index']);
             Route::post('/', [ConversationController::class, 'store']);
-            Route::get('/{conversation}', [ConversationController::class, 'show']);
+
+            Route::post('/{conversation}/messages', [
+                ConversationController::class,
+                'sendMessage',
+            ]);
+
+            Route::get('/{conversation}', [
+                ConversationController::class,
+                'show',
+            ]);
         });
 
         Route::prefix('appointments')->group(function () {

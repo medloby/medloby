@@ -7,6 +7,7 @@ use App\Models\Conversation;
 use App\Models\PatientProfile;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class ConversationController extends Controller
 {
@@ -154,6 +155,55 @@ class ConversationController extends Controller
                 'messages' => $messages,
             ],
         ]);
+    }
+
+    public function sendMessage(
+        Request $request,
+        Conversation $conversation
+    ): JsonResponse {
+        $this->ensureCanAccess(
+            $request,
+            $conversation
+        );
+
+        if ($conversation->status !== 'open') {
+            abort(422, 'Kapalı bir görüşmeye mesaj gönderilemez.');
+        }
+
+        $validated = $request->validate([
+            'body' => [
+                'required',
+                'string',
+                'max:10000',
+            ],
+        ]);
+
+        $message = DB::transaction(function () use (
+            $request,
+            $conversation,
+            $validated
+        ) {
+            $message = $conversation->messages()->create([
+                'sender_user_id' => $request->user()->id,
+                'body' => $validated['body'],
+                'message_type' => 'text',
+            ]);
+
+            $conversation->update([
+                'last_message_at' => $message->created_at,
+            ]);
+
+            return $message;
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Mesaj başarıyla gönderildi.',
+            'data' => $message->load([
+                'sender',
+                'attachments',
+            ]),
+        ], 201);
     }
 
     private function ensureCanAccess(
