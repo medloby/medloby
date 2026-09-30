@@ -35,11 +35,13 @@ Route::middleware('auth:sanctum')->group(function () {
         'resend',
     ])->middleware('throttle:6,1');
 
-    Route::prefix('appointments')->group(function () {
-        Route::post('/{appointment}/confirm', [AppointmentController::class, 'confirm']);
-        Route::post('/{appointment}/cancel', [AppointmentController::class, 'cancel']);
-        Route::post('/{appointment}/complete', [AppointmentController::class, 'complete']);
-        Route::post('/{appointment}/no-show', [AppointmentController::class, 'noShow']);
-        Route::post('/{appointment}/reschedule', [AppointmentController::class, 'reschedule']);
+    Route::middleware('verified')->group(function () {
+        Route::prefix('appointments')->group(function () {
+            Route::post('/{appointment}/confirm', [AppointmentController::class, 'confirm']);
+            Route::post('/{appointment}/cancel', [AppointmentController::class, 'cancel']);
+            Route::post('/{appointment}/complete', [AppointmentController::class, 'complete']);
+            Route::post('/{appointment}/no-show', [AppointmentController::class, 'noShow']);
+            Route::post('/{appointment}/reschedule', [AppointmentController::class, 'reschedule']);
+        });
     });
 });
