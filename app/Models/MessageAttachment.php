@@ -27,4 +27,20 @@ class MessageAttachment extends Model
     {
         return $this->belongsTo(Message::class);
     }
+
+    public function isImage(): bool
+    {
+        return str_starts_with(
+            $this->mime_type,
+            'image/'
+        );
+    }
+
+    public function sizeInMb(): float
+    {
+        return round(
+            $this->size / 1024 / 1024,
+            2
+        );
+    }
 }

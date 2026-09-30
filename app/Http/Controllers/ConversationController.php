@@ -4,10 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\Business;
 use App\Models\Conversation;
+use App\Models\MessageAttachment;
 use App\Models\PatientProfile;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class ConversationController extends Controller
 {
@@ -52,6 +55,7 @@ class ConversationController extends Controller
         ]);
     }
 
+
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -92,20 +96,6 @@ class ConversationController extends Controller
             abort(422, 'Bu sağlık merkezi şu anda iletişime açık değil.');
         }
 
-        if (! empty($validated['branch_id'])) {
-            $branchBelongsToBusiness = $business->branches()
-                ->whereKey($validated['branch_id'])
-                ->where('status', 'active')
-                ->exists();
-
-            if (! $branchBelongsToBusiness) {
-                abort(
-                    422,
-                    'Seçilen merkez bu işletmeye ait değil veya aktif değil.'
-                );
-            }
-        }
-
         $conversation = Conversation::create([
             'business_id' => $business->id,
             'branch_id' => $validated['branch_id'] ?? null,
@@ -117,13 +107,10 @@ class ConversationController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Görüşme başarıyla oluşturuldu.',
-            'data' => $conversation->load([
-                'business',
-                'branch',
-                'patientProfile',
-            ]),
+            'data' => $conversation,
         ], 201);
     }
+
 
     public function show(
         Request $request,
@@ -133,12 +120,6 @@ class ConversationController extends Controller
             $request,
             $conversation
         );
-
-        $conversation->load([
-            'business',
-            'branch',
-            'patientProfile',
-        ]);
 
         $messages = $conversation->messages()
             ->with([
@@ -157,6 +138,7 @@ class ConversationController extends Controller
         ]);
     }
 
+
     public function sendMessage(
         Request $request,
         Conversation $conversation
@@ -167,34 +149,80 @@ class ConversationController extends Controller
         );
 
         if ($conversation->status !== 'open') {
-            abort(422, 'Kapalı bir görüşmeye mesaj gönderilemez.');
+            abort(422, 'Kapalı görüşmeye mesaj gönderilemez.');
         }
 
         $validated = $request->validate([
             'body' => [
-                'required',
+                'nullable',
                 'string',
                 'max:10000',
             ],
+
+            'attachment' => [
+                'nullable',
+                'file',
+                'max:10240',
+                'mimes:jpg,jpeg,png,pdf',
+            ],
         ]);
+
+
+        if (
+            empty($validated['body']) &&
+            ! $request->hasFile('attachment')
+        ) {
+            abort(
+                422,
+                'Mesaj veya dosya göndermelisiniz.'
+            );
+        }
+
 
         $message = DB::transaction(function () use (
             $request,
             $conversation,
             $validated
         ) {
+
             $message = $conversation->messages()->create([
                 'sender_user_id' => $request->user()->id,
-                'body' => $validated['body'],
-                'message_type' => 'text',
+                'body' => $validated['body'] ?? null,
+                'message_type' => $request->hasFile('attachment')
+                    ? 'file'
+                    : 'text',
             ]);
 
+
+            if ($request->hasFile('attachment')) {
+
+                $file = $request->file('attachment');
+
+                $path = Storage::disk('private')->putFile(
+                    'conversations/'.$conversation->id,
+                    $file
+                );
+
+
+                MessageAttachment::create([
+                    'message_id' => $message->id,
+                    'disk' => 'private',
+                    'path' => $path,
+                    'original_name' => $file->getClientOriginalName(),
+                    'mime_type' => $file->getMimeType(),
+                    'size' => $file->getSize(),
+                ]);
+            }
+
+
             $conversation->update([
-                'last_message_at' => $message->created_at,
+                'last_message_at' => now(),
             ]);
+
 
             return $message;
         });
+
 
         return response()->json([
             'success' => true,
@@ -206,11 +234,13 @@ class ConversationController extends Controller
         ], 201);
     }
 
+
     private function ensureCanAccess(
         Request $request,
         Conversation $conversation
     ): void {
         $user = $request->user();
+
 
         $isPatient = PatientProfile::where(
             'user_id',
@@ -219,13 +249,18 @@ class ConversationController extends Controller
             ->whereKey($conversation->patient_profile_id)
             ->exists();
 
+
         $isBusinessUser = $user->businessMemberships()
             ->where('business_id', $conversation->business_id)
             ->where('is_active', true)
             ->exists();
 
+
         if (! $isPatient && ! $isBusinessUser) {
-            abort(403, 'Bu görüşmeye erişim yetkiniz yok.');
+            abort(
+                403,
+                'Bu görüşmeye erişim yetkiniz yok.'
+            );
         }
     }
 }
