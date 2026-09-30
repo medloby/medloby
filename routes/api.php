@@ -3,6 +3,7 @@
 use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BusinessRegistrationController;
+use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\PatientRegistrationController;
 use Illuminate\Support\Facades\Route;
@@ -36,6 +37,12 @@ Route::middleware('auth:sanctum')->group(function () {
     ])->middleware('throttle:6,1');
 
     Route::middleware('verified')->group(function () {
+        Route::prefix('conversations')->group(function () {
+            Route::get('/', [ConversationController::class, 'index']);
+            Route::post('/', [ConversationController::class, 'store']);
+            Route::get('/{conversation}', [ConversationController::class, 'show']);
+        });
+
         Route::prefix('appointments')->group(function () {
             Route::post('/{appointment}/confirm', [AppointmentController::class, 'confirm']);
             Route::post('/{appointment}/cancel', [AppointmentController::class, 'cancel']);
