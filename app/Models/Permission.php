@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Permission extends Model
 {
@@ -19,5 +20,19 @@ class Permission extends Model
         return [
             'is_active' => 'boolean',
         ];
+    }
+
+    public function users(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            User::class,
+            'business_user_permission'
+        )
+            ->withPivot([
+                'business_id',
+                'granted_by_user_id',
+                'is_allowed',
+            ])
+            ->withTimestamps();
     }
 }
