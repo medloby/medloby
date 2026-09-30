@@ -324,9 +324,11 @@ if (
             ->where('doctor_id', $doctorId)
             ->where('branch_id', $branchId)
             ->whereNotIn('status', [
-                'cancelled',
-                'completed',
-            ])
+    'cancelled',
+    'completed',
+    'rescheduled',
+    'no_show',
+])
             ->when(
                 $ignoreAppointmentId !== null,
                 fn ($query) => $query->where(
