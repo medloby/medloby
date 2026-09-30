@@ -16,6 +16,27 @@ class AppointmentLifecycleService
     ) {
     }
 
+    private function ensurePermission(
+        Appointment $appointment,
+        ?User $changedBy,
+        string $permissionName
+    ): void {
+        if (! $changedBy) {
+            throw new RuntimeException(
+                'Bu randevu işlemi için yetkili kullanıcı gereklidir.'
+            );
+        }
+
+        if (! $changedBy->hasBusinessPermission(
+            $appointment->business_id,
+            $permissionName
+        )) {
+            throw new RuntimeException(
+                'Bu randevu işlemi için yetkiniz bulunmuyor.'
+            );
+        }
+    }
+
     public function confirm(
         Appointment $appointment,
         ?User $changedBy = null,
@@ -29,6 +50,12 @@ class AppointmentLifecycleService
             $notes
         ) {
             $appointment->refresh();
+
+            $this->ensurePermission(
+                $appointment,
+                $changedBy,
+                'appointments.confirm'
+            );
 
             if ($appointment->status !== 'pending') {
                 throw new RuntimeException(
@@ -77,6 +104,12 @@ class AppointmentLifecycleService
         ) {
             $appointment->refresh();
 
+            $this->ensurePermission(
+                $appointment,
+                $changedBy,
+                'appointments.complete'
+            );
+
             if ($appointment->status !== 'confirmed') {
                 throw new RuntimeException(
                     'Yalnızca onaylanmış randevular tamamlanabilir.'
@@ -123,6 +156,12 @@ class AppointmentLifecycleService
             $notes
         ) {
             $appointment->refresh();
+
+            $this->ensurePermission(
+                $appointment,
+                $changedBy,
+                'appointments.cancel'
+            );
 
             if (! in_array($appointment->status, ['pending', 'confirmed'], true)) {
                 throw new RuntimeException(
@@ -183,6 +222,12 @@ class AppointmentLifecycleService
         ) {
             $appointment->refresh();
 
+            $this->ensurePermission(
+                $appointment,
+                $changedBy,
+                'appointments.mark_no_show'
+            );
+
             if ($appointment->status !== 'confirmed') {
                 throw new RuntimeException(
                     'Yalnızca onaylanmış randevular gelmedi olarak işaretlenebilir.'
@@ -233,6 +278,12 @@ class AppointmentLifecycleService
             $requireOnlineBookable
         ) {
             $appointment->refresh();
+
+            $this->ensurePermission(
+                $appointment,
+                $changedBy,
+                'appointments.reschedule'
+            );
 
             if (! in_array($appointment->status, ['pending', 'confirmed'], true)) {
                 throw new RuntimeException(
