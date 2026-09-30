@@ -3,6 +3,7 @@
 use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BusinessRegistrationController;
+use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\PatientRegistrationController;
 use Illuminate\Support\Facades\Route;
 
@@ -18,9 +19,21 @@ Route::post('/register/business', [
     'store',
 ]);
 
+Route::get('/email/verify/{id}/{hash}', [
+    EmailVerificationController::class,
+    'verify',
+])
+    ->middleware(['signed', 'throttle:6,1'])
+    ->name('verification.verify');
+
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
     Route::post('/logout', [AuthController::class, 'logout']);
+
+    Route::post('/email/verification-notification', [
+        EmailVerificationController::class,
+        'resend',
+    ])->middleware('throttle:6,1');
 
     Route::prefix('appointments')->group(function () {
         Route::post('/{appointment}/confirm', [AppointmentController::class, 'confirm']);

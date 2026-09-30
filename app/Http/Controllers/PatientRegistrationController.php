@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\PatientProfile;
 use App\Models\User;
+use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -71,6 +72,8 @@ class PatientRegistrationController extends Controller
                 'token' => $token,
             ];
         });
+
+        event(new Registered($result['user']));
 
         return response()->json([
             'success' => true,

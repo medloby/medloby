@@ -6,6 +6,7 @@ use App\Models\Branch;
 use App\Models\Business;
 use App\Models\BusinessUser;
 use App\Models\User;
+use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -115,6 +116,8 @@ class BusinessRegistrationController extends Controller
                 'token' => $token,
             ];
         });
+
+        event(new Registered($result['user']));
 
         return response()->json([
             'success' => true,
