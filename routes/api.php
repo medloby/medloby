@@ -2,11 +2,21 @@
 
 use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BusinessRegistrationController;
 use App\Http\Controllers\PatientRegistrationController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
-Route::post('/register/patient', [PatientRegistrationController::class, 'store']);
+
+Route::post('/register/patient', [
+    PatientRegistrationController::class,
+    'store',
+]);
+
+Route::post('/register/business', [
+    BusinessRegistrationController::class,
+    'store',
+]);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
