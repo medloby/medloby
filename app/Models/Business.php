@@ -46,4 +46,9 @@ class Business extends Model
     {
         return $this->hasMany(BusinessUser::class);
     }
+
+    public function people(): HasMany
+    {
+        return $this->hasMany(Person::class);
+    }
 }
