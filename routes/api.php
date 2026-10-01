@@ -5,6 +5,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BusinessRegistrationController;
 use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\EmailVerificationController;
+use App\Http\Controllers\MessageAttachmentController;
 use App\Http\Controllers\PatientRegistrationController;
 use Illuminate\Support\Facades\Route;
 
@@ -51,6 +52,11 @@ Route::middleware('auth:sanctum')->group(function () {
                 'show',
             ]);
         });
+
+        Route::get('/attachments/{attachment}/view', [
+            MessageAttachmentController::class,
+            'view',
+        ]);
 
         Route::prefix('appointments')->group(function () {
             Route::post('/{appointment}/confirm', [AppointmentController::class, 'confirm']);
