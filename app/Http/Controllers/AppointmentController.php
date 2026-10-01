@@ -16,6 +16,111 @@ class AppointmentController extends Controller
     ) {
     }
 
+    public function index(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $businessIds = $user->businessMemberships()
+            ->where('is_active', true)
+            ->pluck('business_id');
+
+        $appointments = Appointment::query()
+            ->with([
+                'business',
+                'branch',
+                'patientProfile',
+                'doctor',
+                'treatment',
+                'statusHistories',
+            ])
+            ->where(function ($query) use ($user, $businessIds) {
+                $query
+                    ->whereHas('patientProfile', function ($patientQuery) use ($user) {
+                        $patientQuery->where('user_id', $user->id);
+                    })
+                    ->orWhereIn('business_id', $businessIds);
+            })
+            ->when(
+                $request->filled('status'),
+                function ($query) use ($request) {
+                    $query->where(
+                        'status',
+                        $request->input('status')
+                    );
+                }
+            )
+            ->when(
+                $request->filled('from'),
+                function ($query) use ($request) {
+                    $query->whereDate(
+                        'starts_at',
+                        '>=',
+                        $request->input('from')
+                    );
+                }
+            )
+            ->when(
+                $request->filled('to'),
+                function ($query) use ($request) {
+                    $query->whereDate(
+                        'starts_at',
+                        '<=',
+                        $request->input('to')
+                    );
+                }
+            )
+            ->latest('starts_at')
+            ->paginate(
+                min(
+                    max((int) $request->input('per_page', 20), 1),
+                    100
+                )
+            );
+
+        return response()->json([
+            'success' => true,
+            'data' => $appointments,
+        ]);
+    }
+
+    public function show(
+        Request $request,
+        Appointment $appointment
+    ): JsonResponse {
+        $user = $request->user();
+
+        $isPatient = $appointment->patientProfile()
+            ->where('user_id', $user->id)
+            ->exists();
+
+        $isBusinessUser = $user->businessMemberships()
+            ->where('business_id', $appointment->business_id)
+            ->where('is_active', true)
+            ->exists();
+
+        if (! $isPatient && ! $isBusinessUser) {
+            abort(
+                403,
+                'Bu randevuyu görüntüleme yetkiniz yok.'
+            );
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $appointment->load([
+                'business',
+                'branch',
+                'patientProfile',
+                'doctor',
+                'treatment',
+                'statusHistories',
+                'cancelledBy',
+                'rescheduledFrom',
+                'rescheduledAppointments',
+            ]),
+        ]);
+    }
+
     public function confirm(
         Request $request,
         Appointment $appointment
@@ -43,8 +148,16 @@ class AppointmentController extends Controller
         Appointment $appointment
     ): JsonResponse {
         $validated = $request->validate([
-            'cancellation_reason' => ['required', 'string', 'max:1000'],
-            'notes' => ['nullable', 'string', 'max:2000'],
+            'cancellation_reason' => [
+                'required',
+                'string',
+                'max:1000',
+            ],
+            'notes' => [
+                'nullable',
+                'string',
+                'max:2000',
+            ],
         ]);
 
         try {
@@ -114,9 +227,20 @@ class AppointmentController extends Controller
         Appointment $appointment
     ): JsonResponse {
         $validated = $request->validate([
-            'starts_at' => ['required', 'date'],
-            'reason' => ['nullable', 'string', 'max:1000'],
-            'notes' => ['nullable', 'string', 'max:2000'],
+            'starts_at' => [
+                'required',
+                'date',
+            ],
+            'reason' => [
+                'nullable',
+                'string',
+                'max:1000',
+            ],
+            'notes' => [
+                'nullable',
+                'string',
+                'max:2000',
+            ],
         ]);
 
         try {

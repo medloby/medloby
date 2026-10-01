@@ -1,11 +1,13 @@
 <?php
 
+use App\Http\Controllers\AppointmentBookingController;
 use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BusinessRegistrationController;
 use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\MessageAttachmentController;
+use App\Http\Controllers\OfferController;
 use App\Http\Controllers\PatientRegistrationController;
 use Illuminate\Support\Facades\Route;
 
@@ -30,7 +32,11 @@ Route::get('/email/verify/{id}/{hash}', [
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
-    Route::post('/logout', [AuthController::class, 'logout']);
+
+    Route::post('/logout', [
+        AuthController::class,
+        'logout',
+    ]);
 
     Route::post('/email/verification-notification', [
         EmailVerificationController::class,
@@ -38,9 +44,22 @@ Route::middleware('auth:sanctum')->group(function () {
     ])->middleware('throttle:6,1');
 
     Route::middleware('verified')->group(function () {
+        /*
+        |--------------------------------------------------------------------------
+        | Conversations
+        |--------------------------------------------------------------------------
+        */
+
         Route::prefix('conversations')->group(function () {
-            Route::get('/', [ConversationController::class, 'index']);
-            Route::post('/', [ConversationController::class, 'store']);
+            Route::get('/', [
+                ConversationController::class,
+                'index',
+            ]);
+
+            Route::post('/', [
+                ConversationController::class,
+                'store',
+            ]);
 
             Route::post('/{conversation}/messages', [
                 ConversationController::class,
@@ -51,19 +70,97 @@ Route::middleware('auth:sanctum')->group(function () {
                 ConversationController::class,
                 'show',
             ]);
+
+            Route::get('/{conversation}/offers', [
+                OfferController::class,
+                'index',
+            ]);
+
+            Route::post('/{conversation}/offers', [
+                OfferController::class,
+                'store',
+            ]);
         });
+
+        /*
+        |--------------------------------------------------------------------------
+        | Offers
+        |--------------------------------------------------------------------------
+        */
+
+        Route::post('/offers/{offer}/accept', [
+            OfferController::class,
+            'accept',
+        ]);
+
+        Route::post('/offers/{offer}/reject', [
+            OfferController::class,
+            'reject',
+        ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Appointment Booking
+        |--------------------------------------------------------------------------
+        */
+
+        Route::post('/offers/{offer}/appointments', [
+            AppointmentBookingController::class,
+            'store',
+        ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Message Attachments
+        |--------------------------------------------------------------------------
+        */
 
         Route::get('/attachments/{attachment}/view', [
             MessageAttachmentController::class,
             'view',
         ]);
 
+        /*
+        |--------------------------------------------------------------------------
+        | Appointments
+        |--------------------------------------------------------------------------
+        */
+
         Route::prefix('appointments')->group(function () {
-            Route::post('/{appointment}/confirm', [AppointmentController::class, 'confirm']);
-            Route::post('/{appointment}/cancel', [AppointmentController::class, 'cancel']);
-            Route::post('/{appointment}/complete', [AppointmentController::class, 'complete']);
-            Route::post('/{appointment}/no-show', [AppointmentController::class, 'noShow']);
-            Route::post('/{appointment}/reschedule', [AppointmentController::class, 'reschedule']);
+            Route::get('/', [
+                AppointmentController::class,
+                'index',
+            ]);
+
+            Route::get('/{appointment}', [
+                AppointmentController::class,
+                'show',
+            ]);
+
+            Route::post('/{appointment}/confirm', [
+                AppointmentController::class,
+                'confirm',
+            ]);
+
+            Route::post('/{appointment}/cancel', [
+                AppointmentController::class,
+                'cancel',
+            ]);
+
+            Route::post('/{appointment}/complete', [
+                AppointmentController::class,
+                'complete',
+            ]);
+
+            Route::post('/{appointment}/no-show', [
+                AppointmentController::class,
+                'noShow',
+            ]);
+
+            Route::post('/{appointment}/reschedule', [
+                AppointmentController::class,
+                'reschedule',
+            ]);
         });
     });
 });
