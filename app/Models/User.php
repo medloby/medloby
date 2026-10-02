@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -20,11 +21,6 @@ class User extends Authenticatable implements MustVerifyEmail
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
     protected function casts(): array
     {
         return [
@@ -50,6 +46,43 @@ class User extends Authenticatable implements MustVerifyEmail
                 'is_allowed',
             ])
             ->withTimestamps();
+    }
+
+    public function patientProfile(): HasOne
+    {
+        return $this->hasOne(PatientProfile::class);
+    }
+
+    public function messages(): HasMany
+    {
+        return $this->hasMany(
+            Message::class,
+            'sender_user_id'
+        );
+    }
+
+    public function cancelledAppointments(): HasMany
+    {
+        return $this->hasMany(
+            Appointment::class,
+            'cancelled_by_user_id'
+        );
+    }
+
+    public function appointmentStatusChanges(): HasMany
+    {
+        return $this->hasMany(
+            AppointmentStatusHistory::class,
+            'changed_by_user_id'
+        );
+    }
+
+    public function grantedPermissions(): HasMany
+    {
+        return $this->hasMany(
+            BusinessUserPermission::class,
+            'granted_by_user_id'
+        );
     }
 
     public function hasBusinessPermission(

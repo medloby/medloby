@@ -51,4 +51,44 @@ class Business extends Model
     {
         return $this->hasMany(Person::class);
     }
+
+    public function appointments(): HasMany
+    {
+        return $this->hasMany(Appointment::class);
+    }
+
+    public function treatmentPrices(): HasMany
+    {
+        return $this->hasMany(TreatmentPrice::class);
+    }
+
+    public function treatmentPackages(): HasMany
+    {
+        return $this->hasMany(TreatmentPackage::class);
+    }
+
+    public function packageServices(): HasMany
+    {
+        return $this->hasMany(PackageService::class);
+    }
+
+    public function calendarBlocks(): HasMany
+    {
+        return $this->hasMany(CalendarBlock::class);
+    }
+
+    public function waitingLists(): HasMany
+    {
+        return $this->hasMany(WaitingList::class);
+    }
+
+    public function conversations(): HasMany
+    {
+        return $this->hasMany(Conversation::class);
+    }
+
+    public function offers(): HasMany
+    {
+        return $this->hasMany(Offer::class);
+    }
 }
