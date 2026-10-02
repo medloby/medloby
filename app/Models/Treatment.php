@@ -57,9 +57,18 @@ class Treatment extends Model
         ])->withTimestamps();
     }
 
-    public function packages(): HasMany
+    public function packages(): BelongsToMany
     {
-        return $this->hasMany(TreatmentPackage::class);
+        return $this->belongsToMany(
+            TreatmentPackage::class,
+            'treatment_package_items',
+            'treatment_id',
+            'treatment_package_id'
+        )->withPivot([
+            'quantity',
+            'notes',
+            'sort_order',
+        ])->withTimestamps();
     }
 
     public function prices(): HasMany

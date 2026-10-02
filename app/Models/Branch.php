@@ -55,4 +55,42 @@ class Branch extends Model
             'notes',
         ])->withTimestamps();
     }
+
+    public function treatments(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            Treatment::class,
+            'branch_treatment'
+        )->withPivot([
+            'is_active',
+            'is_online_bookable',
+            'is_offer_enabled',
+            'duration_minutes',
+        ])->withTimestamps();
+    }
+
+    public function doctorWorkingHours(): HasMany
+    {
+        return $this->hasMany(DoctorWorkingHour::class);
+    }
+
+    public function doctorLeaves(): HasMany
+    {
+        return $this->hasMany(DoctorLeave::class);
+    }
+
+    public function appointments(): HasMany
+    {
+        return $this->hasMany(Appointment::class);
+    }
+
+    public function calendarBlocks(): HasMany
+    {
+        return $this->hasMany(CalendarBlock::class);
+    }
+
+    public function waitingLists(): HasMany
+    {
+        return $this->hasMany(WaitingList::class);
+    }
 }

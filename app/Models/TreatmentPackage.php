@@ -74,4 +74,18 @@ class TreatmentPackage extends Model
             'sort_order',
         ])->withTimestamps();
     }
+
+    public function treatments(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            Treatment::class,
+            'treatment_package_items',
+            'treatment_package_id',
+            'treatment_id'
+        )->withPivot([
+            'quantity',
+            'notes',
+            'sort_order',
+        ])->withTimestamps();
+    }
 }
