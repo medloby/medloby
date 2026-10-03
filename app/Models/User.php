@@ -101,6 +101,14 @@ class User extends Authenticatable implements MustVerifyEmail
         );
     }
 
+    public function businessStatusChanges(): HasMany
+    {
+        return $this->hasMany(
+            BusinessStatusHistory::class,
+            'changed_by_user_id'
+        );
+    }
+
     public function hasBusinessPermission(
         int $businessId,
         string $permissionName

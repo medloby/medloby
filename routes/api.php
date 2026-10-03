@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AdminBusinessController;
+use App\Http\Controllers\AdminBusinessStatusController;
 use App\Http\Controllers\AdminPlatformContractController;
 use App\Http\Controllers\AppointmentBookingController;
 use App\Http\Controllers\AppointmentController;
@@ -73,6 +74,16 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::post('/{business}/reject', [
                     AdminBusinessController::class,
                     'reject',
+                ]);
+
+                Route::post('/{business}/suspend', [
+                    AdminBusinessStatusController::class,
+                    'suspend',
+                ]);
+
+                Route::post('/{business}/reactivate', [
+                    AdminBusinessStatusController::class,
+                    'reactivate',
                 ]);
             });
 

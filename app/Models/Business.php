@@ -106,4 +106,11 @@ class Business extends Model
     {
         return $this->hasMany(BusinessReview::class);
     }
+
+    public function statusHistories(): HasMany
+    {
+        return $this->hasMany(
+            BusinessStatusHistory::class
+        );
+    }
 }
