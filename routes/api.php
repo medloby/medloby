@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AdminBusinessController;
+use App\Http\Controllers\AdminPlatformContractController;
 use App\Http\Controllers\AppointmentBookingController;
 use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\AuthController;
@@ -72,6 +73,46 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::post('/{business}/reject', [
                     AdminBusinessController::class,
                     'reject',
+                ]);
+            });
+
+        /*
+        |--------------------------------------------------------------------------
+        | Admin - Platform Contracts
+        |--------------------------------------------------------------------------
+        */
+
+        Route::middleware('admin')
+            ->prefix('admin/platform-contracts')
+            ->group(function () {
+                Route::get('/', [
+                    AdminPlatformContractController::class,
+                    'index',
+                ]);
+
+                Route::post('/', [
+                    AdminPlatformContractController::class,
+                    'store',
+                ]);
+
+                Route::get('/{platformContract}', [
+                    AdminPlatformContractController::class,
+                    'show',
+                ]);
+
+                Route::put('/{platformContract}', [
+                    AdminPlatformContractController::class,
+                    'update',
+                ]);
+
+                Route::post('/{platformContract}/publish', [
+                    AdminPlatformContractController::class,
+                    'publish',
+                ]);
+
+                Route::post('/{platformContract}/deactivate', [
+                    AdminPlatformContractController::class,
+                    'deactivate',
                 ]);
             });
 
