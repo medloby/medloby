@@ -54,4 +54,9 @@ class PatientProfile extends Model
     {
         return $this->hasMany(WaitingList::class);
     }
+
+    public function medicalRecords(): HasMany
+    {
+        return $this->hasMany(MedicalRecord::class);
+    }
 }
