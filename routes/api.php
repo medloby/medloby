@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AdminBusinessController;
+use App\Http\Controllers\AdminBusinessMembershipController;
 use App\Http\Controllers\AdminBusinessStatusController;
 use App\Http\Controllers\AdminBusinessStatusHistoryController;
 use App\Http\Controllers\AdminPlatformContractController;
@@ -89,6 +90,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
                 Route::get('/{business}/status-history', [
                     AdminBusinessStatusHistoryController::class,
+                    'index',
+                ]);
+
+                Route::get('/{business}/members', [
+                    AdminBusinessMembershipController::class,
                     'index',
                 ]);
             });
