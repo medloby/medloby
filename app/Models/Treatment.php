@@ -45,6 +45,19 @@ class Treatment extends Model
         );
     }
 
+    public function branches(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            Branch::class,
+            'branch_treatment'
+        )->withPivot([
+            'is_active',
+            'is_online_bookable',
+            'is_offer_enabled',
+            'duration_minutes',
+        ])->withTimestamps();
+    }
+
     public function doctors(): BelongsToMany
     {
         return $this->belongsToMany(

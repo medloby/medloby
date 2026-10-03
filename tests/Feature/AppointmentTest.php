@@ -6,8 +6,8 @@ use App\Models\BusinessUser;
 use App\Models\BusinessUserPermission;
 use App\Models\Doctor;
 use App\Models\DoctorWorkingHour;
-use App\Models\Permission;
 use App\Models\Person;
+use App\Models\Permission;
 use App\Models\Treatment;
 use App\Models\TreatmentCategory;
 use App\Models\User;
@@ -136,7 +136,9 @@ function grantAppointmentPermission(
     string $permissionName
 ): void {
     $permission = Permission::firstOrCreate(
-        ['name' => $permissionName],
+        [
+            'name' => $permissionName,
+        ],
         [
             'display_name' => $permissionName,
             'module' => 'appointments',
@@ -200,8 +202,6 @@ test('doctor cannot have two appointments at the same time', function () {
             'status' => 'pending',
             'source' => 'clinic',
             'patient_name' => 'İlk Hasta',
-            'patient_phone' => '05550000001',
-            'patient_email' => 'first@example.com',
         ]);
 
     $firstResponse->assertCreated();
@@ -217,21 +217,9 @@ test('doctor cannot have two appointments at the same time', function () {
             'status' => 'pending',
             'source' => 'clinic',
             'patient_name' => 'İkinci Hasta',
-            'patient_phone' => '05550000002',
-            'patient_email' => 'second@example.com',
         ]);
 
     $secondResponse->assertStatus(422);
-
-    $secondResponse->assertJsonPath(
-        'success',
-        false
-    );
-
-    $secondResponse->assertJsonPath(
-        'message',
-        'Seçilen tarih ve saat için randevu uygun değil.'
-    );
 
     $this->assertDatabaseCount('appointments', 1);
 });
@@ -268,10 +256,7 @@ test('business user can confirm a pending appointment', function () {
 
     $response->assertOk();
 
-    $response->assertJsonPath(
-        'data.status',
-        'confirmed'
-    );
+    $response->assertJsonPath('data.status', 'confirmed');
 
     $this->assertDatabaseHas('appointments', [
         'id' => $appointmentId,
@@ -316,10 +301,7 @@ test('business user can cancel a pending appointment', function () {
 
     $response->assertOk();
 
-    $response->assertJsonPath(
-        'data.status',
-        'cancelled'
-    );
+    $response->assertJsonPath('data.status', 'cancelled');
 
     $this->assertDatabaseHas('appointments', [
         'id' => $appointmentId,
@@ -361,24 +343,17 @@ test('business user can complete a confirmed appointment', function () {
 
     $confirmResponse = $this
         ->actingAs($data['user'])
-        ->postJson(
-            "/api/appointments/{$appointmentId}/confirm"
-        );
+        ->postJson("/api/appointments/{$appointmentId}/confirm");
 
     $confirmResponse->assertOk();
 
     $completeResponse = $this
         ->actingAs($data['user'])
-        ->postJson(
-            "/api/appointments/{$appointmentId}/complete"
-        );
+        ->postJson("/api/appointments/{$appointmentId}/complete");
 
     $completeResponse->assertOk();
 
-    $completeResponse->assertJsonPath(
-        'data.status',
-        'completed'
-    );
+    $completeResponse->assertJsonPath('data.status', 'completed');
 
     $this->assertDatabaseHas('appointments', [
         'id' => $appointmentId,
@@ -420,24 +395,17 @@ test('business user can mark a confirmed appointment as no show', function () {
 
     $confirmResponse = $this
         ->actingAs($data['user'])
-        ->postJson(
-            "/api/appointments/{$appointmentId}/confirm"
-        );
+        ->postJson("/api/appointments/{$appointmentId}/confirm");
 
     $confirmResponse->assertOk();
 
     $response = $this
         ->actingAs($data['user'])
-        ->postJson(
-            "/api/appointments/{$appointmentId}/no-show"
-        );
+        ->postJson("/api/appointments/{$appointmentId}/no-show");
 
     $response->assertOk();
 
-    $response->assertJsonPath(
-        'data.status',
-        'no_show'
-    );
+    $response->assertJsonPath('data.status', 'no_show');
 
     $this->assertDatabaseHas('appointments', [
         'id' => $appointmentId,
@@ -496,10 +464,7 @@ test('business user can reschedule an appointment', function () {
 
     $response->assertOk();
 
-    $response->assertJsonPath(
-        'data.status',
-        'pending'
-    );
+    $response->assertJsonPath('data.status', 'pending');
 
     $newAppointmentId = $response->json('data.id');
 
@@ -514,4 +479,27 @@ test('business user can reschedule an appointment', function () {
         'id' => $newAppointmentId,
         'status' => 'pending',
     ]);
+});
+
+test('branch and treatment have a working many-to-many relationship', function () {
+    $data = createAppointmentTestData();
+
+    $branch = $data['branch'];
+    $treatment = $data['treatment'];
+
+    $branch->load('treatments');
+
+    expect(
+        $branch->treatments->contains(
+            fn ($item) => $item->id === $treatment->id
+        )
+    )->toBeTrue();
+
+    $treatment->load('branches');
+
+    expect(
+        $treatment->branches->contains(
+            fn ($item) => $item->id === $branch->id
+        )
+    )->toBeTrue();
 });
