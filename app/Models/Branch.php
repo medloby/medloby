@@ -43,6 +43,20 @@ class Branch extends Model
         return $this->hasMany(Person::class);
     }
 
+    public function businessUsers(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            BusinessUser::class,
+            'business_user_branch',
+            'branch_id',
+            'business_user_id'
+        )
+            ->withPivot([
+                'is_active',
+            ])
+            ->withTimestamps();
+    }
+
     public function doctors(): BelongsToMany
     {
         return $this->belongsToMany(
