@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AdminBusinessController;
 use App\Http\Controllers\AdminBusinessMembershipController;
+use App\Http\Controllers\AdminBusinessMembershipDetailController;
 use App\Http\Controllers\AdminBusinessPermissionController;
 use App\Http\Controllers\AdminBusinessStatusController;
 use App\Http\Controllers\AdminBusinessStatusHistoryController;
@@ -97,6 +98,11 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::get('/{business}/members', [
                     AdminBusinessMembershipController::class,
                     'index',
+                ]);
+
+                Route::get('/{business}/members/{businessUser}', [
+                    AdminBusinessMembershipDetailController::class,
+                    'show',
                 ]);
 
                 Route::get('/{business}/permissions', [
