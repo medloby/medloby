@@ -101,4 +101,9 @@ class Business extends Model
             ClinicContractAcceptance::class
         );
     }
+
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(BusinessReview::class);
+    }
 }

@@ -92,6 +92,14 @@ class User extends Authenticatable implements MustVerifyEmail
         );
     }
 
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(
+            BusinessReview::class,
+            'reviewed_by_user_id'
+        );
+    }
+
     public function hasBusinessPermission(
         int $businessId,
         string $permissionName
