@@ -682,3 +682,54 @@ test('patient cannot create appointment for treatment unavailable at offer branc
         'message' => 'Seçilen tedavi bu şubede bulunmuyor.',
     ]);
 });
+
+test('patient cannot create a second appointment from the same accepted offer', function () {
+    $data = createOfferBookingData();
+
+    $firstResponse = $this
+        ->actingAs($data['patientUser'])
+        ->postJson(
+            "/api/offers/{$data['offer']->id}/appointments",
+            [
+                'branch_id' => $data['branch']->id,
+                'doctor_id' => $data['doctor']->id,
+                'starts_at' => $data['startsAt']->toDateTimeString(),
+                'notes' => 'İlk randevu.',
+            ]
+        );
+
+    $firstResponse->assertCreated();
+
+    $this->assertDatabaseHas('appointments', [
+        'offer_id' => $data['offer']->id,
+        'patient_profile_id' => $data['patientProfile']->id,
+    ]);
+
+    $secondStartsAt = $data['startsAt']
+        ->copy()
+        ->setTime(12, 0, 0);
+
+    $secondResponse = $this
+        ->actingAs($data['patientUser'])
+        ->postJson(
+            "/api/offers/{$data['offer']->id}/appointments",
+            [
+                'branch_id' => $data['branch']->id,
+                'doctor_id' => $data['doctor']->id,
+                'starts_at' => $secondStartsAt->toDateTimeString(),
+                'notes' => 'İkinci randevu denemesi.',
+            ]
+        );
+
+    $secondResponse->assertUnprocessable();
+
+    $secondResponse->assertJson([
+        'message' => 'Bu teklif daha önce randevuya dönüştürülmüş.',
+    ]);
+
+    $this->assertDatabaseCount('appointments', 1);
+
+    $this->assertDatabaseHas('appointments', [
+        'offer_id' => $data['offer']->id,
+    ]);
+});

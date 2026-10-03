@@ -58,6 +58,13 @@ class AppointmentBookingController extends Controller
             );
         }
 
+        if ($offer->appointment()->exists()) {
+            abort(
+                422,
+                'Bu teklif daha önce randevuya dönüştürülmüş.'
+            );
+        }
+
         $validated = $request->validate([
             'branch_id' => [
                 'required',
@@ -114,7 +121,8 @@ class AppointmentBookingController extends Controller
                 Carbon::parse($validated['starts_at']),
                 'medloby',
                 true,
-                $validated['notes'] ?? null
+                $validated['notes'] ?? null,
+                $offer
             );
 
             return response()->json([
@@ -128,6 +136,7 @@ class AppointmentBookingController extends Controller
                         'patientProfile',
                         'treatment',
                         'creator',
+                        'appointment',
                     ]),
                 ],
             ], 201);

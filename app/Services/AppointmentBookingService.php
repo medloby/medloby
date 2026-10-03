@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Appointment;
 use App\Models\AppointmentStatusHistory;
 use App\Models\Doctor;
+use App\Models\Offer;
 use App\Models\PatientProfile;
 use App\Models\Treatment;
 use Carbon\Carbon;
@@ -30,7 +31,8 @@ class AppointmentBookingService
         Carbon $startsAt,
         string $source = 'medloby',
         bool $requireOnlineBookable = true,
-        ?string $notes = null
+        ?string $notes = null,
+        ?Offer $offer = null
     ): Appointment {
         return DB::transaction(function () use (
             $businessId,
@@ -41,8 +43,19 @@ class AppointmentBookingService
             $startsAt,
             $source,
             $requireOnlineBookable,
-            $notes
+            $notes,
+            $offer
         ) {
+            if ($offer) {
+                $this->validateOfferContext(
+                    $offer,
+                    $businessId,
+                    $branchId,
+                    $patient,
+                    $treatment
+                );
+            }
+
             $this->validateBookingContext(
                 $businessId,
                 $branchId,
@@ -89,6 +102,7 @@ class AppointmentBookingService
                 'patient_profile_id' => $patient->id,
                 'doctor_id' => $doctor->id,
                 'treatment_id' => $treatment->id,
+                'offer_id' => $offer?->id,
                 'starts_at' => $startsAt,
                 'ends_at' => $endsAt,
                 'status' => 'pending',
@@ -116,9 +130,76 @@ class AppointmentBookingService
                 'patientProfile',
                 'doctor',
                 'treatment',
+                'offer',
                 'statusHistories',
             ]);
         });
+    }
+
+    /**
+     * Teklifin randevu oluşturma bağlamıyla uyumlu olduğunu doğrular.
+     */
+    protected function validateOfferContext(
+        Offer $offer,
+        int $businessId,
+        int $branchId,
+        PatientProfile $patient,
+        Treatment $treatment
+    ): void {
+        if ($offer->status !== 'accepted') {
+            throw new RuntimeException(
+                'Randevu oluşturmak için teklifin kabul edilmiş olması gerekir.'
+            );
+        }
+
+        if (
+            $offer->valid_until &&
+            $offer->valid_until->isPast()
+        ) {
+            throw new RuntimeException(
+                'Bu teklifin geçerlilik süresi dolmuştur.'
+            );
+        }
+
+        if ($offer->business_id !== $businessId) {
+            throw new RuntimeException(
+                'Teklif farklı bir işletmeye aittir.'
+            );
+        }
+
+        if (
+            $offer->branch_id !== null &&
+            $offer->branch_id !== $branchId
+        ) {
+            throw new RuntimeException(
+                'Teklif farklı bir şubeye aittir.'
+            );
+        }
+
+        if ($offer->patient_profile_id !== $patient->id) {
+            throw new RuntimeException(
+                'Teklif farklı bir hastaya aittir.'
+            );
+        }
+
+        if (
+            $offer->treatment_id !== null &&
+            $offer->treatment_id !== $treatment->id
+        ) {
+            throw new RuntimeException(
+                'Teklifteki tedavi ile seçilen tedavi uyuşmuyor.'
+            );
+        }
+
+        $existingAppointment = Appointment::query()
+            ->where('offer_id', $offer->id)
+            ->exists();
+
+        if ($existingAppointment) {
+            throw new RuntimeException(
+                'Bu teklif daha önce randevuya dönüştürülmüş.'
+            );
+        }
     }
 
     /**
@@ -132,7 +213,6 @@ class AppointmentBookingService
         Treatment $treatment,
         bool $requireOnlineBookable
     ): void {
-        // Şube gerçekten bu işletmeye mi ait?
         $branchBelongsToBusiness = DB::table('branches')
             ->where('id', $branchId)
             ->where('business_id', $businessId)
@@ -144,7 +224,6 @@ class AppointmentBookingService
             );
         }
 
-        // Doktorun bağlı olduğu kişi kaydı bu işletmeye mi ait?
         $doctorBelongsToBusiness = DB::table('doctors')
             ->join(
                 'people',
@@ -162,7 +241,6 @@ class AppointmentBookingService
             );
         }
 
-        // Doktor bu şubede aktif olarak görev yapıyor mu?
         $doctorBelongsToBranch = DB::table('doctor_branch')
             ->where('doctor_id', $doctor->id)
             ->where('branch_id', $branchId)
@@ -175,14 +253,12 @@ class AppointmentBookingService
             );
         }
 
-        // Tedavi gerçekten mevcut ve aktif mi?
         if (! $treatment->is_active) {
             throw new RuntimeException(
                 'Seçilen tedavi aktif değil.'
             );
         }
 
-        // Tedavi seçilen şubeye bağlı mı?
         $branchTreatment = DB::table('branch_treatment')
             ->where('branch_id', $branchId)
             ->where('treatment_id', $treatment->id)
@@ -194,14 +270,12 @@ class AppointmentBookingService
             );
         }
 
-        // Tedavi bu şubede aktif mi?
         if (! (bool) $branchTreatment->is_active) {
             throw new RuntimeException(
                 'Seçilen tedavi bu şubede aktif değil.'
             );
         }
 
-        // Online randevu isteniyorsa tedavi online randevuya açık mı?
         if (
             $requireOnlineBookable &&
             ! (bool) $branchTreatment->is_online_bookable

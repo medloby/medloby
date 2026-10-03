@@ -14,6 +14,7 @@ class Appointment extends Model
         'patient_profile_id',
         'doctor_id',
         'treatment_id',
+        'offer_id',
         'starts_at',
         'ends_at',
         'status',
@@ -64,6 +65,11 @@ class Appointment extends Model
         return $this->belongsTo(Treatment::class);
     }
 
+    public function offer(): BelongsTo
+    {
+        return $this->belongsTo(Offer::class);
+    }
+
     public function cancelledBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'cancelled_by_user_id');
@@ -71,12 +77,18 @@ class Appointment extends Model
 
     public function rescheduledFrom(): BelongsTo
     {
-        return $this->belongsTo(self::class, 'rescheduled_from_appointment_id');
+        return $this->belongsTo(
+            self::class,
+            'rescheduled_from_appointment_id'
+        );
     }
 
     public function rescheduledAppointments(): HasMany
     {
-        return $this->hasMany(self::class, 'rescheduled_from_appointment_id');
+        return $this->hasMany(
+            self::class,
+            'rescheduled_from_appointment_id'
+        );
     }
 
     public function statusHistories(): HasMany
