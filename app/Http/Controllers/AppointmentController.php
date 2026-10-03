@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Appointment;
 use App\Services\AppointmentLifecycleService;
+use App\Services\AppointmentService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -12,6 +13,7 @@ use RuntimeException;
 class AppointmentController extends Controller
 {
     public function __construct(
+        protected AppointmentService $appointmentService,
         protected AppointmentLifecycleService $lifecycleService
     ) {
     }
@@ -81,6 +83,136 @@ class AppointmentController extends Controller
             'success' => true,
             'data' => $appointments,
         ]);
+    }
+
+    public function store(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'business_id' => [
+                'required',
+                'integer',
+                'exists:businesses,id',
+            ],
+
+            'branch_id' => [
+                'required',
+                'integer',
+                'exists:branches,id',
+            ],
+
+            'patient_profile_id' => [
+                'nullable',
+                'integer',
+                'exists:patient_profiles,id',
+            ],
+
+            'doctor_id' => [
+                'required',
+                'integer',
+                'exists:doctors,id',
+            ],
+
+            'treatment_id' => [
+                'required',
+                'integer',
+                'exists:treatments,id',
+            ],
+
+            'starts_at' => [
+                'required',
+                'date',
+            ],
+
+            'status' => [
+                'nullable',
+                'string',
+                'in:pending,confirmed',
+            ],
+
+            'source' => [
+                'nullable',
+                'string',
+                'max:50',
+            ],
+
+            'patient_name' => [
+                'nullable',
+                'string',
+                'max:255',
+            ],
+
+            'patient_phone' => [
+                'nullable',
+                'string',
+                'max:50',
+            ],
+
+            'patient_email' => [
+                'nullable',
+                'email',
+                'max:255',
+            ],
+
+            'notes' => [
+                'nullable',
+                'string',
+                'max:5000',
+            ],
+
+            'require_online_bookable' => [
+                'nullable',
+                'boolean',
+            ],
+        ]);
+
+        $user = $request->user();
+
+        $isPatient = $user->patientProfile()
+            ->whereKey($validated['patient_profile_id'] ?? null)
+            ->exists();
+
+        $isBusinessUser = $user->businessMemberships()
+            ->where('business_id', $validated['business_id'])
+            ->where('is_active', true)
+            ->exists();
+
+        if (! $isPatient && ! $isBusinessUser) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Bu işletme için randevu oluşturma yetkiniz yok.',
+            ], 403);
+        }
+
+        if ($isPatient) {
+            $validated['patient_profile_id'] = $user
+                ->patientProfile()
+                ->value('id');
+        }
+
+        $validated['created_by_user_id'] = $user->id;
+
+        if (! isset($validated['source'])) {
+            $validated['source'] = $isPatient
+                ? 'medloby'
+                : 'clinic';
+        }
+
+        try {
+            $appointment = $this->appointmentService->createAppointment(
+                $validated
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Randevu başarıyla oluşturuldu.',
+                'data' => $appointment,
+            ], 201);
+        } catch (RuntimeException $exception) {
+            return response()->json([
+                'success' => false,
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
     }
 
     public function show(
@@ -153,6 +285,7 @@ class AppointmentController extends Controller
                 'string',
                 'max:1000',
             ],
+
             'notes' => [
                 'nullable',
                 'string',
@@ -231,11 +364,13 @@ class AppointmentController extends Controller
                 'required',
                 'date',
             ],
+
             'reason' => [
                 'nullable',
                 'string',
                 'max:1000',
             ],
+
             'notes' => [
                 'nullable',
                 'string',

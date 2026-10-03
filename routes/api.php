@@ -132,6 +132,11 @@ Route::middleware('auth:sanctum')->group(function () {
                 'index',
             ]);
 
+            Route::post('/', [
+                AppointmentController::class,
+                'store',
+            ]);
+
             Route::get('/{appointment}', [
                 AppointmentController::class,
                 'show',
