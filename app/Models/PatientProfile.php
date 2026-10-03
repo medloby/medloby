@@ -59,4 +59,9 @@ class PatientProfile extends Model
     {
         return $this->hasMany(MedicalRecord::class);
     }
+
+    public function consents(): HasMany
+    {
+        return $this->hasMany(Consent::class);
+    }
 }
