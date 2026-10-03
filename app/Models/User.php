@@ -129,4 +129,64 @@ class User extends Authenticatable implements MustVerifyEmail
             ->wherePivot('is_allowed', true)
             ->exists();
     }
+
+    public function hasBusinessBranchAccess(
+        int $businessId,
+        int $branchId
+    ): bool {
+        $membership = $this->businessMemberships()
+            ->where('business_id', $businessId)
+            ->where('is_active', true)
+            ->first();
+
+        if (! $membership) {
+            return false;
+        }
+
+        $branchBelongsToBusiness = Branch::query()
+            ->whereKey($branchId)
+            ->where('business_id', $businessId)
+            ->exists();
+
+        if (! $branchBelongsToBusiness) {
+            return false;
+        }
+
+        if ($membership->role === 'business_owner') {
+            return true;
+        }
+
+        return $membership->branches()
+            ->where('branches.id', $branchId)
+            ->wherePivot('is_active', true)
+            ->exists();
+    }
+
+    public function accessibleBranchIds(int $businessId): array
+    {
+        $membership = $this->businessMemberships()
+            ->where('business_id', $businessId)
+            ->where('is_active', true)
+            ->first();
+
+        if (! $membership) {
+            return [];
+        }
+
+        if ($membership->role === 'business_owner') {
+            return Branch::query()
+                ->where('business_id', $businessId)
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+        }
+
+        return $membership->branches()
+            ->where('branches.business_id', $businessId)
+            ->where('branches.status', 'active')
+            ->wherePivot('is_active', true)
+            ->pluck('branches.id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
 }
