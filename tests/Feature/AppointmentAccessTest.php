@@ -27,17 +27,17 @@ function createAccessBusinessData(): array
         'name' => 'İşletme B Personeli',
     ]);
 
-    BusinessUser::create([
+    $membershipA = BusinessUser::create([
         'business_id' => $businessA->id,
         'user_id' => $userA->id,
-        'role' => 'owner',
+        'role' => 'business_owner',
         'is_active' => true,
     ]);
 
-    BusinessUser::create([
+    $membershipB = BusinessUser::create([
         'business_id' => $businessB->id,
         'user_id' => $userB->id,
-        'role' => 'owner',
+        'role' => 'business_owner',
         'is_active' => true,
     ]);
 
@@ -64,6 +64,8 @@ function createAccessBusinessData(): array
     return [
         'businessA' => $businessA,
         'businessB' => $businessB,
+        'membershipA' => $membershipA,
+        'membershipB' => $membershipB,
         'branchA' => $branchA,
         'branchB' => $branchB,
         'userA' => $userA,
@@ -92,7 +94,7 @@ function createAccessAppointment(
     ]);
 }
 
-test('business user can view appointment belonging to their business', function () {
+test('business owner can view appointment belonging to their business', function () {
     $data = createAccessBusinessData();
 
     $appointment = createAccessAppointment(
@@ -139,12 +141,9 @@ test('inactive business membership cannot view business appointment', function (
         $data['branchA']
     );
 
-    $data['userA']
-        ->businessMemberships()
-        ->where('business_id', $data['businessA']->id)
-        ->update([
-            'is_active' => false,
-        ]);
+    $data['membershipA']->update([
+        'is_active' => false,
+    ]);
 
     $response = $this
         ->actingAs($data['userA'])
@@ -176,12 +175,27 @@ test('business user cannot access another business appointment by direct appoint
     ]);
 });
 
-test('business user appointment list contains only appointments from accessible businesses', function () {
+test('business owner appointment list contains appointments from all branches of their business', function () {
     $data = createAccessBusinessData();
+
+    $branchA2 = Branch::create([
+        'business_id' => $data['businessA']->id,
+        'name' => 'Test Şube A2',
+        'slug' => 'test-sube-a2-' . uniqid(),
+        'country_code' => 'TR',
+        'city' => 'Istanbul',
+        'district' => 'Sisli',
+        'status' => 'active',
+    ]);
 
     $appointmentA = createAccessAppointment(
         $data['businessA'],
         $data['branchA']
+    );
+
+    $appointmentA2 = createAccessAppointment(
+        $data['businessA'],
+        $branchA2
     );
 
     $appointmentB = createAccessAppointment(
@@ -195,11 +209,284 @@ test('business user appointment list contains only appointments from accessible 
 
     $response->assertOk();
 
+    $appointmentIds = collect(
+        $response->json('data.data')
+    )->pluck('id');
+
+    expect($appointmentIds)
+        ->toContain($appointmentA->id)
+        ->toContain($appointmentA2->id)
+        ->not->toContain($appointmentB->id);
+});
+
+test('staff can view appointment from assigned branch', function () {
+    $data = createAccessBusinessData();
+
+    $staff = User::factory()->create([
+        'name' => 'Şube Personeli',
+    ]);
+
+    $membership = BusinessUser::create([
+        'business_id' => $data['businessA']->id,
+        'user_id' => $staff->id,
+        'role' => 'staff',
+        'is_active' => true,
+    ]);
+
+    $membership->branches()->attach(
+        $data['branchA']->id,
+        [
+            'is_active' => true,
+        ]
+    );
+
+    $appointment = createAccessAppointment(
+        $data['businessA'],
+        $data['branchA']
+    );
+
+    $response = $this
+        ->actingAs($staff)
+        ->getJson("/api/appointments/{$appointment->id}");
+
+    $response->assertOk();
+
+    $response->assertJsonPath(
+        'data.id',
+        $appointment->id
+    );
+});
+
+test('staff cannot view appointment from unassigned branch', function () {
+    $data = createAccessBusinessData();
+
+    $staff = User::factory()->create([
+        'name' => 'Sadece A Şubesi Personeli',
+    ]);
+
+    $membership = BusinessUser::create([
+        'business_id' => $data['businessA']->id,
+        'user_id' => $staff->id,
+        'role' => 'staff',
+        'is_active' => true,
+    ]);
+
+    $branchA2 = Branch::create([
+        'business_id' => $data['businessA']->id,
+        'name' => 'Test Şube A2',
+        'slug' => 'test-sube-a2-' . uniqid(),
+        'country_code' => 'TR',
+        'city' => 'Istanbul',
+        'district' => 'Sisli',
+        'status' => 'active',
+    ]);
+
+    $membership->branches()->attach(
+        $data['branchA']->id,
+        [
+            'is_active' => true,
+        ]
+    );
+
+    $appointment = createAccessAppointment(
+        $data['businessA'],
+        $branchA2
+    );
+
+    $response = $this
+        ->actingAs($staff)
+        ->getJson("/api/appointments/{$appointment->id}");
+
+    $response->assertForbidden();
+
+    $response->assertJson([
+        'message' => 'Bu randevuyu görüntüleme yetkiniz yok.',
+    ]);
+});
+
+test('staff cannot view appointment from inactive assigned branch', function () {
+    $data = createAccessBusinessData();
+
+    $staff = User::factory()->create([
+        'name' => 'Pasif Şube Yetkili Personeli',
+    ]);
+
+    $membership = BusinessUser::create([
+        'business_id' => $data['businessA']->id,
+        'user_id' => $staff->id,
+        'role' => 'staff',
+        'is_active' => true,
+    ]);
+
+    $membership->branches()->attach(
+        $data['branchA']->id,
+        [
+            'is_active' => false,
+        ]
+    );
+
+    $appointment = createAccessAppointment(
+        $data['businessA'],
+        $data['branchA']
+    );
+
+    $response = $this
+        ->actingAs($staff)
+        ->getJson("/api/appointments/{$appointment->id}");
+
+    $response->assertForbidden();
+
+    $response->assertJson([
+        'message' => 'Bu randevuyu görüntüleme yetkiniz yok.',
+    ]);
+});
+
+test('staff appointment list contains only appointments from assigned branches', function () {
+    $data = createAccessBusinessData();
+
+    $staff = User::factory()->create([
+        'name' => 'Liste Personeli',
+    ]);
+
+    $membership = BusinessUser::create([
+        'business_id' => $data['businessA']->id,
+        'user_id' => $staff->id,
+        'role' => 'staff',
+        'is_active' => true,
+    ]);
+
+    $branchA2 = Branch::create([
+        'business_id' => $data['businessA']->id,
+        'name' => 'Test Şube A2',
+        'slug' => 'test-sube-a2-' . uniqid(),
+        'country_code' => 'TR',
+        'city' => 'Istanbul',
+        'district' => 'Sisli',
+        'status' => 'active',
+    ]);
+
+    $membership->branches()->attach(
+        $data['branchA']->id,
+        [
+            'is_active' => true,
+        ]
+    );
+
+    $assignedAppointment = createAccessAppointment(
+        $data['businessA'],
+        $data['branchA']
+    );
+
+    $unassignedAppointment = createAccessAppointment(
+        $data['businessA'],
+        $branchA2
+    );
+
+    $otherBusinessAppointment = createAccessAppointment(
+        $data['businessB'],
+        $data['branchB']
+    );
+
+    $response = $this
+        ->actingAs($staff)
+        ->getJson('/api/appointments');
+
+    $response->assertOk();
+
     $response->assertJsonFragment([
-        'id' => $appointmentA->id,
+        'id' => $assignedAppointment->id,
     ]);
 
     $response->assertJsonMissing([
-        'id' => $appointmentB->id,
+        'id' => $unassignedAppointment->id,
+    ]);
+
+    $response->assertJsonMissing([
+        'id' => $otherBusinessAppointment->id,
+    ]);
+});
+
+test('manager can view appointment from assigned branch', function () {
+    $data = createAccessBusinessData();
+
+    $manager = User::factory()->create([
+        'name' => 'Şube Müdürü',
+    ]);
+
+    $membership = BusinessUser::create([
+        'business_id' => $data['businessA']->id,
+        'user_id' => $manager->id,
+        'role' => 'manager',
+        'is_active' => true,
+    ]);
+
+    $membership->branches()->attach(
+        $data['branchA']->id,
+        [
+            'is_active' => true,
+        ]
+    );
+
+    $appointment = createAccessAppointment(
+        $data['businessA'],
+        $data['branchA']
+    );
+
+    $response = $this
+        ->actingAs($manager)
+        ->getJson("/api/appointments/{$appointment->id}");
+
+    $response->assertOk();
+
+    $response->assertJsonPath(
+        'data.id',
+        $appointment->id
+    );
+});
+
+test('manager cannot view appointment from unassigned branch', function () {
+    $data = createAccessBusinessData();
+
+    $manager = User::factory()->create([
+        'name' => 'Sadece A Şubesi Müdürü',
+    ]);
+
+    $membership = BusinessUser::create([
+        'business_id' => $data['businessA']->id,
+        'user_id' => $manager->id,
+        'role' => 'manager',
+        'is_active' => true,
+    ]);
+
+    $branchA2 = Branch::create([
+        'business_id' => $data['businessA']->id,
+        'name' => 'Test Şube A2',
+        'slug' => 'test-sube-a2-' . uniqid(),
+        'country_code' => 'TR',
+        'city' => 'Istanbul',
+        'district' => 'Sisli',
+        'status' => 'active',
+    ]);
+
+    $membership->branches()->attach(
+        $data['branchA']->id,
+        [
+            'is_active' => true,
+        ]
+    );
+
+    $appointment = createAccessAppointment(
+        $data['businessA'],
+        $branchA2
+    );
+
+    $response = $this
+        ->actingAs($manager)
+        ->getJson("/api/appointments/{$appointment->id}");
+
+    $response->assertForbidden();
+
+    $response->assertJson([
+        'message' => 'Bu randevuyu görüntüleme yetkiniz yok.',
     ]);
 });

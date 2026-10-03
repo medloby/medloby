@@ -26,6 +26,19 @@ class AppointmentController extends Controller
             ->where('is_active', true)
             ->pluck('business_id');
 
+        $accessibleBusinessBranchIds = [];
+
+        foreach ($businessIds as $businessId) {
+            $accessibleBusinessBranchIds = array_merge(
+                $accessibleBusinessBranchIds,
+                $user->accessibleBranchIds((int) $businessId)
+            );
+        }
+
+        $accessibleBusinessBranchIds = array_values(
+            array_unique($accessibleBusinessBranchIds)
+        );
+
         $appointments = Appointment::query()
             ->with([
                 'business',
@@ -35,12 +48,23 @@ class AppointmentController extends Controller
                 'treatment',
                 'statusHistories',
             ])
-            ->where(function ($query) use ($user, $businessIds) {
-                $query
-                    ->whereHas('patientProfile', function ($patientQuery) use ($user) {
+            ->where(function ($query) use (
+                $user,
+                $accessibleBusinessBranchIds
+            ) {
+                $query->whereHas(
+                    'patientProfile',
+                    function ($patientQuery) use ($user) {
                         $patientQuery->where('user_id', $user->id);
-                    })
-                    ->orWhereIn('business_id', $businessIds);
+                    }
+                );
+
+                if (! empty($accessibleBusinessBranchIds)) {
+                    $query->orWhereIn(
+                        'branch_id',
+                        $accessibleBusinessBranchIds
+                    );
+                }
             })
             ->when(
                 $request->filled('status'),
@@ -93,60 +117,72 @@ class AppointmentController extends Controller
                 'integer',
                 'exists:businesses,id',
             ],
+
             'branch_id' => [
                 'required',
                 'integer',
                 'exists:branches,id',
             ],
+
             'patient_profile_id' => [
                 'nullable',
                 'integer',
                 'exists:patient_profiles,id',
             ],
+
             'doctor_id' => [
                 'required',
                 'integer',
                 'exists:doctors,id',
             ],
+
             'treatment_id' => [
                 'required',
                 'integer',
                 'exists:treatments,id',
             ],
+
             'starts_at' => [
                 'required',
                 'date',
             ],
+
             'status' => [
                 'nullable',
                 'string',
                 'in:pending,confirmed',
             ],
+
             'source' => [
                 'nullable',
                 'string',
                 'max:50',
             ],
+
             'patient_name' => [
                 'nullable',
                 'string',
                 'max:255',
             ],
+
             'patient_phone' => [
                 'nullable',
                 'string',
                 'max:50',
             ],
+
             'patient_email' => [
                 'nullable',
                 'email',
                 'max:255',
             ],
+
             'notes' => [
                 'nullable',
                 'string',
                 'max:5000',
             ],
+
             'require_online_bookable' => [
                 'nullable',
                 'boolean',
@@ -171,17 +207,28 @@ class AppointmentController extends Controller
             ], 403);
         }
 
-        if (
-            $isBusinessUser
-            && ! $user->hasBusinessPermission(
+        if ($isBusinessUser) {
+            $hasBranchAccess = $user->hasBusinessBranchAccess(
+                (int) $validated['business_id'],
+                (int) $validated['branch_id']
+            );
+
+            if (! $hasBranchAccess) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Bu şube için randevu oluşturma yetkiniz yok.',
+                ], 403);
+            }
+
+            if (! $user->hasBusinessPermission(
                 (int) $validated['business_id'],
                 'appointments.create'
-            )
-        ) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Randevu oluşturma yetkiniz bulunmuyor.',
-            ], 403);
+            )) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Randevu oluşturma yetkiniz bulunmuyor.',
+                ], 403);
+            }
         }
 
         if ($isPatient) {
@@ -231,7 +278,34 @@ class AppointmentController extends Controller
             ->where('is_active', true)
             ->exists();
 
-        if (! $isPatient && ! $isBusinessUser) {
+        if ($isPatient) {
+            return response()->json([
+                'success' => true,
+                'data' => $appointment->load([
+                    'business',
+                    'branch',
+                    'patientProfile',
+                    'doctor',
+                    'treatment',
+                    'statusHistories',
+                    'cancelledBy',
+                    'rescheduledFrom',
+                    'rescheduledAppointments',
+                ]),
+            ]);
+        }
+
+        if (! $isBusinessUser) {
+            abort(
+                403,
+                'Bu randevuyu görüntüleme yetkiniz yok.'
+            );
+        }
+
+        if (! $user->hasBusinessBranchAccess(
+            (int) $appointment->business_id,
+            (int) $appointment->branch_id
+        )) {
             abort(
                 403,
                 'Bu randevuyu görüntüleme yetkiniz yok.'
@@ -286,6 +360,7 @@ class AppointmentController extends Controller
                 'string',
                 'max:1000',
             ],
+
             'notes' => [
                 'nullable',
                 'string',
@@ -364,11 +439,13 @@ class AppointmentController extends Controller
                 'required',
                 'date',
             ],
+
             'reason' => [
                 'nullable',
                 'string',
                 'max:1000',
             ],
+
             'notes' => [
                 'nullable',
                 'string',
@@ -404,6 +481,7 @@ class AppointmentController extends Controller
         $status = match ($message) {
             'Bu randevu işlemi için yetkiniz bulunmuyor.',
             'Bu randevu işlemi için yetkili kullanıcı gereklidir.' => 403,
+
             default => 422,
         };
 
