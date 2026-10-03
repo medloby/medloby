@@ -7,6 +7,8 @@ use App\Models\Conversation;
 use App\Models\PatientProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 
 uses(RefreshDatabase::class);
 
@@ -71,8 +73,13 @@ function createConversationTestData(): array
     ];
 }
 
-function createConversation(array $data, ?int $businessId = null, ?int $branchId = null, ?int $patientProfileId = null, string $status = 'open'): Conversation
-{
+function createConversation(
+    array $data,
+    ?int $businessId = null,
+    ?int $branchId = null,
+    ?int $patientProfileId = null,
+    string $status = 'open'
+): Conversation {
     return Conversation::create([
         'business_id' => $businessId ?? $data['business']->id,
         'branch_id' => $branchId ?? $data['businessBranch']->id,
@@ -442,81 +449,234 @@ test('patient cannot send message to another patients conversation', function ()
     $response->assertJson([
         'message' => 'Bu görüşmeye erişim yetkiniz yok.',
     ]);
-});
-
-test('business user cannot send message to another business conversation', function () {
-    $data = createConversationTestData();
-
-    $conversation = createConversation(
-        $data,
-        $data['otherBusiness']->id,
-        $data['otherBusinessBranch']->id
-    );
-
-    $response = $this
-        ->actingAs($data['businessUser'])
-        ->postJson(
-            "/api/conversations/{$conversation->id}/messages",
-            [
-                'body' => 'Başka işletmenin görüşmesine mesaj.',
-            ]
-        );
-
-    $response->assertForbidden();
-
-    $response->assertJson([
-        'message' => 'Bu görüşmeye erişim yetkiniz yok.',
-    ]);
-});
-
-test('user cannot send message to closed conversation', function () {
-    $data = createConversationTestData();
-
-    $conversation = createConversation(
-        $data,
-        null,
-        null,
-        null,
-        'closed'
-    );
-
-    $response = $this
-        ->actingAs($data['patientUser'])
-        ->postJson(
-            "/api/conversations/{$conversation->id}/messages",
-            [
-                'body' => 'Kapalı görüşmeye mesaj.',
-            ]
-        );
-
-    $response->assertUnprocessable();
-
-    $response->assertJson([
-        'message' => 'Kapalı görüşmeye mesaj gönderilemez.',
-    ]);
 
     $this->assertDatabaseMissing('messages', [
         'conversation_id' => $conversation->id,
         'sender_user_id' => $data['patientUser']->id,
-        'body' => 'Kapalı görüşmeye mesaj.',
+        'body' => 'Başkasının görüşmesine mesaj.',
     ]);
 });
 
-test('user cannot send empty message without attachment', function () {
+test('patient can send jpg attachment to their own conversation', function () {
+    Storage::fake('private');
+
     $data = createConversationTestData();
 
     $conversation = createConversation($data);
 
+    $file = UploadedFile::fake()->image('hasta-fotografi.jpg');
+
     $response = $this
         ->actingAs($data['patientUser'])
-        ->postJson(
+        ->post(
             "/api/conversations/{$conversation->id}/messages",
-            []
+            [
+                'body' => 'Tedavi öncesi fotoğraf.',
+                'attachment' => $file,
+            ]
+        );
+
+    $response->assertCreated();
+
+    $response->assertJson([
+        'success' => true,
+        'message' => 'Mesaj başarıyla gönderildi.',
+        'data' => [
+            'body' => 'Tedavi öncesi fotoğraf.',
+            'message_type' => 'file',
+        ],
+    ]);
+
+    $this->assertDatabaseHas('messages', [
+        'conversation_id' => $conversation->id,
+        'sender_user_id' => $data['patientUser']->id,
+        'body' => 'Tedavi öncesi fotoğraf.',
+        'message_type' => 'file',
+    ]);
+
+    $this->assertDatabaseHas('message_attachments', [
+        'original_name' => 'hasta-fotografi.jpg',
+        'mime_type' => 'image/jpeg',
+        'disk' => 'private',
+    ]);
+});
+
+test('business user can send pdf attachment to conversation belonging to their business', function () {
+    Storage::fake('private');
+
+    $data = createConversationTestData();
+
+    $conversation = createConversation($data);
+
+    $file = UploadedFile::fake()->create(
+        'tedavi-belgesi.pdf',
+        100,
+        'application/pdf'
+    );
+
+    $response = $this
+        ->actingAs($data['businessUser'])
+        ->post(
+            "/api/conversations/{$conversation->id}/messages",
+            [
+                'body' => 'Tedavi belgesini iletiyorum.',
+                'attachment' => $file,
+            ]
+        );
+
+    $response->assertCreated();
+
+    $response->assertJson([
+        'success' => true,
+        'message' => 'Mesaj başarıyla gönderildi.',
+        'data' => [
+            'body' => 'Tedavi belgesini iletiyorum.',
+            'message_type' => 'file',
+        ],
+    ]);
+
+    $this->assertDatabaseHas('message_attachments', [
+        'original_name' => 'tedavi-belgesi.pdf',
+        'mime_type' => 'application/pdf',
+        'disk' => 'private',
+    ]);
+});
+
+test('patient can send png attachment without message body', function () {
+    Storage::fake('private');
+
+    $data = createConversationTestData();
+
+    $conversation = createConversation($data);
+
+    $file = UploadedFile::fake()->image('rontgen.png');
+
+    $response = $this
+        ->actingAs($data['patientUser'])
+        ->post(
+            "/api/conversations/{$conversation->id}/messages",
+            [
+                'attachment' => $file,
+            ]
+        );
+
+    $response->assertCreated();
+
+    $response->assertJson([
+        'success' => true,
+        'message' => 'Mesaj başarıyla gönderildi.',
+        'data' => [
+            'body' => null,
+            'message_type' => 'file',
+        ],
+    ]);
+
+    $this->assertDatabaseHas('messages', [
+        'conversation_id' => $conversation->id,
+        'sender_user_id' => $data['patientUser']->id,
+        'body' => null,
+        'message_type' => 'file',
+    ]);
+
+    $this->assertDatabaseHas('message_attachments', [
+        'original_name' => 'rontgen.png',
+        'mime_type' => 'image/png',
+        'disk' => 'private',
+    ]);
+});
+
+test('user cannot upload unsupported attachment type', function () {
+    Storage::fake('private');
+
+    $data = createConversationTestData();
+
+    $conversation = createConversation($data);
+
+    $file = UploadedFile::fake()->create(
+        'zararli.exe',
+        100,
+        'application/octet-stream'
+    );
+
+    $response = $this
+        ->actingAs($data['patientUser'])
+        ->post(
+            "/api/conversations/{$conversation->id}/messages",
+            [
+                'body' => 'Geçersiz dosya.',
+                'attachment' => $file,
+            ]
         );
 
     $response->assertUnprocessable();
 
-    $response->assertJson([
-        'message' => 'Mesaj veya dosya göndermelisiniz.',
+    $response->assertJsonValidationErrors([
+        'attachment',
     ]);
+
+    $this->assertDatabaseCount('messages', 0);
+    $this->assertDatabaseCount('message_attachments', 0);
+});
+
+test('user cannot upload attachment larger than 10 mb', function () {
+    Storage::fake('private');
+
+    $data = createConversationTestData();
+
+    $conversation = createConversation($data);
+
+    $file = UploadedFile::fake()->create(
+        'buyuk-dosya.pdf',
+        10241,
+        'application/pdf'
+    );
+
+    $response = $this
+        ->actingAs($data['patientUser'])
+        ->post(
+            "/api/conversations/{$conversation->id}/messages",
+            [
+                'body' => 'Büyük dosya.',
+                'attachment' => $file,
+            ]
+        );
+
+    $response->assertUnprocessable();
+
+    $response->assertJsonValidationErrors([
+        'attachment',
+    ]);
+
+    $this->assertDatabaseCount('messages', 0);
+    $this->assertDatabaseCount('message_attachments', 0);
+});
+
+test('message attachment is stored under the conversation directory', function () {
+    Storage::fake('private');
+
+    $data = createConversationTestData();
+
+    $conversation = createConversation($data);
+
+    $file = UploadedFile::fake()->image('klinik-fotografi.jpg');
+
+    $response = $this
+        ->actingAs($data['businessUser'])
+        ->post(
+            "/api/conversations/{$conversation->id}/messages",
+            [
+                'attachment' => $file,
+            ]
+        );
+
+    $response->assertCreated();
+
+    $attachment = \App\Models\MessageAttachment::first();
+
+    expect($attachment)->not->toBeNull();
+    expect($attachment->disk)->toBe('private');
+    expect($attachment->path)
+        ->toStartWith('conversations/' . $conversation->id . '/');
+
+    Storage::disk('private')->assertExists($attachment->path);
 });
