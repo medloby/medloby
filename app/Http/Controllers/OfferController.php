@@ -6,6 +6,7 @@ use App\Models\Conversation;
 use App\Models\Offer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class OfferController extends Controller
 {
@@ -106,6 +107,11 @@ class OfferController extends Controller
             ],
         ]);
 
+        $this->validateTreatmentForConversation(
+            $conversation,
+            (int) $validated['treatment_id']
+        );
+
         $offer = Offer::create([
             'conversation_id' => $conversation->id,
             'business_id' => $conversation->business_id,
@@ -151,14 +157,14 @@ class OfferController extends Controller
             );
         }
 
-        if ($offer->status !== 'pending') {
-            abort(
-                422,
-                'Bu teklif artık kabul edilemez.'
-            );
-        }
-
+        /*
+         * Süresi dolmuş teklifin expired olarak kalıcı şekilde
+         * işaretlenmesi transaction dışında yapılır.
+         *
+         * Böylece abort(422) çağrıldığında bu durum rollback olmaz.
+         */
         if (
+            $offer->status === 'pending' &&
             $offer->valid_until &&
             $offer->valid_until->isPast()
         ) {
@@ -172,15 +178,56 @@ class OfferController extends Controller
             );
         }
 
-        $offer->update([
-            'status' => 'accepted',
-            'responded_at' => now(),
-        ]);
+        DB::transaction(function () use ($offer) {
+            $lockedOffer = Offer::query()
+                ->whereKey($offer->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($lockedOffer->status !== 'pending') {
+                abort(
+                    422,
+                    'Bu teklif artık kabul edilemez.'
+                );
+            }
+
+            if (
+                $lockedOffer->valid_until &&
+                $lockedOffer->valid_until->isPast()
+            ) {
+                /*
+                 * Burada transaction içindeyiz.
+                 * Önce güncelleme yapılıyor; fakat abort rollback
+                 * oluşturacağı için bu blok normalde yukarıdaki
+                 * erken kontrol nedeniyle süresi dolmuş teklifler
+                 * için çalışmayacaktır.
+                 */
+                $lockedOffer->update([
+                    'status' => 'expired',
+                ]);
+
+                return;
+            }
+
+            $lockedOffer->update([
+                'status' => 'accepted',
+                'responded_at' => now(),
+            ]);
+        });
+
+        $freshOffer = $offer->fresh();
+
+        if ($freshOffer->status === 'expired') {
+            abort(
+                422,
+                'Bu teklifin geçerlilik süresi dolmuştur.'
+            );
+        }
 
         return response()->json([
             'success' => true,
             'message' => 'Teklif kabul edildi.',
-            'data' => $offer->fresh()->load([
+            'data' => $freshOffer->load([
                 'business',
                 'branch',
                 'patientProfile',
@@ -207,14 +254,20 @@ class OfferController extends Controller
             );
         }
 
-        if ($offer->status !== 'pending') {
-            abort(
-                422,
-                'Bu teklif artık reddedilemez.'
-            );
-        }
+        $validated = $request->validate([
+            'rejection_reason' => [
+                'nullable',
+                'string',
+                'max:2000',
+            ],
+        ]);
 
+        /*
+         * Süresi dolmuş teklif için kalıcı expired durumu
+         * transaction dışında yazılır.
+         */
         if (
+            $offer->status === 'pending' &&
             $offer->valid_until &&
             $offer->valid_until->isPast()
         ) {
@@ -228,23 +281,54 @@ class OfferController extends Controller
             );
         }
 
-        $validated = $request->validate([
-            'rejection_reason' => [
-                'nullable',
-                'string',
-                'max:2000',
-            ],
-        ]);
+        DB::transaction(function () use (
+            $offer,
+            $validated
+        ) {
+            $lockedOffer = Offer::query()
+                ->whereKey($offer->id)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        $offer->status = 'rejected';
-        $offer->responded_at = now();
-        $offer->rejection_reason = $validated['rejection_reason'] ?? null;
-        $offer->save();
+            if ($lockedOffer->status !== 'pending') {
+                abort(
+                    422,
+                    'Bu teklif artık reddedilemez.'
+                );
+            }
+
+            if (
+                $lockedOffer->valid_until &&
+                $lockedOffer->valid_until->isPast()
+            ) {
+                $lockedOffer->update([
+                    'status' => 'expired',
+                ]);
+
+                return;
+            }
+
+            $lockedOffer->update([
+                'status' => 'rejected',
+                'responded_at' => now(),
+                'rejection_reason' =>
+                    $validated['rejection_reason'] ?? null,
+            ]);
+        });
+
+        $freshOffer = $offer->fresh();
+
+        if ($freshOffer->status === 'expired') {
+            abort(
+                422,
+                'Bu teklifin geçerlilik süresi dolmuştur.'
+            );
+        }
 
         return response()->json([
             'success' => true,
             'message' => 'Teklif reddedildi.',
-            'data' => $offer->fresh()->load([
+            'data' => $freshOffer->load([
                 'business',
                 'branch',
                 'patientProfile',
@@ -252,5 +336,41 @@ class OfferController extends Controller
                 'creator',
             ]),
         ]);
+    }
+
+    /**
+     * Teklifte seçilen tedavinin görüşmenin şubesi için
+     * gerçekten aktif ve kullanılabilir olduğunu doğrular.
+     */
+    protected function validateTreatmentForConversation(
+        Conversation $conversation,
+        int $treatmentId
+    ): void {
+        $treatmentIsActive = DB::table('treatments')
+            ->where('id', $treatmentId)
+            ->where('is_active', true)
+            ->exists();
+
+        if (! $treatmentIsActive) {
+            abort(
+                422,
+                'Seçilen tedavi aktif değil.'
+            );
+        }
+
+        if ($conversation->branch_id !== null) {
+            $branchTreatmentIsActive = DB::table('branch_treatment')
+                ->where('branch_id', $conversation->branch_id)
+                ->where('treatment_id', $treatmentId)
+                ->where('is_active', true)
+                ->exists();
+
+            if (! $branchTreatmentIsActive) {
+                abort(
+                    422,
+                    'Seçilen tedavi bu şubede aktif değil.'
+                );
+            }
+        }
     }
 }
