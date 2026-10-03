@@ -85,6 +85,13 @@ class User extends Authenticatable implements MustVerifyEmail
         );
     }
 
+    public function contractAcceptances(): HasMany
+    {
+        return $this->hasMany(
+            ClinicContractAcceptance::class
+        );
+    }
+
     public function hasBusinessPermission(
         int $businessId,
         string $permissionName

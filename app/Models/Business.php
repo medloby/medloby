@@ -94,4 +94,11 @@ class Business extends Model
     {
         return $this->hasMany(Offer::class);
     }
+
+    public function contractAcceptances(): HasMany
+    {
+        return $this->hasMany(
+            ClinicContractAcceptance::class
+        );
+    }
 }
