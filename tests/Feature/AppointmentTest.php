@@ -1,4 +1,3 @@
-```php
 <?php
 
 use App\Models\Branch;
@@ -17,11 +16,9 @@ use Illuminate\Support\Facades\DB;
 
 uses(RefreshDatabase::class);
 
-function createAppointmentTestData(
-    bool $grantCreatePermission = true
-): array {
+function createAppointmentTestData(bool $grantCreatePermission = true): array
+{
     $user = User::factory()->create();
-
     $business = Business::factory()->create();
 
     BusinessUser::create([
@@ -109,9 +106,7 @@ function createAppointmentTestData(
         'updated_at' => now(),
     ]);
 
-    $startsAt = now()
-        ->addDays(7)
-        ->setTime(10, 0, 0);
+    $startsAt = now()->addDays(7)->setTime(10, 0, 0);
 
     DoctorWorkingHour::create([
         'doctor_id' => $doctor->id,
@@ -123,11 +118,7 @@ function createAppointmentTestData(
     ]);
 
     if ($grantCreatePermission) {
-        grantAppointmentPermission(
-            $user,
-            $business,
-            'appointments.create'
-        );
+        grantAppointmentPermission($user, $business, 'appointments.create');
     }
 
     return [
@@ -140,15 +131,10 @@ function createAppointmentTestData(
     ];
 }
 
-function grantAppointmentPermission(
-    User $user,
-    Business $business,
-    string $permissionName
-): void {
+function grantAppointmentPermission(User $user, Business $business, string $permissionName): void
+{
     $permission = Permission::firstOrCreate(
-        [
-            'name' => $permissionName,
-        ],
+        ['name' => $permissionName],
         [
             'display_name' => $permissionName,
             'module' => 'appointments',
@@ -168,6 +154,51 @@ function grantAppointmentPermission(
             'is_allowed' => true,
         ]
     );
+}
+
+function denyAppointmentPermission(User $user, Business $business, string $permissionName): void
+{
+    $permission = Permission::firstOrCreate(
+        ['name' => $permissionName],
+        [
+            'display_name' => $permissionName,
+            'module' => 'appointments',
+            'description' => null,
+            'is_active' => true,
+        ]
+    );
+
+    BusinessUserPermission::updateOrCreate(
+        [
+            'business_id' => $business->id,
+            'user_id' => $user->id,
+            'permission_id' => $permission->id,
+        ],
+        [
+            'granted_by_user_id' => $user->id,
+            'is_allowed' => false,
+        ]
+    );
+}
+
+function createPendingAppointment($testCase, array $data): int
+{
+    $response = $testCase
+        ->actingAs($data['user'])
+        ->postJson('/api/appointments', [
+            'business_id' => $data['business']->id,
+            'branch_id' => $data['branch']->id,
+            'doctor_id' => $data['doctor']->id,
+            'treatment_id' => $data['treatment']->id,
+            'starts_at' => $data['startsAt']->toDateTimeString(),
+            'status' => 'pending',
+            'source' => 'clinic',
+            'patient_name' => 'Test Hasta',
+        ]);
+
+    $response->assertCreated();
+
+    return $response->json('data.id');
 }
 
 test('authenticated business user can create an appointment', function () {
@@ -219,7 +250,6 @@ test('business user without create appointment permission cannot create an appoi
         ]);
 
     $response->assertForbidden();
-
     $response->assertJson([
         'success' => false,
         'message' => 'Randevu oluşturma yetkiniz bulunmuyor.',
@@ -260,42 +290,20 @@ test('doctor cannot have two appointments at the same time', function () {
         ]);
 
     $secondResponse->assertStatus(422);
-
     $this->assertDatabaseCount('appointments', 1);
 });
 
 test('business user can confirm a pending appointment', function () {
     $data = createAppointmentTestData();
+    grantAppointmentPermission($data['user'], $data['business'], 'appointments.confirm');
 
-    grantAppointmentPermission(
-        $data['user'],
-        $data['business'],
-        'appointments.confirm'
-    );
-
-    $createResponse = $this
-        ->actingAs($data['user'])
-        ->postJson('/api/appointments', [
-            'business_id' => $data['business']->id,
-            'branch_id' => $data['branch']->id,
-            'doctor_id' => $data['doctor']->id,
-            'treatment_id' => $data['treatment']->id,
-            'starts_at' => $data['startsAt']->toDateTimeString(),
-            'status' => 'pending',
-            'source' => 'clinic',
-            'patient_name' => 'Onay Testi',
-        ]);
-
-    $createResponse->assertCreated();
-
-    $appointmentId = $createResponse->json('data.id');
+    $appointmentId = createPendingAppointment($this, $data);
 
     $response = $this
         ->actingAs($data['user'])
         ->postJson("/api/appointments/{$appointmentId}/confirm");
 
     $response->assertOk();
-
     $response->assertJsonPath('data.status', 'confirmed');
 
     $this->assertDatabaseHas('appointments', [
@@ -304,43 +312,42 @@ test('business user can confirm a pending appointment', function () {
     ]);
 });
 
-test('business user can cancel a pending appointment', function () {
+test('business user without confirm permission cannot confirm a pending appointment', function () {
     $data = createAppointmentTestData();
+    grantAppointmentPermission($data['user'], $data['business'], 'appointments.confirm');
 
-    grantAppointmentPermission(
-        $data['user'],
-        $data['business'],
-        'appointments.cancel'
-    );
-
-    $createResponse = $this
-        ->actingAs($data['user'])
-        ->postJson('/api/appointments', [
-            'business_id' => $data['business']->id,
-            'branch_id' => $data['branch']->id,
-            'doctor_id' => $data['doctor']->id,
-            'treatment_id' => $data['treatment']->id,
-            'starts_at' => $data['startsAt']->toDateTimeString(),
-            'status' => 'pending',
-            'source' => 'clinic',
-            'patient_name' => 'İptal Testi',
-        ]);
-
-    $createResponse->assertCreated();
-
-    $appointmentId = $createResponse->json('data.id');
+    $appointmentId = createPendingAppointment($this, $data);
+    denyAppointmentPermission($data['user'], $data['business'], 'appointments.confirm');
 
     $response = $this
         ->actingAs($data['user'])
-        ->postJson(
-            "/api/appointments/{$appointmentId}/cancel",
-            [
-                'cancellation_reason' => 'Test iptal nedeni',
-            ]
-        );
+        ->postJson("/api/appointments/{$appointmentId}/confirm");
+
+    $response->assertForbidden();
+    $response->assertJson([
+        'success' => false,
+        'message' => 'Bu randevu işlemi için yetkiniz bulunmuyor.',
+    ]);
+
+    $this->assertDatabaseHas('appointments', [
+        'id' => $appointmentId,
+        'status' => 'pending',
+    ]);
+});
+
+test('business user can cancel a pending appointment', function () {
+    $data = createAppointmentTestData();
+    grantAppointmentPermission($data['user'], $data['business'], 'appointments.cancel');
+
+    $appointmentId = createPendingAppointment($this, $data);
+
+    $response = $this
+        ->actingAs($data['user'])
+        ->postJson("/api/appointments/{$appointmentId}/cancel", [
+            'cancellation_reason' => 'Test iptal nedeni',
+        ]);
 
     $response->assertOk();
-
     $response->assertJsonPath('data.status', 'cancelled');
 
     $this->assertDatabaseHas('appointments', [
@@ -349,42 +356,41 @@ test('business user can cancel a pending appointment', function () {
     ]);
 });
 
-test('business user can complete a confirmed appointment', function () {
+test('business user without cancel permission cannot cancel a pending appointment', function () {
     $data = createAppointmentTestData();
+    grantAppointmentPermission($data['user'], $data['business'], 'appointments.cancel');
 
-    grantAppointmentPermission(
-        $data['user'],
-        $data['business'],
-        'appointments.confirm'
-    );
+    $appointmentId = createPendingAppointment($this, $data);
+    denyAppointmentPermission($data['user'], $data['business'], 'appointments.cancel');
 
-    grantAppointmentPermission(
-        $data['user'],
-        $data['business'],
-        'appointments.complete'
-    );
-
-    $createResponse = $this
+    $response = $this
         ->actingAs($data['user'])
-        ->postJson('/api/appointments', [
-            'business_id' => $data['business']->id,
-            'branch_id' => $data['branch']->id,
-            'doctor_id' => $data['doctor']->id,
-            'treatment_id' => $data['treatment']->id,
-            'starts_at' => $data['startsAt']->toDateTimeString(),
-            'status' => 'pending',
-            'source' => 'clinic',
-            'patient_name' => 'Tamamlama Testi',
+        ->postJson("/api/appointments/{$appointmentId}/cancel", [
+            'cancellation_reason' => 'Yetkisiz iptal denemesi',
         ]);
 
-    $createResponse->assertCreated();
+    $response->assertForbidden();
+    $response->assertJson([
+        'success' => false,
+        'message' => 'Bu randevu işlemi için yetkiniz bulunmuyor.',
+    ]);
 
-    $appointmentId = $createResponse->json('data.id');
+    $this->assertDatabaseHas('appointments', [
+        'id' => $appointmentId,
+        'status' => 'pending',
+    ]);
+});
+
+test('business user can complete a confirmed appointment', function () {
+    $data = createAppointmentTestData();
+    grantAppointmentPermission($data['user'], $data['business'], 'appointments.confirm');
+    grantAppointmentPermission($data['user'], $data['business'], 'appointments.complete');
+
+    $appointmentId = createPendingAppointment($this, $data);
 
     $confirmResponse = $this
         ->actingAs($data['user'])
         ->postJson("/api/appointments/{$appointmentId}/confirm");
-
     $confirmResponse->assertOk();
 
     $completeResponse = $this
@@ -392,7 +398,6 @@ test('business user can complete a confirmed appointment', function () {
         ->postJson("/api/appointments/{$appointmentId}/complete");
 
     $completeResponse->assertOk();
-
     $completeResponse->assertJsonPath('data.status', 'completed');
 
     $this->assertDatabaseHas('appointments', [
@@ -401,42 +406,46 @@ test('business user can complete a confirmed appointment', function () {
     ]);
 });
 
-test('business user can mark a confirmed appointment as no show', function () {
+test('business user without complete permission cannot complete a confirmed appointment', function () {
     $data = createAppointmentTestData();
+    grantAppointmentPermission($data['user'], $data['business'], 'appointments.confirm');
+    grantAppointmentPermission($data['user'], $data['business'], 'appointments.complete');
 
-    grantAppointmentPermission(
-        $data['user'],
-        $data['business'],
-        'appointments.confirm'
-    );
-
-    grantAppointmentPermission(
-        $data['user'],
-        $data['business'],
-        'appointments.mark_no_show'
-    );
-
-    $createResponse = $this
-        ->actingAs($data['user'])
-        ->postJson('/api/appointments', [
-            'business_id' => $data['business']->id,
-            'branch_id' => $data['branch']->id,
-            'doctor_id' => $data['doctor']->id,
-            'treatment_id' => $data['treatment']->id,
-            'starts_at' => $data['startsAt']->toDateTimeString(),
-            'status' => 'pending',
-            'source' => 'clinic',
-            'patient_name' => 'No Show Testi',
-        ]);
-
-    $createResponse->assertCreated();
-
-    $appointmentId = $createResponse->json('data.id');
+    $appointmentId = createPendingAppointment($this, $data);
 
     $confirmResponse = $this
         ->actingAs($data['user'])
         ->postJson("/api/appointments/{$appointmentId}/confirm");
+    $confirmResponse->assertOk();
 
+    denyAppointmentPermission($data['user'], $data['business'], 'appointments.complete');
+
+    $response = $this
+        ->actingAs($data['user'])
+        ->postJson("/api/appointments/{$appointmentId}/complete");
+
+    $response->assertForbidden();
+    $response->assertJson([
+        'success' => false,
+        'message' => 'Bu randevu işlemi için yetkiniz bulunmuyor.',
+    ]);
+
+    $this->assertDatabaseHas('appointments', [
+        'id' => $appointmentId,
+        'status' => 'confirmed',
+    ]);
+});
+
+test('business user can mark a confirmed appointment as no show', function () {
+    $data = createAppointmentTestData();
+    grantAppointmentPermission($data['user'], $data['business'], 'appointments.confirm');
+    grantAppointmentPermission($data['user'], $data['business'], 'appointments.mark_no_show');
+
+    $appointmentId = createPendingAppointment($this, $data);
+
+    $confirmResponse = $this
+        ->actingAs($data['user'])
+        ->postJson("/api/appointments/{$appointmentId}/confirm");
     $confirmResponse->assertOk();
 
     $response = $this
@@ -444,7 +453,6 @@ test('business user can mark a confirmed appointment as no show', function () {
         ->postJson("/api/appointments/{$appointmentId}/no-show");
 
     $response->assertOk();
-
     $response->assertJsonPath('data.status', 'no_show');
 
     $this->assertDatabaseHas('appointments', [
@@ -453,18 +461,41 @@ test('business user can mark a confirmed appointment as no show', function () {
     ]);
 });
 
+test('business user without no show permission cannot mark a confirmed appointment as no show', function () {
+    $data = createAppointmentTestData();
+    grantAppointmentPermission($data['user'], $data['business'], 'appointments.confirm');
+    grantAppointmentPermission($data['user'], $data['business'], 'appointments.mark_no_show');
+
+    $appointmentId = createPendingAppointment($this, $data);
+
+    $confirmResponse = $this
+        ->actingAs($data['user'])
+        ->postJson("/api/appointments/{$appointmentId}/confirm");
+    $confirmResponse->assertOk();
+
+    denyAppointmentPermission($data['user'], $data['business'], 'appointments.mark_no_show');
+
+    $response = $this
+        ->actingAs($data['user'])
+        ->postJson("/api/appointments/{$appointmentId}/no-show");
+
+    $response->assertForbidden();
+    $response->assertJson([
+        'success' => false,
+        'message' => 'Bu randevu işlemi için yetkiniz bulunmuyor.',
+    ]);
+
+    $this->assertDatabaseHas('appointments', [
+        'id' => $appointmentId,
+        'status' => 'confirmed',
+    ]);
+});
+
 test('business user can reschedule an appointment', function () {
     $data = createAppointmentTestData();
+    grantAppointmentPermission($data['user'], $data['business'], 'appointments.reschedule');
 
-    grantAppointmentPermission(
-        $data['user'],
-        $data['business'],
-        'appointments.reschedule'
-    );
-
-    $newStartsAt = $data['startsAt']
-        ->copy()
-        ->addDays(1);
+    $newStartsAt = $data['startsAt']->copy()->addDays(1);
 
     DoctorWorkingHour::create([
         'doctor_id' => $data['doctor']->id,
@@ -475,35 +506,16 @@ test('business user can reschedule an appointment', function () {
         'is_active' => true,
     ]);
 
-    $createResponse = $this
-        ->actingAs($data['user'])
-        ->postJson('/api/appointments', [
-            'business_id' => $data['business']->id,
-            'branch_id' => $data['branch']->id,
-            'doctor_id' => $data['doctor']->id,
-            'treatment_id' => $data['treatment']->id,
-            'starts_at' => $data['startsAt']->toDateTimeString(),
-            'status' => 'pending',
-            'source' => 'clinic',
-            'patient_name' => 'Reschedule Testi',
-        ]);
-
-    $createResponse->assertCreated();
-
-    $appointmentId = $createResponse->json('data.id');
+    $appointmentId = createPendingAppointment($this, $data);
 
     $response = $this
         ->actingAs($data['user'])
-        ->postJson(
-            "/api/appointments/{$appointmentId}/reschedule",
-            [
-                'starts_at' => $newStartsAt->toDateTimeString(),
-                'reason' => 'Test yeniden planlama',
-            ]
-        );
+        ->postJson("/api/appointments/{$appointmentId}/reschedule", [
+            'starts_at' => $newStartsAt->toDateTimeString(),
+            'reason' => 'Test yeniden planlama',
+        ]);
 
     $response->assertOk();
-
     $response->assertJsonPath('data.status', 'pending');
 
     $newAppointmentId = $response->json('data.id');
@@ -519,6 +531,45 @@ test('business user can reschedule an appointment', function () {
         'id' => $newAppointmentId,
         'status' => 'pending',
     ]);
+});
+
+test('business user without reschedule permission cannot reschedule an appointment', function () {
+    $data = createAppointmentTestData();
+    grantAppointmentPermission($data['user'], $data['business'], 'appointments.reschedule');
+
+    $newStartsAt = $data['startsAt']->copy()->addDays(1);
+
+    DoctorWorkingHour::create([
+        'doctor_id' => $data['doctor']->id,
+        'branch_id' => $data['branch']->id,
+        'day_of_week' => $newStartsAt->dayOfWeek,
+        'start_time' => '09:00',
+        'end_time' => '18:00',
+        'is_active' => true,
+    ]);
+
+    $appointmentId = createPendingAppointment($this, $data);
+    denyAppointmentPermission($data['user'], $data['business'], 'appointments.reschedule');
+
+    $response = $this
+        ->actingAs($data['user'])
+        ->postJson("/api/appointments/{$appointmentId}/reschedule", [
+            'starts_at' => $newStartsAt->toDateTimeString(),
+            'reason' => 'Yetkisiz yeniden planlama',
+        ]);
+
+    $response->assertForbidden();
+    $response->assertJson([
+        'success' => false,
+        'message' => 'Bu randevu işlemi için yetkiniz bulunmuyor.',
+    ]);
+
+    $this->assertDatabaseHas('appointments', [
+        'id' => $appointmentId,
+        'status' => 'pending',
+    ]);
+
+    $this->assertDatabaseCount('appointments', 1);
 });
 
 test('branch and treatment have a working many-to-many relationship', function () {

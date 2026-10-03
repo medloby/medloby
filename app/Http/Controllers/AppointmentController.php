@@ -93,72 +93,60 @@ class AppointmentController extends Controller
                 'integer',
                 'exists:businesses,id',
             ],
-
             'branch_id' => [
                 'required',
                 'integer',
                 'exists:branches,id',
             ],
-
             'patient_profile_id' => [
                 'nullable',
                 'integer',
                 'exists:patient_profiles,id',
             ],
-
             'doctor_id' => [
                 'required',
                 'integer',
                 'exists:doctors,id',
             ],
-
             'treatment_id' => [
                 'required',
                 'integer',
                 'exists:treatments,id',
             ],
-
             'starts_at' => [
                 'required',
                 'date',
             ],
-
             'status' => [
                 'nullable',
                 'string',
                 'in:pending,confirmed',
             ],
-
             'source' => [
                 'nullable',
                 'string',
                 'max:50',
             ],
-
             'patient_name' => [
                 'nullable',
                 'string',
                 'max:255',
             ],
-
             'patient_phone' => [
                 'nullable',
                 'string',
                 'max:50',
             ],
-
             'patient_email' => [
                 'nullable',
                 'email',
                 'max:255',
             ],
-
             'notes' => [
                 'nullable',
                 'string',
                 'max:5000',
             ],
-
             'require_online_bookable' => [
                 'nullable',
                 'boolean',
@@ -182,17 +170,6 @@ class AppointmentController extends Controller
                 'message' => 'Bu işletme için randevu oluşturma yetkiniz yok.',
             ], 403);
         }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Business Member Permission
-        |--------------------------------------------------------------------------
-        |
-        | Hasta kendi randevusunu oluşturabilir.
-        | İşletme personeli ise ayrıca appointments.create
-        | permission'ına sahip olmalıdır.
-        |
-        */
 
         if (
             $isBusinessUser
@@ -309,7 +286,6 @@ class AppointmentController extends Controller
                 'string',
                 'max:1000',
             ],
-
             'notes' => [
                 'nullable',
                 'string',
@@ -388,13 +364,11 @@ class AppointmentController extends Controller
                 'required',
                 'date',
             ],
-
             'reason' => [
                 'nullable',
                 'string',
                 'max:1000',
             ],
-
             'notes' => [
                 'nullable',
                 'string',
@@ -425,9 +399,17 @@ class AppointmentController extends Controller
     private function errorResponse(
         RuntimeException $exception
     ): JsonResponse {
+        $message = $exception->getMessage();
+
+        $status = match ($message) {
+            'Bu randevu işlemi için yetkiniz bulunmuyor.',
+            'Bu randevu işlemi için yetkili kullanıcı gereklidir.' => 403,
+            default => 422,
+        };
+
         return response()->json([
             'success' => false,
-            'message' => $exception->getMessage(),
-        ], 422);
+            'message' => $message,
+        ], $status);
     }
 }
