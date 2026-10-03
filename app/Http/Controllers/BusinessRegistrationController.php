@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Branch;
 use App\Models\Business;
 use App\Models\BusinessUser;
+use App\Models\ClinicContractAcceptance;
+use App\Models\PlatformContract;
 use App\Models\User;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\JsonResponse;
@@ -41,9 +43,39 @@ class BusinessRegistrationController extends Controller
             'postal_code' => ['nullable', 'string', 'max:20'],
 
             'branch_name' => ['nullable', 'string', 'max:255'],
+
+            'contract_accepted' => ['accepted'],
         ]);
 
-        $result = DB::transaction(function () use ($validated) {
+        $contract = PlatformContract::query()
+            ->where('contract_type', 'clinic_membership')
+            ->where('status', 'published')
+            ->where('is_required', true)
+            ->where(function ($query) {
+                $query
+                    ->whereNull('effective_at')
+                    ->orWhere('effective_at', '<=', now());
+            })
+            ->where(function ($query) {
+                $query
+                    ->whereNull('expires_at')
+                    ->orWhere('expires_at', '>', now());
+            })
+            ->latest('published_at')
+            ->first();
+
+        if (! $contract) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Şu anda kabul edilebilir aktif klinik üyelik sözleşmesi bulunmuyor.',
+            ], 422);
+        }
+
+        $result = DB::transaction(function () use (
+            $validated,
+            $request,
+            $contract
+        ) {
             $user = User::create([
                 'name' => $validated['owner_name'],
                 'email' => strtolower($validated['owner_email']),
@@ -71,6 +103,8 @@ class BusinessRegistrationController extends Controller
                 'district' => $validated['district'] ?? null,
                 'address' => $validated['address'],
                 'postal_code' => $validated['postal_code'] ?? null,
+
+                // Klinik admin onayı bekliyor.
                 'status' => 'pending',
                 'is_verified' => false,
                 'verified_at' => null,
@@ -82,7 +116,10 @@ class BusinessRegistrationController extends Controller
             $branch = Branch::create([
                 'business_id' => $business->id,
                 'name' => $branchName,
-                'slug' => Str::slug($branchName) ?: 'merkez',
+                'slug' => $this->uniqueBranchSlug(
+                    $branchName,
+                    $business->id
+                ),
                 'phone' => $validated['business_phone'] ?? null,
                 'email' => isset($validated['business_email'])
                     ? strtolower($validated['business_email'])
@@ -94,7 +131,7 @@ class BusinessRegistrationController extends Controller
                 'district' => $validated['district'] ?? null,
                 'address' => $validated['address'],
                 'postal_code' => $validated['postal_code'] ?? null,
-                'status' => 'active',
+                'status' => 'pending',
             ]);
 
             $membership = BusinessUser::create([
@@ -102,6 +139,18 @@ class BusinessRegistrationController extends Controller
                 'user_id' => $user->id,
                 'role' => 'business_owner',
                 'is_active' => true,
+            ]);
+
+            ClinicContractAcceptance::create([
+                'business_id' => $business->id,
+                'user_id' => $user->id,
+                'platform_contract_id' => $contract->id,
+                'contract_version' => $contract->version,
+                'accepted_at' => now(),
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'acceptance_method' => 'checkbox',
+                'is_accepted' => true,
             ]);
 
             $token = $user
@@ -113,6 +162,7 @@ class BusinessRegistrationController extends Controller
                 'business' => $business,
                 'branch' => $branch,
                 'membership' => $membership,
+                'contract' => $contract,
                 'token' => $token,
             ];
         });
@@ -121,7 +171,7 @@ class BusinessRegistrationController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Klinik / sağlık merkezi başvurusu başarıyla oluşturuldu.',
+            'message' => 'Klinik başvurusu ve sözleşme kabulü başarıyla kaydedildi. Başvurunuz admin onayı bekliyor.',
             'data' => [
                 'token' => $result['token'],
                 'token_type' => 'Bearer',
@@ -129,6 +179,13 @@ class BusinessRegistrationController extends Controller
                 'business' => $result['business'],
                 'branch' => $result['branch'],
                 'membership' => $result['membership'],
+                'contract' => [
+                    'id' => $result['contract']->id,
+                    'title' => $result['contract']->title,
+                    'version' => $result['contract']->version,
+                    'accepted' => true,
+                ],
+                'approval_status' => 'pending',
             ],
         ], 201);
     }
@@ -140,7 +197,27 @@ class BusinessRegistrationController extends Controller
         $counter = 2;
 
         while (Business::where('slug', $slug)->exists()) {
-            $slug = $baseSlug.'-'.$counter;
+            $slug = $baseSlug . '-' . $counter;
+            $counter++;
+        }
+
+        return $slug;
+    }
+
+    private function uniqueBranchSlug(
+        string $name,
+        int $businessId
+    ): string {
+        $baseSlug = Str::slug($name) ?: 'merkez';
+        $slug = $baseSlug;
+        $counter = 2;
+
+        while (
+            Branch::where('business_id', $businessId)
+                ->where('slug', $slug)
+                ->exists()
+        ) {
+            $slug = $baseSlug . '-' . $counter;
             $counter++;
         }
 
