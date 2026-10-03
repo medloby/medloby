@@ -183,6 +183,30 @@ class AppointmentController extends Controller
             ], 403);
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | Business Member Permission
+        |--------------------------------------------------------------------------
+        |
+        | Hasta kendi randevusunu oluşturabilir.
+        | İşletme personeli ise ayrıca appointments.create
+        | permission'ına sahip olmalıdır.
+        |
+        */
+
+        if (
+            $isBusinessUser
+            && ! $user->hasBusinessPermission(
+                (int) $validated['business_id'],
+                'appointments.create'
+            )
+        ) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Randevu oluşturma yetkiniz bulunmuyor.',
+            ], 403);
+        }
+
         if ($isPatient) {
             $validated['patient_profile_id'] = $user
                 ->patientProfile()

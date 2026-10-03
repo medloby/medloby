@@ -1,3 +1,4 @@
+```php
 <?php
 
 use App\Models\Branch;
@@ -16,8 +17,9 @@ use Illuminate\Support\Facades\DB;
 
 uses(RefreshDatabase::class);
 
-function createAppointmentTestData(): array
-{
+function createAppointmentTestData(
+    bool $grantCreatePermission = true
+): array {
     $user = User::factory()->create();
 
     $business = Business::factory()->create();
@@ -120,6 +122,14 @@ function createAppointmentTestData(): array
         'is_active' => true,
     ]);
 
+    if ($grantCreatePermission) {
+        grantAppointmentPermission(
+            $user,
+            $business,
+            'appointments.create'
+        );
+    }
+
     return [
         'user' => $user,
         'business' => $business,
@@ -147,13 +157,17 @@ function grantAppointmentPermission(
         ]
     );
 
-    BusinessUserPermission::create([
-        'business_id' => $business->id,
-        'user_id' => $user->id,
-        'permission_id' => $permission->id,
-        'granted_by_user_id' => $user->id,
-        'is_allowed' => true,
-    ]);
+    BusinessUserPermission::updateOrCreate(
+        [
+            'business_id' => $business->id,
+            'user_id' => $user->id,
+            'permission_id' => $permission->id,
+        ],
+        [
+            'granted_by_user_id' => $user->id,
+            'is_allowed' => true,
+        ]
+    );
 }
 
 test('authenticated business user can create an appointment', function () {
@@ -186,6 +200,32 @@ test('authenticated business user can create an appointment', function () {
         'source' => 'clinic',
         'patient_name' => 'Test Hasta',
     ]);
+});
+
+test('business user without create appointment permission cannot create an appointment', function () {
+    $data = createAppointmentTestData(false);
+
+    $response = $this
+        ->actingAs($data['user'])
+        ->postJson('/api/appointments', [
+            'business_id' => $data['business']->id,
+            'branch_id' => $data['branch']->id,
+            'doctor_id' => $data['doctor']->id,
+            'treatment_id' => $data['treatment']->id,
+            'starts_at' => $data['startsAt']->toDateTimeString(),
+            'status' => 'pending',
+            'source' => 'clinic',
+            'patient_name' => 'Yetkisiz Hasta',
+        ]);
+
+    $response->assertForbidden();
+
+    $response->assertJson([
+        'success' => false,
+        'message' => 'Randevu oluşturma yetkiniz bulunmuyor.',
+    ]);
+
+    $this->assertDatabaseCount('appointments', 0);
 });
 
 test('doctor cannot have two appointments at the same time', function () {

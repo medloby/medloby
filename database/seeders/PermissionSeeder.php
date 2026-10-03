@@ -14,6 +14,12 @@ class PermissionSeeder extends Seeder
     {
         $permissions = [
             [
+                'name' => 'appointments.create',
+                'display_name' => 'Randevu Oluşturma',
+                'module' => 'appointments',
+                'description' => 'İşletme adına randevu oluşturma yetkisi.',
+            ],
+            [
                 'name' => 'appointments.confirm',
                 'display_name' => 'Randevu Onaylama',
                 'module' => 'appointments',
