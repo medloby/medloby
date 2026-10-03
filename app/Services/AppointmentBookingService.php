@@ -47,7 +47,8 @@ class AppointmentBookingService
                 $businessId,
                 $branchId,
                 $doctor,
-                $treatment
+                $treatment,
+                $requireOnlineBookable
             );
 
             $startsAt = $startsAt->copy();
@@ -128,7 +129,8 @@ class AppointmentBookingService
         int $businessId,
         int $branchId,
         Doctor $doctor,
-        Treatment $treatment
+        Treatment $treatment,
+        bool $requireOnlineBookable
     ): void {
         // Şube gerçekten bu işletmeye mi ait?
         $branchBelongsToBusiness = DB::table('branches')
@@ -177,6 +179,35 @@ class AppointmentBookingService
         if (! $treatment->is_active) {
             throw new RuntimeException(
                 'Seçilen tedavi aktif değil.'
+            );
+        }
+
+        // Tedavi seçilen şubeye bağlı mı?
+        $branchTreatment = DB::table('branch_treatment')
+            ->where('branch_id', $branchId)
+            ->where('treatment_id', $treatment->id)
+            ->first();
+
+        if (! $branchTreatment) {
+            throw new RuntimeException(
+                'Seçilen tedavi bu şubede bulunmuyor.'
+            );
+        }
+
+        // Tedavi bu şubede aktif mi?
+        if (! (bool) $branchTreatment->is_active) {
+            throw new RuntimeException(
+                'Seçilen tedavi bu şubede aktif değil.'
+            );
+        }
+
+        // Online randevu isteniyorsa tedavi online randevuya açık mı?
+        if (
+            $requireOnlineBookable &&
+            ! (bool) $branchTreatment->is_online_bookable
+        ) {
+            throw new RuntimeException(
+                'Seçilen tedavi bu şubede online randevuya açık değil.'
             );
         }
     }
