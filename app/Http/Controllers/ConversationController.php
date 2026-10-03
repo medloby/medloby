@@ -55,7 +55,6 @@ class ConversationController extends Controller
         ]);
     }
 
-
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -86,23 +85,38 @@ class ConversationController extends Controller
         }
 
         $business = Business::findOrFail(
-            $validated['business_id']
-        );
+    $validated['business_id']
+);
 
-        if (
-            $business->status !== 'active' ||
-            ! $business->is_verified
-        ) {
-            abort(422, 'Bu sağlık merkezi şu anda iletişime açık değil.');
-        }
+$branchId = $validated['branch_id'] ?? null;
 
-        $conversation = Conversation::create([
-            'business_id' => $business->id,
-            'branch_id' => $validated['branch_id'] ?? null,
-            'patient_profile_id' => $patientProfile->id,
-            'subject' => $validated['subject'] ?? null,
-            'status' => 'open',
-        ]);
+if (
+    $branchId !== null &&
+    ! DB::table('branches')
+        ->where('id', $branchId)
+        ->where('business_id', $business->id)
+        ->exists()
+) {
+    abort(
+        422,
+        'Seçilen şube bu işletmeye ait değil.'
+    );
+}
+
+if (
+    $business->status !== 'active' ||
+    ! $business->is_verified
+) {
+    abort(422, 'Bu sağlık merkezi şu anda iletişime açık değil.');
+}
+
+$conversation = Conversation::create([
+    'business_id' => $business->id,
+    'branch_id' => $branchId,
+    'patient_profile_id' => $patientProfile->id,
+    'subject' => $validated['subject'] ?? null,
+    'status' => 'open',
+]);
 
         return response()->json([
             'success' => true,
@@ -110,7 +124,6 @@ class ConversationController extends Controller
             'data' => $conversation,
         ], 201);
     }
-
 
     public function show(
         Request $request,
@@ -137,7 +150,6 @@ class ConversationController extends Controller
             ],
         ]);
     }
-
 
     public function sendMessage(
         Request $request,
@@ -167,7 +179,6 @@ class ConversationController extends Controller
             ],
         ]);
 
-
         if (
             empty($validated['body']) &&
             ! $request->hasFile('attachment')
@@ -178,13 +189,11 @@ class ConversationController extends Controller
             );
         }
 
-
         $message = DB::transaction(function () use (
             $request,
             $conversation,
             $validated
         ) {
-
             $message = $conversation->messages()->create([
                 'sender_user_id' => $request->user()->id,
                 'body' => $validated['body'] ?? null,
@@ -193,16 +202,13 @@ class ConversationController extends Controller
                     : 'text',
             ]);
 
-
             if ($request->hasFile('attachment')) {
-
                 $file = $request->file('attachment');
 
                 $path = Storage::disk('private')->putFile(
                     'conversations/'.$conversation->id,
                     $file
                 );
-
 
                 MessageAttachment::create([
                     'message_id' => $message->id,
@@ -214,15 +220,12 @@ class ConversationController extends Controller
                 ]);
             }
 
-
             $conversation->update([
                 'last_message_at' => now(),
             ]);
 
-
             return $message;
         });
-
 
         return response()->json([
             'success' => true,
@@ -234,13 +237,11 @@ class ConversationController extends Controller
         ], 201);
     }
 
-
     private function ensureCanAccess(
         Request $request,
         Conversation $conversation
     ): void {
         $user = $request->user();
-
 
         $isPatient = PatientProfile::where(
             'user_id',
@@ -249,12 +250,10 @@ class ConversationController extends Controller
             ->whereKey($conversation->patient_profile_id)
             ->exists();
 
-
         $isBusinessUser = $user->businessMemberships()
             ->where('business_id', $conversation->business_id)
             ->where('is_active', true)
             ->exists();
-
 
         if (! $isPatient && ! $isBusinessUser) {
             abort(
