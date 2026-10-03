@@ -63,6 +63,16 @@ Route::middleware('auth:sanctum')->group(function () {
                     AdminBusinessController::class,
                     'show',
                 ]);
+
+                Route::post('/{business}/approve', [
+                    AdminBusinessController::class,
+                    'approve',
+                ]);
+
+                Route::post('/{business}/reject', [
+                    AdminBusinessController::class,
+                    'reject',
+                ]);
             });
 
         /*
