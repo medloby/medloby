@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AdminBusinessController;
 use App\Http\Controllers\AdminBusinessStatusController;
+use App\Http\Controllers\AdminBusinessStatusHistoryController;
 use App\Http\Controllers\AdminPlatformContractController;
 use App\Http\Controllers\AppointmentBookingController;
 use App\Http\Controllers\AppointmentController;
@@ -49,7 +50,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('verified')->group(function () {
         /*
         |--------------------------------------------------------------------------
-        | Admin - Business Applications
+        | Admin - Business Applications & Status Management
         |--------------------------------------------------------------------------
         */
 
@@ -84,6 +85,11 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::post('/{business}/reactivate', [
                     AdminBusinessStatusController::class,
                     'reactivate',
+                ]);
+
+                Route::get('/{business}/status-history', [
+                    AdminBusinessStatusHistoryController::class,
+                    'index',
                 ]);
             });
 
