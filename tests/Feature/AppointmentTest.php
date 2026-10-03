@@ -4,6 +4,8 @@
 
 use App\Models\Branch;
 
+use App\Models\Appointment;
+
 use App\Models\Business;
 
 use App\Models\BusinessUser;
@@ -1420,4 +1422,353 @@ test('branch and treatment have a working many-to-many relationship', function (
 
     )->toBeTrue();
 
+});
+
+test('staff cannot confirm appointment from unassigned branch', function () {
+    $data = createAppointmentTestData();
+
+    $staff = User::factory()->create([
+        'name' => 'Confirm Yetkisiz Personel',
+    ]);
+
+    $businessUser = BusinessUser::create([
+        'business_id' => $data['business']->id,
+        'user_id' => $staff->id,
+        'role' => 'staff',
+        'is_active' => true,
+    ]);
+
+    DB::table('business_user_branch')->insert([
+        'business_user_id' => $businessUser->id,
+        'branch_id' => $data['branch']->id,
+        'is_active' => false,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    grantAppointmentPermission(
+        $staff,
+        $data['business'],
+        'appointments.confirm'
+    );
+
+    $appointment = Appointment::create([
+        'business_id' => $data['business']->id,
+        'branch_id' => $data['branch']->id,
+        'patient_profile_id' => null,
+        'doctor_id' => $data['doctor']->id,
+        'treatment_id' => $data['treatment']->id,
+        'starts_at' => $data['startsAt'],
+        'ends_at' => $data['startsAt']->copy()->addHour(),
+        'status' => 'pending',
+        'source' => 'clinic',
+        'patient_name' => 'Confirm Şube Testi',
+    ]);
+
+    $response = $this
+        ->actingAs($staff)
+        ->postJson("/api/appointments/{$appointment->id}/confirm");
+
+    $response->assertForbidden();
+
+    $response->assertJson([
+        'message' => 'Bu randevu üzerinde işlem yapma yetkiniz yok.',
+    ]);
+
+    $this->assertDatabaseHas('appointments', [
+        'id' => $appointment->id,
+        'status' => 'pending',
+    ]);
+});
+
+test('staff cannot cancel appointment from unassigned branch', function () {
+    $data = createAppointmentTestData();
+
+    $staff = User::factory()->create([
+        'name' => 'Cancel Yetkisiz Personel',
+    ]);
+
+    $businessUser = BusinessUser::create([
+        'business_id' => $data['business']->id,
+        'user_id' => $staff->id,
+        'role' => 'staff',
+        'is_active' => true,
+    ]);
+
+    DB::table('business_user_branch')->insert([
+        'business_user_id' => $businessUser->id,
+        'branch_id' => $data['branch']->id,
+        'is_active' => false,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    grantAppointmentPermission(
+        $staff,
+        $data['business'],
+        'appointments.cancel'
+    );
+
+    $appointment = Appointment::create([
+        'business_id' => $data['business']->id,
+        'branch_id' => $data['branch']->id,
+        'patient_profile_id' => null,
+        'doctor_id' => $data['doctor']->id,
+        'treatment_id' => $data['treatment']->id,
+        'starts_at' => $data['startsAt'],
+        'ends_at' => $data['startsAt']->copy()->addHour(),
+        'status' => 'pending',
+        'source' => 'clinic',
+        'patient_name' => 'Cancel Şube Testi',
+    ]);
+
+    $response = $this
+        ->actingAs($staff)
+        ->postJson("/api/appointments/{$appointment->id}/cancel", [
+            'cancellation_reason' => 'Yetkisiz şube testi',
+        ]);
+
+    $response->assertForbidden();
+
+    $response->assertJson([
+        'message' => 'Bu randevu üzerinde işlem yapma yetkiniz yok.',
+    ]);
+
+    $this->assertDatabaseHas('appointments', [
+        'id' => $appointment->id,
+        'status' => 'pending',
+    ]);
+});
+
+test('staff cannot complete appointment from unassigned branch', function () {
+    $data = createAppointmentTestData();
+
+    $staff = User::factory()->create([
+        'name' => 'Complete Yetkisiz Personel',
+    ]);
+
+    $businessUser = BusinessUser::create([
+        'business_id' => $data['business']->id,
+        'user_id' => $staff->id,
+        'role' => 'staff',
+        'is_active' => true,
+    ]);
+
+    DB::table('business_user_branch')->insert([
+        'business_user_id' => $businessUser->id,
+        'branch_id' => $data['branch']->id,
+        'is_active' => false,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    grantAppointmentPermission(
+        $staff,
+        $data['business'],
+        'appointments.complete'
+    );
+
+    $appointment = Appointment::create([
+        'business_id' => $data['business']->id,
+        'branch_id' => $data['branch']->id,
+        'patient_profile_id' => null,
+        'doctor_id' => $data['doctor']->id,
+        'treatment_id' => $data['treatment']->id,
+        'starts_at' => $data['startsAt'],
+        'ends_at' => $data['startsAt']->copy()->addHour(),
+        'status' => 'confirmed',
+        'source' => 'clinic',
+        'patient_name' => 'Complete Şube Testi',
+    ]);
+
+    $response = $this
+        ->actingAs($staff)
+        ->postJson("/api/appointments/{$appointment->id}/complete");
+
+    $response->assertForbidden();
+
+    $response->assertJson([
+        'message' => 'Bu randevu üzerinde işlem yapma yetkiniz yok.',
+    ]);
+
+    $this->assertDatabaseHas('appointments', [
+        'id' => $appointment->id,
+        'status' => 'confirmed',
+    ]);
+});
+
+test('staff cannot mark appointment as no show from unassigned branch', function () {
+    $data = createAppointmentTestData();
+
+    $staff = User::factory()->create([
+        'name' => 'No Show Yetkisiz Personel',
+    ]);
+
+    $businessUser = BusinessUser::create([
+        'business_id' => $data['business']->id,
+        'user_id' => $staff->id,
+        'role' => 'staff',
+        'is_active' => true,
+    ]);
+
+    DB::table('business_user_branch')->insert([
+        'business_user_id' => $businessUser->id,
+        'branch_id' => $data['branch']->id,
+        'is_active' => false,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    grantAppointmentPermission(
+        $staff,
+        $data['business'],
+        'appointments.no_show'
+    );
+
+    $appointment = Appointment::create([
+        'business_id' => $data['business']->id,
+        'branch_id' => $data['branch']->id,
+        'patient_profile_id' => null,
+        'doctor_id' => $data['doctor']->id,
+        'treatment_id' => $data['treatment']->id,
+        'starts_at' => $data['startsAt'],
+        'ends_at' => $data['startsAt']->copy()->addHour(),
+        'status' => 'confirmed',
+        'source' => 'clinic',
+        'patient_name' => 'No Show Şube Testi',
+    ]);
+
+    $response = $this
+        ->actingAs($staff)
+        ->postJson("/api/appointments/{$appointment->id}/no-show");
+
+    $response->assertForbidden();
+
+    $response->assertJson([
+        'message' => 'Bu randevu üzerinde işlem yapma yetkiniz yok.',
+    ]);
+
+    $this->assertDatabaseHas('appointments', [
+        'id' => $appointment->id,
+        'status' => 'confirmed',
+    ]);
+});
+
+test('staff cannot reschedule appointment from unassigned branch', function () {
+    $data = createAppointmentTestData();
+
+    $staff = User::factory()->create([
+        'name' => 'Reschedule Yetkisiz Personel',
+    ]);
+
+    $businessUser = BusinessUser::create([
+        'business_id' => $data['business']->id,
+        'user_id' => $staff->id,
+        'role' => 'staff',
+        'is_active' => true,
+    ]);
+
+    DB::table('business_user_branch')->insert([
+        'business_user_id' => $businessUser->id,
+        'branch_id' => $data['branch']->id,
+        'is_active' => false,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    grantAppointmentPermission(
+        $staff,
+        $data['business'],
+        'appointments.reschedule'
+    );
+
+    $appointment = Appointment::create([
+        'business_id' => $data['business']->id,
+        'branch_id' => $data['branch']->id,
+        'patient_profile_id' => null,
+        'doctor_id' => $data['doctor']->id,
+        'treatment_id' => $data['treatment']->id,
+        'starts_at' => $data['startsAt'],
+        'ends_at' => $data['startsAt']->copy()->addHour(),
+        'status' => 'pending',
+        'source' => 'clinic',
+        'patient_name' => 'Reschedule Şube Testi',
+    ]);
+
+    $newStartsAt = $data['startsAt']->copy()->addDays(1);
+
+    $response = $this
+        ->actingAs($staff)
+        ->postJson("/api/appointments/{$appointment->id}/reschedule", [
+            'starts_at' => $newStartsAt->toDateTimeString(),
+            'reason' => 'Yetkisiz şube testi',
+        ]);
+
+    $response->assertForbidden();
+
+    $response->assertJson([
+        'message' => 'Bu randevu üzerinde işlem yapma yetkiniz yok.',
+    ]);
+
+    $this->assertDatabaseHas('appointments', [
+        'id' => $appointment->id,
+        'status' => 'pending',
+    ]);
+});
+
+test('staff cannot complete appointment from inactive branch assignment', function () {
+    $data = createAppointmentTestData();
+
+    $staff = User::factory()->create([
+        'name' => 'Pasif Atama Personeli',
+    ]);
+
+    $businessUser = BusinessUser::create([
+        'business_id' => $data['business']->id,
+        'user_id' => $staff->id,
+        'role' => 'staff',
+        'is_active' => true,
+    ]);
+
+    DB::table('business_user_branch')->insert([
+        'business_user_id' => $businessUser->id,
+        'branch_id' => $data['branch']->id,
+        'is_active' => false,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    grantAppointmentPermission(
+        $staff,
+        $data['business'],
+        'appointments.complete'
+    );
+
+    $appointment = Appointment::create([
+        'business_id' => $data['business']->id,
+        'branch_id' => $data['branch']->id,
+        'patient_profile_id' => null,
+        'doctor_id' => $data['doctor']->id,
+        'treatment_id' => $data['treatment']->id,
+        'starts_at' => $data['startsAt'],
+        'ends_at' => $data['startsAt']->copy()->addHour(),
+        'status' => 'confirmed',
+        'source' => 'clinic',
+        'patient_name' => 'Pasif Atama Testi',
+    ]);
+
+    $response = $this
+        ->actingAs($staff)
+        ->postJson("/api/appointments/{$appointment->id}/complete");
+
+    $response->assertForbidden();
+
+    $response->assertJson([
+        'message' => 'Bu randevu üzerinde işlem yapma yetkiniz yok.',
+    ]);
+
+    $this->assertDatabaseHas('appointments', [
+        'id' => $appointment->id,
+        'status' => 'confirmed',
+    ]);
 });
