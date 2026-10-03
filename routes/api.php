@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AdminBusinessController;
+use App\Http\Controllers\AdminBusinessMemberRoleController;
 use App\Http\Controllers\AdminBusinessMembershipController;
 use App\Http\Controllers\AdminBusinessMembershipDetailController;
 use App\Http\Controllers\AdminBusinessPermissionController;
@@ -104,6 +105,14 @@ Route::middleware('auth:sanctum')->group(function () {
                     AdminBusinessMembershipDetailController::class,
                     'show',
                 ]);
+
+                Route::put(
+                    '/{business}/members/{businessUser}/role',
+                    [
+                        AdminBusinessMemberRoleController::class,
+                        'update',
+                    ]
+                );
 
                 Route::get('/{business}/permissions', [
                     AdminBusinessPermissionController::class,

@@ -103,8 +103,6 @@ class BusinessRegistrationController extends Controller
                 'district' => $validated['district'] ?? null,
                 'address' => $validated['address'],
                 'postal_code' => $validated['postal_code'] ?? null,
-
-                // Klinik admin onayı bekliyor.
                 'status' => 'pending',
                 'is_verified' => false,
                 'verified_at' => null,
