@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AdminBusinessController;
 use App\Http\Controllers\AdminBusinessMemberRoleController;
+use App\Http\Controllers\AdminBusinessMemberStatusController;
 use App\Http\Controllers\AdminBusinessMembershipController;
 use App\Http\Controllers\AdminBusinessMembershipDetailController;
 use App\Http\Controllers\AdminBusinessPermissionController;
@@ -110,6 +111,14 @@ Route::middleware('auth:sanctum')->group(function () {
                     '/{business}/members/{businessUser}/role',
                     [
                         AdminBusinessMemberRoleController::class,
+                        'update',
+                    ]
+                );
+
+                Route::put(
+                    '/{business}/members/{businessUser}/status',
+                    [
+                        AdminBusinessMemberStatusController::class,
                         'update',
                     ]
                 );
