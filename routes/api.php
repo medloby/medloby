@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AdminBusinessController;
 use App\Http\Controllers\AppointmentBookingController;
 use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\AuthController;
@@ -44,6 +45,26 @@ Route::middleware('auth:sanctum')->group(function () {
     ])->middleware('throttle:6,1');
 
     Route::middleware('verified')->group(function () {
+        /*
+        |--------------------------------------------------------------------------
+        | Admin - Business Applications
+        |--------------------------------------------------------------------------
+        */
+
+        Route::middleware('admin')
+            ->prefix('admin/businesses')
+            ->group(function () {
+                Route::get('/', [
+                    AdminBusinessController::class,
+                    'index',
+                ]);
+
+                Route::get('/{business}', [
+                    AdminBusinessController::class,
+                    'show',
+                ]);
+            });
+
         /*
         |--------------------------------------------------------------------------
         | Conversations
