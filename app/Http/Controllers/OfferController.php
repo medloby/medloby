@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Conversation;
 use App\Models\Offer;
+use App\Notifications\NewOfferNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -126,6 +127,21 @@ class OfferController extends Controller
             'valid_until' => $validated['valid_until'] ?? null,
             'status' => 'pending',
         ]);
+
+        /*
+         * Teklif oluşturulduktan sonra bağlı hastaya
+         * veritabanı bildirimi gönderilir.
+         */
+        $patientUser = $conversation->patientProfile()
+            ->with('user')
+            ->first()
+            ?->user;
+
+        if ($patientUser) {
+            $patientUser->notify(
+                new NewOfferNotification($offer)
+            );
+        }
 
         return response()->json([
             'success' => true,
