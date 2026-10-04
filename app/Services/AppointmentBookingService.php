@@ -11,13 +11,15 @@ use App\Models\Treatment;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
+use App\Services\AppointmentNotificationService;
 
 class AppointmentBookingService
 {
     public function __construct(
-        protected AppointmentAvailabilityService $availabilityService
-    ) {
-    }
+    protected AppointmentAvailabilityService $availabilityService,
+    protected AppointmentNotificationService $notificationService
+) {
+}
 
     /**
      * Yeni randevu oluşturur.
@@ -124,7 +126,20 @@ class AppointmentBookingService
                 'changed_at' => now(),
             ]);
 
-            return $appointment->fresh([
+            DB::afterCommit(function () use ($appointment) {
+    $this->notificationService->notifyNewAppointment(
+        $appointment->fresh([
+            'business',
+            'branch',
+            'patientProfile',
+            'doctor.person',
+            'treatment',
+            'offer',
+        ])
+    );
+});
+            
+return $appointment->fresh([
                 'business',
                 'branch',
                 'patientProfile',
