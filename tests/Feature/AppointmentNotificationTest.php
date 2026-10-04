@@ -196,7 +196,7 @@ test('new appointment sends email to business email address', function () {
     );
 });
 
-test('new appointment does not send email when email notification is disabled', function () {
+test('new appointment does not send business email when email notification is disabled', function () {
     Mail::fake();
 
     $data = createAppointmentNotificationTestData();
@@ -227,7 +227,17 @@ test('new appointment does not send email when email notification is disabled', 
     expect($appointment)
         ->toBeInstanceOf(Appointment::class);
 
-    Mail::assertNothingSent();
+    Mail::assertNotSent(
+        NewAppointmentMail::class
+    );
+
+    Mail::assertSent(
+        \App\Mail\NewPatientAppointmentMail::class,
+        function (\App\Mail\NewPatientAppointmentMail $mail) use ($data, $appointment) {
+            return $mail->hasTo($data['patientUser']->email)
+                && $mail->appointment->id === $appointment->id;
+        }
+    );
 });
 
 test('new appointment email contains appointment information', function () {

@@ -12,7 +12,8 @@ use RuntimeException;
 class AppointmentLifecycleService
 {
     public function __construct(
-        protected AppointmentAvailabilityService $availabilityService
+        protected AppointmentAvailabilityService $availabilityService,
+        protected AppointmentNotificationService $notificationService
     ) {
     }
 
@@ -43,7 +44,7 @@ class AppointmentLifecycleService
         ?string $reason = null,
         ?string $notes = null
     ): Appointment {
-        return DB::transaction(function () use (
+        $result = DB::transaction(function () use (
             $appointment,
             $changedBy,
             $reason,
@@ -88,6 +89,11 @@ class AppointmentLifecycleService
                 'statusHistories',
             ]);
         });
+
+        $this->notificationService
+            ->notifyAppointmentConfirmed($result);
+
+        return $result;
     }
 
     public function complete(
@@ -96,7 +102,7 @@ class AppointmentLifecycleService
         ?string $reason = null,
         ?string $notes = null
     ): Appointment {
-        return DB::transaction(function () use (
+        $result = DB::transaction(function () use (
             $appointment,
             $changedBy,
             $reason,
@@ -141,6 +147,11 @@ class AppointmentLifecycleService
                 'statusHistories',
             ]);
         });
+
+        $this->notificationService
+            ->notifyAppointmentCompleted($result);
+
+        return $result;
     }
 
     public function cancel(
@@ -149,7 +160,7 @@ class AppointmentLifecycleService
         ?User $changedBy = null,
         ?string $notes = null
     ): Appointment {
-        return DB::transaction(function () use (
+        $result = DB::transaction(function () use (
             $appointment,
             $cancellationReason,
             $changedBy,
@@ -163,7 +174,11 @@ class AppointmentLifecycleService
                 'appointments.cancel'
             );
 
-            if (! in_array($appointment->status, ['pending', 'confirmed'], true)) {
+            if (! in_array(
+                $appointment->status,
+                ['pending', 'confirmed'],
+                true
+            )) {
                 throw new RuntimeException(
                     'Yalnızca bekleyen veya onaylanmış randevular iptal edilebilir.'
                 );
@@ -206,6 +221,11 @@ class AppointmentLifecycleService
                 'statusHistories',
             ]);
         });
+
+        $this->notificationService
+            ->notifyAppointmentCancelled($result);
+
+        return $result;
     }
 
     public function noShow(
@@ -214,7 +234,7 @@ class AppointmentLifecycleService
         ?string $reason = null,
         ?string $notes = null
     ): Appointment {
-        return DB::transaction(function () use (
+        $result = DB::transaction(function () use (
             $appointment,
             $changedBy,
             $reason,
@@ -259,6 +279,11 @@ class AppointmentLifecycleService
                 'statusHistories',
             ]);
         });
+
+        $this->notificationService
+            ->notifyAppointmentNoShow($result);
+
+        return $result;
     }
 
     public function reschedule(
@@ -269,7 +294,7 @@ class AppointmentLifecycleService
         ?string $notes = null,
         bool $requireOnlineBookable = true
     ): Appointment {
-        return DB::transaction(function () use (
+        $newAppointment = DB::transaction(function () use (
             $appointment,
             $newStartsAt,
             $changedBy,
@@ -285,7 +310,11 @@ class AppointmentLifecycleService
                 'appointments.reschedule'
             );
 
-            if (! in_array($appointment->status, ['pending', 'confirmed'], true)) {
+            if (! in_array(
+                $appointment->status,
+                ['pending', 'confirmed'],
+                true
+            )) {
                 throw new RuntimeException(
                     'Yalnızca bekleyen veya onaylanmış randevuların tarihi değiştirilebilir.'
                 );
@@ -300,11 +329,12 @@ class AppointmentLifecycleService
                 );
             }
 
-            $durationMinutes = $this->availabilityService->getDurationMinutes(
-                $doctor,
-                $appointment->branch_id,
-                $treatment
-            );
+            $durationMinutes = $this->availabilityService
+                ->getDurationMinutes(
+                    $doctor,
+                    $appointment->branch_id,
+                    $treatment
+                );
 
             if ($durationMinutes === null || $durationMinutes <= 0) {
                 throw new RuntimeException(
@@ -325,7 +355,10 @@ class AppointmentLifecycleService
                 );
             }
 
-            $newEndsAt = $newStartsAt->copy()->addMinutes($durationMinutes);
+            $newEndsAt = $newStartsAt
+                ->copy()
+                ->addMinutes($durationMinutes);
+
             $oldStatus = $appointment->status;
 
             $newAppointment = Appointment::create([
@@ -351,7 +384,8 @@ class AppointmentLifecycleService
                 'changed_by_user_id' => $changedBy?->id,
                 'old_status' => null,
                 'new_status' => $oldStatus,
-                'reason' => $reason ?? 'Randevu yeni tarih ve saate taşındı.',
+                'reason' => $reason
+                    ?? 'Randevu yeni tarih ve saate taşındı.',
                 'notes' => $notes,
                 'changed_at' => now(),
             ]);
@@ -366,7 +400,8 @@ class AppointmentLifecycleService
                 'changed_by_user_id' => $changedBy?->id,
                 'old_status' => $oldStatus,
                 'new_status' => 'rescheduled',
-                'reason' => $reason ?? 'Randevu tarihi değiştirildi.',
+                'reason' => $reason
+                    ?? 'Randevu tarihi değiştirildi.',
                 'notes' => $notes,
                 'changed_at' => now(),
             ]);
@@ -381,5 +416,16 @@ class AppointmentLifecycleService
                 'statusHistories',
             ]);
         });
+
+        /*
+         * Bildirim yeni randevu kaydına gider.
+         *
+         * Eski kayıt "rescheduled" olarak kalır,
+         * takvimde aktif olan kayıt yeni randevudur.
+         */
+        $this->notificationService
+            ->notifyAppointmentRescheduled($newAppointment);
+
+        return $newAppointment;
     }
 }

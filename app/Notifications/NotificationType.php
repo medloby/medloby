@@ -12,6 +12,10 @@ final class NotificationType
 
     public const APPOINTMENT_RESCHEDULED = 'appointment_rescheduled';
 
+    public const APPOINTMENT_COMPLETED = 'appointment_completed';
+
+    public const APPOINTMENT_NO_SHOW = 'appointment_no_show';
+
     public const NEW_OFFER = 'new_offer';
 
     public const OFFER_ACCEPTED = 'offer_accepted';
@@ -34,6 +38,8 @@ final class NotificationType
             self::APPOINTMENT_CONFIRMED,
             self::APPOINTMENT_CANCELLED,
             self::APPOINTMENT_RESCHEDULED,
+            self::APPOINTMENT_COMPLETED,
+            self::APPOINTMENT_NO_SHOW,
             self::NEW_OFFER,
             self::OFFER_ACCEPTED,
             self::OFFER_REJECTED,
@@ -53,6 +59,8 @@ final class NotificationType
             self::APPOINTMENT_CONFIRMED => 'Randevu onaylandı',
             self::APPOINTMENT_CANCELLED => 'Randevu iptal edildi',
             self::APPOINTMENT_RESCHEDULED => 'Randevu tarihi değiştirildi',
+            self::APPOINTMENT_COMPLETED => 'Randevu tamamlandı',
+            self::APPOINTMENT_NO_SHOW => 'Hasta gelmedi',
             self::NEW_OFFER => 'Yeni teklif',
             self::OFFER_ACCEPTED => 'Teklif kabul edildi',
             self::OFFER_REJECTED => 'Teklif reddedildi',
@@ -73,8 +81,7 @@ final class NotificationType
     /**
      * Varsayılan e-posta ayarları.
      *
-     * Yeni randevu e-postası varsayılan olarak açık,
-     * diğer bildirimler varsayılan olarak kapalıdır.
+     * Sadece yeni randevu e-postası açıktır.
      */
     public static function defaultEmail(
         string $type
