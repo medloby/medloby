@@ -20,6 +20,7 @@ use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\MessageAttachmentController;
 use App\Http\Controllers\OfferController;
 use App\Http\Controllers\PatientRegistrationController;
+use App\Http\Controllers\NotificationController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
@@ -203,6 +204,44 @@ Route::middleware('auth:sanctum')->group(function () {
                 'reset',
             ]);
         });
+
+/*
+|--------------------------------------------------------------------------
+| Notifications
+|--------------------------------------------------------------------------
+*/
+
+Route::prefix('notifications')->group(function () {
+    Route::get('/', [
+        NotificationController::class,
+        'index',
+    ]);
+
+    Route::get('/unread', [
+        NotificationController::class,
+        'unread',
+    ]);
+
+    Route::get('/unread-count', [
+        NotificationController::class,
+        'unreadCount',
+    ]);
+
+    Route::post('/read-all', [
+        NotificationController::class,
+        'markAllAsRead',
+    ]);
+
+    Route::post('/{notification}/read', [
+        NotificationController::class,
+        'markAsRead',
+    ]);
+
+    Route::delete('/{notification}', [
+        NotificationController::class,
+        'destroy',
+    ]);
+});
 
         /*
         |--------------------------------------------------------------------------
