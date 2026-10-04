@@ -7,6 +7,7 @@ use App\Models\Treatment;
 use App\Models\Appointment;
 use App\Services\AppointmentLifecycleService;
 use App\Services\AppointmentService;
+use App\Services\AppointmentSlotAvailabilityService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,10 +15,11 @@ use RuntimeException;
 class AppointmentController extends Controller
 {
     public function __construct(
-        protected AppointmentService $appointmentService,
-        protected AppointmentLifecycleService $lifecycleService
-    ) {
-    }
+    protected AppointmentService $appointmentService,
+    protected AppointmentLifecycleService $lifecycleService,
+    protected AppointmentSlotAvailabilityService $slotAvailabilityService
+) {
+}
     public function index(Request $request): JsonResponse
 {
     $validated = $request->validate([
@@ -497,7 +499,116 @@ class AppointmentController extends Controller
             return $this->errorResponse($exception);
         }
     }
-    public function options(Request $request): JsonResponse
+        public function availability(Request $request): JsonResponse
+{
+    $validated = $request->validate([
+        'branch_id' => [
+            'required',
+            'integer',
+            'exists:branches,id',
+        ],
+        'doctor_id' => [
+            'required',
+            'integer',
+            'exists:doctors,id',
+        ],
+        'treatment_id' => [
+            'required',
+            'integer',
+            'exists:treatments,id',
+        ],
+        'date' => [
+            'required',
+            'date',
+        ],
+        'slot_interval' => [
+            'nullable',
+            'integer',
+            'min:1',
+            'max:1440',
+        ],
+        'require_online_bookable' => [
+            'nullable',
+            'boolean',
+        ],
+    ]);
+
+    $user = $request->user();
+
+    $branch = Branch::query()
+        ->findOrFail($validated['branch_id']);
+
+    $isBusinessUser = $user->businessMemberships()
+        ->where('business_id', $branch->business_id)
+        ->where('is_active', true)
+        ->exists();
+
+    $isPatient = $user->patientProfile()->exists();
+
+    if (! $isBusinessUser && ! $isPatient) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Müsait randevu saatlerini görüntüleme yetkiniz yok.',
+        ], 403);
+    }
+
+    if ($isBusinessUser) {
+        if (! $user->hasBusinessBranchAccess(
+            (int) $branch->business_id,
+            (int) $branch->id
+        )) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Bu şubeye erişim yetkiniz yok.',
+            ], 403);
+        }
+    }
+
+    $doctor = Doctor::query()
+        ->findOrFail($validated['doctor_id']);
+
+    $treatment = Treatment::query()
+        ->findOrFail($validated['treatment_id']);
+
+    $date = Carbon::parse($validated['date'])->startOfDay();
+
+    $slotInterval = $validated['slot_interval'] ?? 30;
+
+    $requireOnlineBookable =
+        $validated['require_online_bookable'] ?? true;
+
+    try {
+        $slots = $this->slotAvailabilityService->getAvailableSlots(
+            $doctor,
+            (int) $validated['branch_id'],
+            $treatment,
+            $date,
+            $slotInterval,
+            $requireOnlineBookable
+        );
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'date' => $date->toDateString(),
+                'branch_id' => (int) $validated['branch_id'],
+                'doctor_id' => $doctor->id,
+                'treatment_id' => $treatment->id,
+                'slot_interval' => (int) $slotInterval,
+                'slots' => array_map(
+                    fn (Carbon $slot) => $slot->format('Y-m-d H:i:s'),
+                    $slots
+                ),
+            ],
+        ]);
+    } catch (RuntimeException $exception) {
+        return response()->json([
+            'success' => false,
+            'message' => $exception->getMessage(),
+        ], 422);
+    }
+}
+public function options(Request $request): JsonResponse
 {
     $user = $request->user();
 
