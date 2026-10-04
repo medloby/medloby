@@ -1,5 +1,9 @@
 <?php
 namespace App\Http\Controllers;
+
+use App\Models\Branch;
+use App\Models\Doctor;
+use App\Models\Treatment;
 use App\Models\Appointment;
 use App\Services\AppointmentLifecycleService;
 use App\Services\AppointmentService;
@@ -15,88 +19,215 @@ class AppointmentController extends Controller
     ) {
     }
     public function index(Request $request): JsonResponse
-    {
-        $user = $request->user();
-        $businessIds = $user->businessMemberships()
-            ->where('is_active', true)
-            ->pluck('business_id');
-        $accessibleBusinessBranchIds = [];
-        foreach ($businessIds as $businessId) {
-            $accessibleBusinessBranchIds = array_merge(
-                $accessibleBusinessBranchIds,
-                $user->accessibleBranchIds((int) $businessId)
-            );
-        }
-        $accessibleBusinessBranchIds = array_values(
-            array_unique($accessibleBusinessBranchIds)
+{
+    $validated = $request->validate([
+        'business_id' => [
+            'nullable',
+            'integer',
+            'exists:businesses,id',
+        ],
+        'branch_id' => [
+            'nullable',
+            'integer',
+            'exists:branches,id',
+        ],
+        'doctor_id' => [
+            'nullable',
+            'integer',
+            'exists:doctors,id',
+        ],
+        'treatment_id' => [
+            'nullable',
+            'integer',
+            'exists:treatments,id',
+        ],
+        'status' => [
+            'nullable',
+            'string',
+            'in:pending,confirmed,cancelled,completed,rescheduled,no_show',
+        ],
+        'from' => [
+            'nullable',
+            'date',
+        ],
+        'to' => [
+            'nullable',
+            'date',
+            'after_or_equal:from',
+        ],
+        'per_page' => [
+            'nullable',
+            'integer',
+            'min:1',
+            'max:100',
+        ],
+    ]);
+
+    $user = $request->user();
+
+    /*
+     * Kullanıcının aktif işletmelerini bul.
+     */
+    $businessIds = $user->businessMemberships()
+        ->where('is_active', true)
+        ->pluck('business_id');
+
+    /*
+     * Kullanıcının erişebildiği şubeleri bul.
+     */
+    $accessibleBusinessBranchIds = [];
+
+    foreach ($businessIds as $businessId) {
+        $accessibleBusinessBranchIds = array_merge(
+            $accessibleBusinessBranchIds,
+            $user->accessibleBranchIds((int) $businessId)
         );
-        $appointments = Appointment::query()
-            ->with([
-                'business',
-                'branch',
-                'patientProfile',
-                'doctor',
-                'treatment',
-                'statusHistories',
-            ])
-            ->where(function ($query) use (
-                $user,
-                $accessibleBusinessBranchIds
-            ) {
-                $query->whereHas(
-                    'patientProfile',
-                    function ($patientQuery) use ($user) {
-                        $patientQuery->where('user_id', $user->id);
-                    }
-                );
-                if (! empty($accessibleBusinessBranchIds)) {
-                    $query->orWhereIn(
-                        'branch_id',
-                        $accessibleBusinessBranchIds
-                    );
-                }
-            })
-            ->when(
-                $request->filled('status'),
-                function ($query) use ($request) {
-                    $query->where(
-                        'status',
-                        $request->input('status')
-                    );
-                }
-            )
-            ->when(
-                $request->filled('from'),
-                function ($query) use ($request) {
-                    $query->whereDate(
-                        'starts_at',
-                        '>=',
-                        $request->input('from')
-                    );
-                }
-            )
-            ->when(
-                $request->filled('to'),
-                function ($query) use ($request) {
-                    $query->whereDate(
-                        'starts_at',
-                        '<=',
-                        $request->input('to')
-                    );
-                }
-            )
-            ->latest('starts_at')
-            ->paginate(
-                min(
-                    max((int) $request->input('per_page', 20), 1),
-                    100
-                )
-            );
-        return response()->json([
-            'success' => true,
-            'data' => $appointments,
-        ]);
     }
+
+    $accessibleBusinessBranchIds = array_values(
+        array_unique($accessibleBusinessBranchIds)
+    );
+
+    /*
+     * Hasta ise yalnızca kendi randevularını,
+     * işletme kullanıcısı ise yetkili olduğu
+     * şubelerin randevularını görebilir.
+     */
+    $appointments = Appointment::query()
+        ->with([
+            'business',
+            'branch',
+            'patientProfile',
+            'doctor.person',
+            'treatment',
+            'statusHistories',
+        ])
+        ->where(function ($query) use (
+            $user,
+            $accessibleBusinessBranchIds
+        ) {
+            $query->whereHas(
+                'patientProfile',
+                function ($patientQuery) use ($user) {
+                    $patientQuery->where(
+                        'user_id',
+                        $user->id
+                    );
+                }
+            );
+
+            if (! empty($accessibleBusinessBranchIds)) {
+                $query->orWhereIn(
+                    'branch_id',
+                    $accessibleBusinessBranchIds
+                );
+            }
+        })
+
+        /*
+         * İşletme filtresi.
+         */
+        ->when(
+            isset($validated['business_id']),
+            function ($query) use ($validated) {
+                $query->where(
+                    'business_id',
+                    $validated['business_id']
+                );
+            }
+        )
+
+        /*
+         * Şube filtresi.
+         */
+        ->when(
+            isset($validated['branch_id']),
+            function ($query) use ($validated) {
+                $query->where(
+                    'branch_id',
+                    $validated['branch_id']
+                );
+            }
+        )
+
+        /*
+         * Doktor filtresi.
+         */
+        ->when(
+            isset($validated['doctor_id']),
+            function ($query) use ($validated) {
+                $query->where(
+                    'doctor_id',
+                    $validated['doctor_id']
+                );
+            }
+        )
+
+        /*
+         * Tedavi filtresi.
+         */
+        ->when(
+            isset($validated['treatment_id']),
+            function ($query) use ($validated) {
+                $query->where(
+                    'treatment_id',
+                    $validated['treatment_id']
+                );
+            }
+        )
+
+        /*
+         * Durum filtresi.
+         */
+        ->when(
+            isset($validated['status']),
+            function ($query) use ($validated) {
+                $query->where(
+                    'status',
+                    $validated['status']
+                );
+            }
+        )
+
+        /*
+         * Başlangıç tarihi.
+         */
+        ->when(
+            isset($validated['from']),
+            function ($query) use ($validated) {
+                $query->whereDate(
+                    'starts_at',
+                    '>=',
+                    $validated['from']
+                );
+            }
+        )
+
+        /*
+         * Bitiş tarihi.
+         */
+        ->when(
+            isset($validated['to']),
+            function ($query) use ($validated) {
+                $query->whereDate(
+                    'starts_at',
+                    '<=',
+                    $validated['to']
+                );
+            }
+        )
+
+        ->orderBy('starts_at')
+
+        ->paginate(
+            $validated['per_page'] ?? 50
+        );
+
+    return response()->json([
+        'success' => true,
+        'data' => $appointments,
+    ]);
+}
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -227,63 +358,58 @@ class AppointmentController extends Controller
         }
     }
     public function show(
-        Request $request,
-        Appointment $appointment
-    ): JsonResponse {
-        $user = $request->user();
-        $isPatient = $appointment->patientProfile()
-            ->where('user_id', $user->id)
-            ->exists();
-        $isBusinessUser = $user->businessMemberships()
-            ->where('business_id', $appointment->business_id)
-            ->where('is_active', true)
-            ->exists();
-        if ($isPatient) {
-            return response()->json([
-                'success' => true,
-                'data' => $appointment->load([
-                    'business',
-                    'branch',
-                    'patientProfile',
-                    'doctor',
-                    'treatment',
-                    'statusHistories',
-                    'cancelledBy',
-                    'rescheduledFrom',
-                    'rescheduledAppointments',
-                ]),
-            ]);
-        }
-        if (! $isBusinessUser) {
-            abort(
-                403,
-                'Bu randevuyu görüntüleme yetkiniz yok.'
-            );
-        }
-        if (! $user->hasBusinessBranchAccess(
+    Request $request,
+    Appointment $appointment
+): JsonResponse {
+    $user = $request->user();
+
+    $isPatient = $appointment->patientProfile()
+        ->where('user_id', $user->id)
+        ->exists();
+
+    $isBusinessUser = $user->businessMemberships()
+        ->where('business_id', $appointment->business_id)
+        ->where('is_active', true)
+        ->exists();
+
+    if (! $isPatient && ! $isBusinessUser) {
+        abort(
+            403,
+            'Bu randevuyu görüntüleme yetkiniz yok.'
+        );
+    }
+
+    if (
+        $isBusinessUser &&
+        ! $user->hasBusinessBranchAccess(
             (int) $appointment->business_id,
             (int) $appointment->branch_id
-        )) {
-            abort(
-                403,
-                'Bu randevuyu görüntüleme yetkiniz yok.'
-            );
-        }
-        return response()->json([
-            'success' => true,
-            'data' => $appointment->load([
-                'business',
-                'branch',
-                'patientProfile',
-                'doctor',
-                'treatment',
-                'statusHistories',
-                'cancelledBy',
-                'rescheduledFrom',
-                'rescheduledAppointments',
-            ]),
-        ]);
+        )
+    ) {
+        abort(
+            403,
+            'Bu randevuyu görüntüleme yetkiniz yok.'
+        );
     }
+
+    $appointment->load([
+        'business',
+        'branch',
+        'patientProfile',
+        'doctor.person',
+        'treatment',
+        'offer',
+        'statusHistories',
+        'cancelledBy',
+        'rescheduledFrom',
+        'rescheduledAppointments',
+    ]);
+
+    return response()->json([
+        'success' => true,
+        'data' => $appointment,
+    ]);
+}
     public function confirm(
         Request $request,
         Appointment $appointment
@@ -371,6 +497,124 @@ class AppointmentController extends Controller
             return $this->errorResponse($exception);
         }
     }
+    public function options(Request $request): JsonResponse
+{
+    $user = $request->user();
+
+    $businessIds = $user->businessMemberships()
+        ->where('is_active', true)
+        ->pluck('business_id');
+
+    if ($businessIds->isEmpty()) {
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'branches' => [],
+                'doctors' => [],
+                'treatments' => [],
+                'statuses' => [
+                    'pending',
+                    'confirmed',
+                    'cancelled',
+                    'completed',
+                    'rescheduled',
+                    'no_show',
+                ],
+            ],
+        ]);
+    }
+
+    $businessId = $request->integer('business_id');
+
+    if ($businessId && ! $businessIds->contains($businessId)) {
+        abort(
+            403,
+            'Bu işletmeye erişim yetkiniz yok.'
+        );
+    }
+
+    $selectedBusinessIds = $businessId
+        ? collect([$businessId])
+        : $businessIds;
+
+    $branchIds = [];
+
+    foreach ($selectedBusinessIds as $selectedBusinessId) {
+        $branchIds = array_merge(
+            $branchIds,
+            $user->accessibleBranchIds((int) $selectedBusinessId)
+        );
+    }
+
+    $branchIds = array_values(
+        array_unique($branchIds)
+    );
+
+    $branches = Branch::query()
+        ->whereIn('id', $branchIds)
+        ->where('status', 'active')
+        ->orderBy('name')
+        ->get([
+            'id',
+            'business_id',
+            'name',
+            'slug',
+            'city',
+            'district',
+        ]);
+
+    $doctors = Doctor::query()
+        ->with('person:id,first_name,last_name')
+        ->where('status', 'active')
+        ->whereHas('branches', function ($query) use ($branchIds) {
+            $query
+                ->whereIn('branches.id', $branchIds)
+                ->where('doctor_branch.status', 'active');
+        })
+        ->orderBy('id')
+        ->get([
+            'id',
+            'person_id',
+            'specialty',
+            'status',
+            'is_public',
+        ]);
+
+    $treatments = Treatment::query()
+        ->where('is_active', true)
+        ->whereHas('branches', function ($query) use ($branchIds) {
+            $query
+                ->whereIn('branches.id', $branchIds)
+                ->where('branch_treatment.is_active', true);
+        })
+        ->orderBy('sort_order')
+        ->orderBy('name')
+        ->get([
+            'id',
+            'treatment_category_id',
+            'name',
+            'slug',
+            'duration_minutes',
+            'is_active',
+        ]);
+
+    return response()->json([
+        'success' => true,
+        'data' => [
+            'branches' => $branches,
+            'doctors' => $doctors,
+            'treatments' => $treatments,
+            'statuses' => [
+                'pending',
+                'confirmed',
+                'cancelled',
+                'completed',
+                'rescheduled',
+                'no_show',
+            ],
+        ],
+    ]);
+}
     public function noShow(
         Request $request,
         Appointment $appointment

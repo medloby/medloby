@@ -331,6 +331,11 @@ Route::prefix('notifications')->group(function () {
                 'index',
             ]);
 
+            Route::get(
+    '/options',
+    [AppointmentController::class, 'options']
+);
+
             Route::post('/', [
                 AppointmentController::class,
                 'store',
