@@ -16,6 +16,7 @@ use App\Notifications\OfferAcceptedNotification;
 use App\Services\BusinessNotificationPreferenceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use App\Notifications\OfferRejectedNotification;
 
 uses(RefreshDatabase::class);
 
@@ -335,5 +336,134 @@ test('offer creator does not receive notification when offer accepted notificati
         'notifiable_id' => $data['businessUser']->id,
         'notifiable_type' => User::class,
         'type' => OfferAcceptedNotification::class,
+    ]);
+});
+
+test('offer creator receives notification when patient rejects offer', function () {
+    $data = createNotificationTestData();
+
+    $offer = Offer::create([
+        'conversation_id' => $data['conversation']->id,
+        'business_id' => $data['business']->id,
+        'branch_id' => $data['branch']->id,
+        'patient_profile_id' => $data['patientProfile']->id,
+        'treatment_id' => $data['treatment']->id,
+        'created_by' => $data['businessUser']->id,
+        'title' => 'Red bildirimi testi',
+        'description' => 'Teklif red bildirimi testi.',
+        'amount' => 50000,
+        'currency' => 'TRY',
+        'valid_until' => now()->addDays(7),
+        'status' => 'pending',
+    ]);
+
+    $response = $this
+        ->actingAs($data['patientUser'])
+        ->postJson(
+            "/api/offers/{$offer->id}/reject",
+            [
+                'rejection_reason' => 'Hasta başka bir klinikle devam etmeye karar verdi.',
+            ]
+        );
+
+    $response->assertOk();
+
+    $response->assertJson([
+        'success' => true,
+        'message' => 'Teklif reddedildi.',
+    ]);
+
+    $this->assertDatabaseHas('notifications', [
+        'notifiable_id' => $data['businessUser']->id,
+        'notifiable_type' => User::class,
+        'type' => OfferRejectedNotification::class,
+    ]);
+
+    $notification = DB::table('notifications')
+        ->where('notifiable_id', $data['businessUser']->id)
+        ->where('notifiable_type', User::class)
+        ->where('type', OfferRejectedNotification::class)
+        ->latest('created_at')
+        ->first();
+
+    expect($notification)->not->toBeNull();
+
+    $notificationData = json_decode(
+        $notification->data,
+        true
+    );
+
+    expect($notificationData['notification_type'])
+        ->toBe(NotificationType::OFFER_REJECTED);
+
+    expect($notificationData['offer_id'])
+        ->toBe($offer->id);
+
+    expect($notificationData['conversation_id'])
+        ->toBe($data['conversation']->id);
+
+    expect($notificationData['business_id'])
+        ->toBe($data['business']->id);
+
+    expect($notificationData['patient_profile_id'])
+        ->toBe($data['patientProfile']->id);
+
+    expect($notificationData['treatment_id'])
+        ->toBe($data['treatment']->id);
+
+    expect($notificationData['rejection_reason'])
+        ->toBe('Hasta başka bir klinikle devam etmeye karar verdi.');
+});
+
+
+test('offer creator does not receive notification when offer rejected notification is disabled', function () {
+    $data = createNotificationTestData();
+
+    $preferenceService = app(
+        BusinessNotificationPreferenceService::class
+    );
+
+    $preferenceService->update(
+        $data['business'],
+        NotificationType::OFFER_REJECTED,
+        false,
+        false
+    );
+
+    $offer = Offer::create([
+        'conversation_id' => $data['conversation']->id,
+        'business_id' => $data['business']->id,
+        'branch_id' => $data['branch']->id,
+        'patient_profile_id' => $data['patientProfile']->id,
+        'treatment_id' => $data['treatment']->id,
+        'created_by' => $data['businessUser']->id,
+        'title' => 'Kapalı red bildirimi testi',
+        'description' => 'Red bildirimi kapalı test.',
+        'amount' => 50000,
+        'currency' => 'TRY',
+        'valid_until' => now()->addDays(7),
+        'status' => 'pending',
+    ]);
+
+    $response = $this
+        ->actingAs($data['patientUser'])
+        ->postJson(
+            "/api/offers/{$offer->id}/reject",
+            [
+                'rejection_reason' => 'Bildirim kapalı test.',
+            ]
+        );
+
+    $response->assertOk();
+
+    $response->assertJson([
+        'success' => true,
+        'message' => 'Teklif reddedildi.',
+    ]);
+
+    $this->assertDatabaseMissing('notifications', [
+        'notifiable_id' => $data['businessUser']->id,
+        'notifiable_type' => User::class,
+        'type' => OfferRejectedNotification::class,
     ]);
 });

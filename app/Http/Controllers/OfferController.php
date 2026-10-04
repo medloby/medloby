@@ -7,6 +7,7 @@ use App\Models\Offer;
 use App\Notifications\NewOfferNotification;
 use App\Notifications\NotificationType;
 use App\Notifications\OfferAcceptedNotification;
+use App\Notifications\OfferRejectedNotification;
 use App\Services\BusinessNotificationPreferenceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -360,6 +361,28 @@ class OfferController extends Controller
                 422,
                 'Bu teklifin geçerlilik süresi dolmuştur.'
             );
+        }
+
+        /*
+         * Teklif reddedildiğinde bildirimi,
+         * teklifi oluşturan kullanıcıya göndeririz.
+         *
+         * Bildirim tercihi kapalıysa hiçbir bildirim
+         * oluşturulmaz.
+         */
+        if (
+            $this->notificationPreferenceService->isInAppEnabled(
+                $freshOffer->business,
+                NotificationType::OFFER_REJECTED
+            )
+        ) {
+            $creator = $freshOffer->creator;
+
+            if ($creator) {
+                $creator->notify(
+                    new OfferRejectedNotification($freshOffer)
+                );
+            }
         }
 
         return response()->json([
