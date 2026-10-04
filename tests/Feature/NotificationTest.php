@@ -2,6 +2,7 @@
 
 use App\Models\Branch;
 use App\Models\Business;
+use App\Models\BusinessNotificationPreference;
 use App\Models\BusinessUser;
 use App\Models\Conversation;
 use App\Models\Offer;
@@ -10,6 +11,9 @@ use App\Models\Treatment;
 use App\Models\TreatmentCategory;
 use App\Models\User;
 use App\Notifications\NewOfferNotification;
+use App\Notifications\NotificationType;
+use App\Notifications\OfferAcceptedNotification;
+use App\Services\BusinessNotificationPreferenceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 
@@ -213,4 +217,123 @@ test('patient receives notification when business creates an offer', function ()
 
     expect($notificationData['branch_id'])
         ->toBe($data['branch']->id);
+});
+
+test('offer creator receives notification when patient accepts offer', function () {
+    $data = createNotificationTestData();
+
+    $offer = Offer::create([
+        'conversation_id' => $data['conversation']->id,
+        'business_id' => $data['business']->id,
+        'branch_id' => $data['branch']->id,
+        'patient_profile_id' => $data['patientProfile']->id,
+        'treatment_id' => $data['treatment']->id,
+        'created_by' => $data['businessUser']->id,
+        'title' => 'Kabul bildirimi testi',
+        'description' => 'Teklif kabul bildirimi testi.',
+        'amount' => 50000,
+        'currency' => 'TRY',
+        'valid_until' => now()->addDays(7),
+        'status' => 'pending',
+    ]);
+
+    $response = $this
+        ->actingAs($data['patientUser'])
+        ->postJson(
+            "/api/offers/{$offer->id}/accept"
+        );
+
+    $response->assertOk();
+
+    $response->assertJson([
+        'success' => true,
+        'message' => 'Teklif kabul edildi.',
+    ]);
+
+    $this->assertDatabaseHas('notifications', [
+        'notifiable_id' => $data['businessUser']->id,
+        'notifiable_type' => User::class,
+        'type' => OfferAcceptedNotification::class,
+    ]);
+
+    $notification = DB::table('notifications')
+        ->where('notifiable_id', $data['businessUser']->id)
+        ->where('notifiable_type', User::class)
+        ->where('type', OfferAcceptedNotification::class)
+        ->latest('created_at')
+        ->first();
+
+    expect($notification)->not->toBeNull();
+
+    $notificationData = json_decode(
+        $notification->data,
+        true
+    );
+
+    expect($notificationData['notification_type'])
+        ->toBe(NotificationType::OFFER_ACCEPTED);
+
+    expect($notificationData['offer_id'])
+        ->toBe($offer->id);
+
+    expect($notificationData['conversation_id'])
+        ->toBe($data['conversation']->id);
+
+    expect($notificationData['business_id'])
+        ->toBe($data['business']->id);
+
+    expect($notificationData['patient_profile_id'])
+        ->toBe($data['patientProfile']->id);
+
+    expect($notificationData['treatment_id'])
+        ->toBe($data['treatment']->id);
+});
+
+test('offer creator does not receive notification when offer accepted notification is disabled', function () {
+    $data = createNotificationTestData();
+
+    $preferenceService = app(
+        BusinessNotificationPreferenceService::class
+    );
+
+    $preferenceService->update(
+        $data['business'],
+        NotificationType::OFFER_ACCEPTED,
+        false,
+        false
+    );
+
+    $offer = Offer::create([
+        'conversation_id' => $data['conversation']->id,
+        'business_id' => $data['business']->id,
+        'branch_id' => $data['branch']->id,
+        'patient_profile_id' => $data['patientProfile']->id,
+        'treatment_id' => $data['treatment']->id,
+        'created_by' => $data['businessUser']->id,
+        'title' => 'Kapalı bildirim testi',
+        'description' => 'Bildirim tercihi kapalı test.',
+        'amount' => 50000,
+        'currency' => 'TRY',
+        'valid_until' => now()->addDays(7),
+        'status' => 'pending',
+    ]);
+
+    $response = $this
+        ->actingAs($data['patientUser'])
+        ->postJson(
+            "/api/offers/{$offer->id}/accept"
+        );
+
+    $response->assertOk();
+
+    $response->assertJson([
+        'success' => true,
+        'message' => 'Teklif kabul edildi.',
+    ]);
+
+    $this->assertDatabaseMissing('notifications', [
+        'notifiable_id' => $data['businessUser']->id,
+        'notifiable_type' => User::class,
+        'type' => OfferAcceptedNotification::class,
+    ]);
 });

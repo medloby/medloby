@@ -5,12 +5,20 @@ namespace App\Http\Controllers;
 use App\Models\Conversation;
 use App\Models\Offer;
 use App\Notifications\NewOfferNotification;
+use App\Notifications\NotificationType;
+use App\Notifications\OfferAcceptedNotification;
+use App\Services\BusinessNotificationPreferenceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class OfferController extends Controller
 {
+    public function __construct(
+        protected BusinessNotificationPreferenceService $notificationPreferenceService
+    ) {
+    }
+
     public function index(
         Request $request,
         Conversation $conversation
@@ -176,8 +184,6 @@ class OfferController extends Controller
         /*
          * Süresi dolmuş teklifin expired olarak kalıcı şekilde
          * işaretlenmesi transaction dışında yapılır.
-         *
-         * Böylece abort(422) çağrıldığında bu durum rollback olmaz.
          */
         if (
             $offer->status === 'pending' &&
@@ -211,13 +217,6 @@ class OfferController extends Controller
                 $lockedOffer->valid_until &&
                 $lockedOffer->valid_until->isPast()
             ) {
-                /*
-                 * Burada transaction içindeyiz.
-                 * Önce güncelleme yapılıyor; fakat abort rollback
-                 * oluşturacağı için bu blok normalde yukarıdaki
-                 * erken kontrol nedeniyle süresi dolmuş teklifler
-                 * için çalışmayacaktır.
-                 */
                 $lockedOffer->update([
                     'status' => 'expired',
                 ]);
@@ -238,6 +237,28 @@ class OfferController extends Controller
                 422,
                 'Bu teklifin geçerlilik süresi dolmuştur.'
             );
+        }
+
+        /*
+         * Teklif kabul edildiğinde bildirimi,
+         * teklifi oluşturan kullanıcıya göndeririz.
+         *
+         * Bildirim tercihi kapalıysa hiçbir bildirim
+         * oluşturulmaz.
+         */
+        if (
+            $this->notificationPreferenceService->isInAppEnabled(
+                $freshOffer->business,
+                NotificationType::OFFER_ACCEPTED
+            )
+        ) {
+            $creator = $freshOffer->creator;
+
+            if ($creator) {
+                $creator->notify(
+                    new OfferAcceptedNotification($freshOffer)
+                );
+            }
         }
 
         return response()->json([
