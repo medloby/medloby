@@ -13,6 +13,7 @@ use App\Http\Controllers\AdminPlatformContractController;
 use App\Http\Controllers\AppointmentBookingController;
 use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BusinessNotificationPreferenceController;
 use App\Http\Controllers\BusinessRegistrationController;
 use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\EmailVerificationController;
@@ -177,6 +178,31 @@ Route::middleware('auth:sanctum')->group(function () {
                     'deactivate',
                 ]);
             });
+
+        /*
+        |--------------------------------------------------------------------------
+        | Business Notification Preferences
+        |--------------------------------------------------------------------------
+        */
+
+        Route::prefix(
+            'businesses/{business}/notification-preferences'
+        )->group(function () {
+            Route::get('/', [
+                BusinessNotificationPreferenceController::class,
+                'index',
+            ]);
+
+            Route::put('/{type}', [
+                BusinessNotificationPreferenceController::class,
+                'update',
+            ]);
+
+            Route::post('/reset', [
+                BusinessNotificationPreferenceController::class,
+                'reset',
+            ]);
+        });
 
         /*
         |--------------------------------------------------------------------------

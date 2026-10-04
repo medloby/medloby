@@ -118,4 +118,11 @@ class Business extends Model
             BusinessStatusHistory::class
         );
     }
+
+    public function notificationPreferences(): HasMany
+    {
+        return $this->hasMany(
+            BusinessNotificationPreference::class
+        );
+    }
 }
