@@ -30,6 +30,8 @@ use App\Http\Controllers\DoctorLeaveController;
 
 use App\Http\Controllers\CalendarBlockController;
 
+use App\Http\Controllers\TreatmentCategoryController;
+
 use App\Http\Controllers\BranchAppointmentSettingController;
 
 use App\Http\Controllers\BookingCalendarController;
@@ -827,4 +829,31 @@ Route::get('/availability', [AppointmentController::class, 'availability']);
 
     });
 
+});
+
+Route::prefix('treatment-categories')->group(function () {
+    Route::get('/', [
+        TreatmentCategoryController::class,
+        'index',
+    ]);
+
+    Route::post('/', [
+        TreatmentCategoryController::class,
+        'store',
+    ]);
+
+    Route::get('/{treatmentCategory}', [
+        TreatmentCategoryController::class,
+        'show',
+    ]);
+
+    Route::put('/{treatmentCategory}', [
+        TreatmentCategoryController::class,
+        'update',
+    ]);
+
+    Route::delete('/{treatmentCategory}', [
+        TreatmentCategoryController::class,
+        'deactivate',
+    ]);
 });
