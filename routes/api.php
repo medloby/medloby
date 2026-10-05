@@ -28,6 +28,8 @@ use App\Http\Controllers\DoctorWorkingHourController;
 
 use App\Http\Controllers\DoctorLeaveController;
 
+use App\Http\Controllers\CalendarBlockController;
+
 use App\Http\Controllers\BranchAppointmentSettingController;
 
 use App\Http\Controllers\BookingCalendarController;
@@ -629,6 +631,26 @@ Route::put('/branches/{branch}/doctors/{doctor}/leaves/{doctorLeave}', [
 
 Route::delete('/branches/{branch}/doctors/{doctor}/leaves/{doctorLeave}', [
     DoctorLeaveController::class,
+    'deactivate',
+]);
+
+Route::get('/branches/{branch}/calendar-blocks', [
+    CalendarBlockController::class,
+    'index',
+]);
+
+Route::post('/branches/{branch}/calendar-blocks', [
+    CalendarBlockController::class,
+    'store',
+]);
+
+Route::put('/branches/{branch}/calendar-blocks/{calendarBlock}', [
+    CalendarBlockController::class,
+    'update',
+]);
+
+Route::delete('/branches/{branch}/calendar-blocks/{calendarBlock}', [
+    CalendarBlockController::class,
     'deactivate',
 ]);
 
