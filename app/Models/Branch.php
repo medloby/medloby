@@ -113,4 +113,14 @@ class Branch extends Model
     {
         return $this->hasOne(BranchAppointmentSetting::class);
     }
+
+    public function bookingCalendarRule(): HasOne
+    {
+        return $this->hasOne(BookingCalendarRule::class);
+    }
+
+    public function bookingCalendarOverrides(): HasMany
+    {
+        return $this->hasMany(BookingCalendarOverride::class);
+    }
 }

@@ -25,7 +25,10 @@ use App\Http\Controllers\AppointmentBookingController;
 use App\Http\Controllers\AppointmentController;
 
 use App\Http\Controllers\DoctorWorkingHourController;
+
 use App\Http\Controllers\BranchAppointmentSettingController;
+
+use App\Http\Controllers\BookingCalendarController;
 
 use App\Http\Controllers\AuthController;
 
@@ -632,6 +635,44 @@ Route::prefix('notifications')->group(function () {
                 'reset',
             ]);
         });
+
+        /*
+|--------------------------------------------------------------------------
+| Booking Calendar
+|--------------------------------------------------------------------------
+*/
+
+Route::prefix('branches/{branch}/booking-calendar')->group(function () {
+    Route::get('/', [
+        BookingCalendarController::class,
+        'show',
+    ]);
+
+    Route::put('/', [
+        BookingCalendarController::class,
+        'updateRule',
+    ]);
+
+    Route::get('/overrides', [
+        BookingCalendarController::class,
+        'overrides',
+    ]);
+
+    Route::post('/overrides', [
+        BookingCalendarController::class,
+        'createOverride',
+    ]);
+
+    Route::put('/overrides/{override}', [
+        BookingCalendarController::class,
+        'updateOverride',
+    ]);
+
+    Route::delete('/overrides/{override}', [
+        BookingCalendarController::class,
+        'deactivateOverride',
+    ]);
+});
 
 Route::prefix('appointments')->group(function () {
 

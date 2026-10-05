@@ -2,6 +2,8 @@
 
 use App\Models\Branch;
 use App\Models\Business;
+use App\Models\BookingCalendarOverride;
+use App\Models\BookingCalendarRule;
 use App\Models\BusinessUser;
 use App\Models\Doctor;
 use App\Models\DoctorWorkingHour;
@@ -361,4 +363,128 @@ test('authenticated business user can retrieve appointment availability', functi
     expect($slots[0])->toBe('2026-10-12 09:00:00');
     expect($slots[array_key_last($slots)])
         ->toBe('2026-10-12 17:00:00');
+});
+
+test('booking calendar closed date prevents online appointment availability', function () {
+    $business = Business::factory()->create();
+
+    $branch = Branch::create([
+        'business_id' => $business->id,
+        'name' => 'Calendar Closed Branch',
+        'slug' => 'calendar-closed-' . uniqid(),
+        'country_code' => 'TR',
+        'city' => 'Istanbul',
+        'district' => 'Kadikoy',
+        'status' => 'active',
+    ]);
+
+    $person = Person::create([
+        'business_id' => $business->id,
+        'branch_id' => $branch->id,
+        'first_name' => 'Calendar',
+        'last_name' => 'Doctor',
+        'title' => 'Dr.',
+        'job_title' => 'Doktor',
+        'specialty' => 'Test',
+        'status' => 'active',
+    ]);
+
+    $doctor = Doctor::create([
+        'person_id' => $person->id,
+        'license_number' => 'CALENDAR-' . uniqid(),
+        'specialty' => 'Test',
+        'status' => 'active',
+        'is_public' => true,
+    ]);
+
+    $category = TreatmentCategory::create([
+        'name' => 'Calendar Category',
+        'slug' => 'calendar-category-' . uniqid(),
+        'sort_order' => 1,
+        'is_active' => true,
+    ]);
+
+    $treatment = Treatment::create([
+        'treatment_category_id' => $category->id,
+        'name' => 'Calendar Treatment',
+        'slug' => 'calendar-treatment-' . uniqid(),
+        'duration_minutes' => 60,
+        'is_online_bookable' => true,
+        'is_offer_enabled' => true,
+        'is_active' => true,
+        'sort_order' => 1,
+    ]);
+
+    DB::table('doctor_branch')->insert([
+        'doctor_id' => $doctor->id,
+        'branch_id' => $branch->id,
+        'status' => 'active',
+        'start_date' => now()->toDateString(),
+        'end_date' => null,
+        'notes' => null,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    DB::table('branch_treatment')->insert([
+        'branch_id' => $branch->id,
+        'treatment_id' => $treatment->id,
+        'duration_minutes' => 60,
+        'is_online_bookable' => true,
+        'is_active' => true,
+        'is_offer_enabled' => true,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    DB::table('doctor_treatment')->insert([
+        'doctor_id' => $doctor->id,
+        'treatment_id' => $treatment->id,
+        'duration_minutes' => 60,
+        'is_active' => true,
+        'notes' => null,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $date = now()->addDays(7)->startOfDay();
+
+    DoctorWorkingHour::create([
+        'doctor_id' => $doctor->id,
+        'branch_id' => $branch->id,
+        'day_of_week' => $date->dayOfWeek,
+        'start_time' => '09:00',
+        'end_time' => '18:00',
+        'is_active' => true,
+    ]);
+
+    BookingCalendarRule::create([
+        'branch_id' => $branch->id,
+        'default_status' => 'open',
+        'is_active' => true,
+    ]);
+
+    BookingCalendarOverride::create([
+        'branch_id' => $branch->id,
+        'start_date' => $date->toDateString(),
+        'end_date' => $date->toDateString(),
+        'status' => 'closed',
+        'reason' => 'Klinik kapalı',
+        'is_active' => true,
+    ]);
+
+    $service = app(AppointmentAvailabilityService::class);
+
+    $startsAt = $date->copy()->setTime(10, 0);
+
+    expect(
+        $service->isAvailable(
+            $doctor,
+            $branch->id,
+            $treatment,
+            $startsAt,
+            null,
+            true
+        )
+    )->toBeFalse();
 });

@@ -11,18 +11,23 @@ use Illuminate\Support\Facades\DB;
 
 class AppointmentAvailabilityService
 {
+    public function __construct(
+        protected BookingCalendarService $bookingCalendarService
+    ) {
+    }
+
     /**
      * Belirli doktor, şube ve tedavi için başlangıç saatinin
      * randevuya uygun olup olmadığını kontrol eder.
      */
     public function isAvailable(
-    Doctor $doctor,
-    int $branchId,
-    Treatment $treatment,
-    Carbon $startsAt,
-    ?int $ignoreAppointmentId = null,
-    bool $requireOnlineBookable = true
-): bool {
+        Doctor $doctor,
+        int $branchId,
+        Treatment $treatment,
+        Carbon $startsAt,
+        ?int $ignoreAppointmentId = null,
+        bool $requireOnlineBookable = true
+    ): bool {
         $durationMinutes = $this->getDurationMinutes(
             $doctor,
             $branchId,
@@ -61,18 +66,44 @@ class AppointmentAvailabilityService
         }
 
         // 4. Medloby üzerinden online randevu ise
-// online booking şartını kontrol et.
-if (
-    $requireOnlineBookable &&
-    ! $this->isOnlineBookable(
-        $branchId,
-        $treatment->id
-    )
-) {
-    return false;
-}
+        // online booking şartını kontrol et.
+        if (
+            $requireOnlineBookable &&
+            ! $this->isOnlineBookable(
+                $branchId,
+                $treatment->id
+            )
+        ) {
+            return false;
+        }
 
-        // 5. Doktorun çalışma saatleri uygun mu?
+        // 5. Booking Calendar tarih kontrolü.
+        //
+        // Klinik bu tarihi takvimden kapattıysa
+        // doktorun çalışma saati uygun olsa bile
+        // online randevu alınamaz.
+        if (
+            $requireOnlineBookable &&
+            ! $this->bookingCalendarService->isDateOpen(
+                $branchId,
+                $startsAt
+            )
+        ) {
+            return false;
+        }
+
+        // 6. Minimum randevu öncesi bildirim süresini kontrol et.
+        if (
+            $requireOnlineBookable &&
+            ! $this->meetsMinimumBookingNotice(
+                $branchId,
+                $startsAt
+            )
+        ) {
+            return false;
+        }
+
+        // 7. Doktorun çalışma saatleri uygun mu?
         if (! $this->isWithinWorkingHours(
             $doctor->id,
             $branchId,
@@ -82,7 +113,7 @@ if (
             return false;
         }
 
-        // 6. Doktor izinli mi?
+        // 8. Doktor izinli mi?
         if ($this->isOnLeave(
             $doctor->id,
             $branchId,
@@ -92,7 +123,7 @@ if (
             return false;
         }
 
-        // 7. Manuel takvim bloğu var mı?
+        // 9. Manuel takvim bloğu var mı?
         if ($this->hasCalendarBlock(
             $branchId,
             $doctor->id,
@@ -102,7 +133,7 @@ if (
             return false;
         }
 
-        // 8. Başka aktif randevuyla çakışıyor mu?
+        // 10. Başka aktif randevuyla çakışıyor mu?
         if ($this->hasAppointmentConflict(
             $doctor->id,
             $branchId,
@@ -114,6 +145,45 @@ if (
         }
 
         return true;
+    }
+
+    /**
+     * Klinik tarafından belirlenen minimum randevu öncesi
+     * bildirim süresini kontrol eder.
+     */
+    protected function meetsMinimumBookingNotice(
+        int $branchId,
+        Carbon $startsAt
+    ): bool {
+        $minimumNotice = DB::table('branch_appointment_settings')
+            ->where('branch_id', $branchId)
+            ->where('is_active', true)
+            ->value('minimum_booking_notice_minutes');
+
+        /*
+         * Şube ayarı yoksa herhangi bir minimum süre
+         * uygulanmaz.
+         */
+        if ($minimumNotice === null) {
+            return true;
+        }
+
+        $minimumNotice = (int) $minimumNotice;
+
+        /*
+         * 0 dakika = minimum bekleme yok.
+         */
+        if ($minimumNotice <= 0) {
+            return true;
+        }
+
+        $earliestAllowedStart = now()->addMinutes(
+            $minimumNotice
+        );
+
+        return $startsAt->greaterThanOrEqualTo(
+            $earliestAllowedStart
+        );
     }
 
     /**
@@ -164,12 +234,20 @@ if (
             ->where(function ($query) use ($date) {
                 $query
                     ->whereNull('start_date')
-                    ->orWhereDate('start_date', '<=', $date->toDateString());
+                    ->orWhereDate(
+                        'start_date',
+                        '<=',
+                        $date->toDateString()
+                    );
             })
             ->where(function ($query) use ($date) {
                 $query
                     ->whereNull('end_date')
-                    ->orWhereDate('end_date', '>=', $date->toDateString());
+                    ->orWhereDate(
+                        'end_date',
+                        '>=',
+                        $date->toDateString()
+                    );
             })
             ->exists();
     }
@@ -283,13 +361,21 @@ if (
                     ->whereNull('branch_id')
                     ->orWhere('branch_id', $branchId);
             })
-            ->whereDate('start_date', '<=', $endsAt->toDateString())
-            ->whereDate('end_date', '>=', $startsAt->toDateString())
+            ->whereDate(
+                'start_date',
+                '<=',
+                $endsAt->toDateString()
+            )
+            ->whereDate(
+                'end_date',
+                '>=',
+                $startsAt->toDateString()
+            )
             ->exists();
     }
 
     /**
-     * Doktorun aktif takvim blokuyla çakışma var mı?
+     * Doktorun aktif takvim bloğuyla çakışma var mı?
      */
     protected function hasCalendarBlock(
         int $branchId,
@@ -324,11 +410,11 @@ if (
             ->where('doctor_id', $doctorId)
             ->where('branch_id', $branchId)
             ->whereNotIn('status', [
-    'cancelled',
-    'completed',
-    'rescheduled',
-    'no_show',
-])
+                'cancelled',
+                'completed',
+                'rescheduled',
+                'no_show',
+            ])
             ->when(
                 $ignoreAppointmentId !== null,
                 fn ($query) => $query->where(
