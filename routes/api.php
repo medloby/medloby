@@ -32,6 +32,8 @@ use App\Http\Controllers\CalendarBlockController;
 
 use App\Http\Controllers\TreatmentCategoryController;
 
+use App\Http\Controllers\TreatmentController;
+
 use App\Http\Controllers\BranchAppointmentSettingController;
 
 use App\Http\Controllers\BookingCalendarController;
@@ -854,6 +856,33 @@ Route::prefix('treatment-categories')->group(function () {
 
     Route::delete('/{treatmentCategory}', [
         TreatmentCategoryController::class,
+        'deactivate',
+    ]);
+});
+
+Route::prefix('treatments')->group(function () {
+    Route::get('/', [
+        TreatmentController::class,
+        'index',
+    ]);
+
+    Route::post('/', [
+        TreatmentController::class,
+        'store',
+    ]);
+
+    Route::get('/{treatment}', [
+        TreatmentController::class,
+        'show',
+    ]);
+
+    Route::put('/{treatment}', [
+        TreatmentController::class,
+        'update',
+    ]);
+
+    Route::delete('/{treatment}', [
+        TreatmentController::class,
         'deactivate',
     ]);
 });
