@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\BranchTreatment;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -77,14 +78,17 @@ class Branch extends Model
     public function treatments(): BelongsToMany
     {
         return $this->belongsToMany(
-            Treatment::class,
-            'branch_treatment'
-        )->withPivot([
-            'is_active',
-            'is_online_bookable',
-            'is_offer_enabled',
-            'duration_minutes',
-        ])->withTimestamps();
+    Treatment::class,
+    'branch_treatment'
+)
+    ->using(BranchTreatment::class)
+    ->withPivot([
+        'is_active',
+        'is_online_bookable',
+        'is_offer_enabled',
+        'duration_minutes',
+    ])
+    ->withTimestamps();
     }
 
     public function doctorWorkingHours(): HasMany

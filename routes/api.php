@@ -10,6 +10,8 @@ use App\Http\Controllers\AdminBusinessMemberStatusController;
 
 use App\Http\Controllers\AdminBusinessMembershipController;
 
+use App\Http\Controllers\BranchTreatmentController;
+
 use App\Http\Controllers\AdminBusinessMembershipDetailController;
 
 use App\Http\Controllers\AdminBusinessPermissionController;
@@ -883,6 +885,28 @@ Route::prefix('treatments')->group(function () {
 
     Route::delete('/{treatment}', [
         TreatmentController::class,
+        'deactivate',
+    ]);
+});
+
+Route::prefix('branches/{branch}/treatments')->group(function () {
+    Route::get('/', [
+        BranchTreatmentController::class,
+        'index',
+    ]);
+
+    Route::post('/', [
+        BranchTreatmentController::class,
+        'store',
+    ]);
+
+    Route::put('/{treatment}', [
+        BranchTreatmentController::class,
+        'update',
+    ]);
+
+    Route::delete('/{treatment}', [
+        BranchTreatmentController::class,
         'deactivate',
     ]);
 });
