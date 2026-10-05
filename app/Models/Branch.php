@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Branch extends Model
 {
@@ -106,5 +107,10 @@ class Branch extends Model
     public function waitingLists(): HasMany
     {
         return $this->hasMany(WaitingList::class);
+    }
+
+    public function appointmentSetting(): HasOne
+    {
+        return $this->hasOne(BranchAppointmentSetting::class);
     }
 }

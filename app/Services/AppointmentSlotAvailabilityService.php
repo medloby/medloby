@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\BranchAppointmentSetting;
 use App\Models\Doctor;
 use App\Models\Treatment;
 use Carbon\Carbon;
@@ -18,9 +19,10 @@ class AppointmentSlotAvailabilityService
     /**
      * Belirli bir gün için doktorun müsait randevu başlangıç saatlerini üretir.
      *
-     * Slot aralığı teknik başlangıç aralığıdır.
-     * Tedavinin süresi klinik/şube/doktor tarafından belirlenen
-     * duration_minutes değerinden alınır.
+     * Slot aralığı öncelikle şubenin randevu ayarlarından alınır.
+     *
+     * Şube ayarında kayıt yoksa metoda gönderilen
+     * slotIntervalMinutes değeri kullanılır.
      *
      * Aynı gün içinde birden fazla çalışma aralığı desteklenir.
      *
@@ -36,9 +38,36 @@ class AppointmentSlotAvailabilityService
         int $branchId,
         Treatment $treatment,
         Carbon $date,
-        int $slotIntervalMinutes = 30,
+        ?int $slotIntervalMinutes = null,
         bool $requireOnlineBookable = true
     ): array {
+        $settings = BranchAppointmentSetting::query()
+            ->where('branch_id', $branchId)
+            ->where('is_active', true)
+            ->first();
+
+        /*
+         * Şube randevu ayarında slot aralığı varsa
+         * her zaman onu kullan.
+         */
+        if ($settings) {
+            $slotIntervalMinutes = $settings->slot_interval_minutes;
+
+            /*
+             * Online randevu ayarı kapalıysa
+             * online müsaitlik gösterilmez.
+             */
+            if (! $settings->online_booking_enabled) {
+                return [];
+            }
+        }
+
+        /*
+         * Şube ayarı henüz oluşturulmamışsa
+         * güvenli varsayılan olarak 30 dakika kullan.
+         */
+        $slotIntervalMinutes ??= 30;
+
         if ($slotIntervalMinutes <= 0) {
             throw new InvalidArgumentException(
                 'Slot aralığı 0 veya daha küçük olamaz.'
@@ -73,7 +102,9 @@ class AppointmentSlotAvailabilityService
                 $workingHour->end_time
             );
 
-            // Geçersiz veya boş çalışma aralığını atla.
+            /*
+             * Geçersiz veya boş çalışma aralığını atla.
+             */
             if ($workEnd->lessThanOrEqualTo($workStart)) {
                 continue;
             }
@@ -92,12 +123,11 @@ class AppointmentSlotAvailabilityService
                 if (! isset($slots[$slotKey])) {
                     if (
                         $this->availabilityService->isAvailable(
-                            $doctor,
-                            $branchId,
-                            $treatment,
-                            $slot,
-                            null,
-                            $requireOnlineBookable
+                            doctor: $doctor,
+                            branchId: $branchId,
+                            treatment: $treatment,
+                            startsAt: $slot,
+                            requireOnlineBookable: $requireOnlineBookable
                         )
                     ) {
                         $slots[$slotKey] = $slot;

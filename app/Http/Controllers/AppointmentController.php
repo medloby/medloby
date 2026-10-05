@@ -521,12 +521,6 @@ class AppointmentController extends Controller
             'required',
             'date',
         ],
-        'slot_interval' => [
-            'nullable',
-            'integer',
-            'min:1',
-            'max:1440',
-        ],
         'require_online_bookable' => [
             'nullable',
             'boolean',
@@ -572,19 +566,32 @@ class AppointmentController extends Controller
 
     $date = Carbon::parse($validated['date'])->startOfDay();
 
-    $slotInterval = $validated['slot_interval'] ?? 30;
+    /*
+     * Slot aralığı artık request'ten alınmıyor.
+     * Şubenin randevu ayarları esas alınıyor.
+     *
+     * Ayar kaydı yoksa servis kendi güvenli varsayılanı
+     * olan 30 dakikayı kullanır.
+     */
+    $appointmentSettings = $branch->appointmentSetting;
 
+    $slotInterval = $appointmentSettings?->slot_interval_minutes ?? 30;
+
+    /*
+     * Online randevu kontrolü request'ten açıkça false gönderilse bile
+     * şube ayarı online randevuyu kapatmışsa servis bunu engelleyecektir.
+     */
     $requireOnlineBookable =
         $validated['require_online_bookable'] ?? true;
 
     try {
         $slots = $this->slotAvailabilityService->getAvailableSlots(
-            $doctor,
-            (int) $validated['branch_id'],
-            $treatment,
-            $date,
-            $slotInterval,
-            $requireOnlineBookable
+            doctor: $doctor,
+            branchId: (int) $validated['branch_id'],
+            treatment: $treatment,
+            date: $date,
+            slotIntervalMinutes: null,
+            requireOnlineBookable: $requireOnlineBookable
         );
 
         return response()->json([
