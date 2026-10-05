@@ -26,6 +26,8 @@ use App\Http\Controllers\AppointmentController;
 
 use App\Http\Controllers\DoctorWorkingHourController;
 
+use App\Http\Controllers\DoctorLeaveController;
+
 use App\Http\Controllers\BranchAppointmentSettingController;
 
 use App\Http\Controllers\BookingCalendarController;
@@ -609,6 +611,26 @@ Route::prefix('notifications')->group(function () {
                 ]);
 
             });
+
+            Route::get('/branches/{branch}/doctors/{doctor}/leaves', [
+    DoctorLeaveController::class,
+    'index',
+]);
+
+Route::post('/branches/{branch}/doctors/{doctor}/leaves', [
+    DoctorLeaveController::class,
+    'store',
+]);
+
+Route::put('/branches/{branch}/doctors/{doctor}/leaves/{doctorLeave}', [
+    DoctorLeaveController::class,
+    'update',
+]);
+
+Route::delete('/branches/{branch}/doctors/{doctor}/leaves/{doctorLeave}', [
+    DoctorLeaveController::class,
+    'deactivate',
+]);
 
         /*
         |--------------------------------------------------------------------------
