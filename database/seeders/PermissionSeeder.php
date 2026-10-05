@@ -49,6 +49,12 @@ class PermissionSeeder extends Seeder
                 'module' => 'appointments',
                 'description' => 'Onaylanmış randevuları hasta gelmedi olarak işaretleme yetkisi.',
             ],
+            [
+                'name' => 'branches.manage',
+                'display_name' => 'Şube Yönetimi',
+                'module' => 'branches',
+                'description' => 'İşletmenin şubelerini oluşturma, güncelleme ve aktif/pasif yönetme yetkisi.',
+            ],
         ];
 
         foreach ($permissions as $permission) {

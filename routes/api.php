@@ -30,6 +30,8 @@ use App\Http\Controllers\BranchAppointmentSettingController;
 
 use App\Http\Controllers\BookingCalendarController;
 
+use App\Http\Controllers\BranchController;
+
 use App\Http\Controllers\AuthController;
 
 use App\Http\Controllers\BusinessNotificationPreferenceController;
@@ -636,12 +638,39 @@ Route::prefix('notifications')->group(function () {
             ]);
         });
 
-        /*
+/*
 |--------------------------------------------------------------------------
-| Booking Calendar
+| Branch Management
 |--------------------------------------------------------------------------
 */
 
+Route::prefix('branches')->group(function () {
+    Route::get('/', [
+        BranchController::class,
+        'index',
+    ]);
+
+    Route::post('/', [
+        BranchController::class,
+        'store',
+    ]);
+
+    Route::get('/{branch}', [
+        BranchController::class,
+        'show',
+    ]);
+
+    Route::put('/{branch}', [
+        BranchController::class,
+        'update',
+    ]);
+
+    Route::delete('/{branch}', [
+        BranchController::class,
+        'deactivate',
+    ]);
+});
+   
 Route::prefix('branches/{branch}/booking-calendar')->group(function () {
     Route::get('/', [
         BookingCalendarController::class,
