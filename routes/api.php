@@ -34,6 +34,8 @@ use App\Http\Controllers\CalendarBlockController;
 
 use App\Http\Controllers\CrmLeadController;
 
+use App\Http\Controllers\CrmTaskController;
+
 use App\Http\Controllers\CrmPipelineStageController;
 
 use App\Http\Controllers\TreatmentCategoryController;
@@ -1145,5 +1147,37 @@ Route::prefix('branches/{branch}/crm/pipeline-stages')->group(function () {
     Route::delete('/{crmPipelineStage}', [
         CrmPipelineStageController::class,
         'deactivate',
+    ]);
+});
+
+Route::prefix('branches/{branch}/crm/tasks')->group(function () {
+    Route::get('/', [
+        CrmTaskController::class,
+        'index',
+    ]);
+
+    Route::post('/', [
+        CrmTaskController::class,
+        'store',
+    ]);
+
+    Route::get('/{crmTask}', [
+        CrmTaskController::class,
+        'show',
+    ]);
+
+    Route::put('/{crmTask}', [
+        CrmTaskController::class,
+        'update',
+    ]);
+
+    Route::post('/{crmTask}/complete', [
+        CrmTaskController::class,
+        'complete',
+    ]);
+
+    Route::post('/{crmTask}/cancel', [
+        CrmTaskController::class,
+        'cancel',
     ]);
 });
