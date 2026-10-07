@@ -137,4 +137,9 @@ class Branch extends Model
     {
         return $this->hasMany(BookingCalendarOverride::class);
     }
+
+    public function crmActivities(): HasMany
+    {
+        return $this->hasMany(CrmActivity::class);
+    }
 }

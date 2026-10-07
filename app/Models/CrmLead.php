@@ -84,4 +84,12 @@ class CrmLead extends Model
             'crm_lead_id'
         )->orderBy('changed_at');
     }
+
+    public function activities(): HasMany
+    {
+        return $this->hasMany(
+            CrmActivity::class,
+            'crm_lead_id'
+        )->orderByDesc('occurred_at');
+    }
 }

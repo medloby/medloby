@@ -36,6 +36,8 @@ use App\Http\Controllers\CrmLeadController;
 
 use App\Http\Controllers\CrmTaskController;
 
+use App\Http\Controllers\CrmActivityController;
+
 use App\Http\Controllers\CrmPipelineStageController;
 
 use App\Http\Controllers\TreatmentCategoryController;
@@ -1179,5 +1181,32 @@ Route::prefix('branches/{branch}/crm/tasks')->group(function () {
     Route::post('/{crmTask}/cancel', [
         CrmTaskController::class,
         'cancel',
+    ]);
+});
+
+Route::prefix('branches/{branch}/crm/activities')->group(function () {
+    Route::get('/', [
+        CrmActivityController::class,
+        'index',
+    ]);
+
+    Route::post('/', [
+        CrmActivityController::class,
+        'store',
+    ]);
+
+    Route::get('/{crmActivity}', [
+        CrmActivityController::class,
+        'show',
+    ]);
+
+    Route::put('/{crmActivity}', [
+        CrmActivityController::class,
+        'update',
+    ]);
+
+    Route::delete('/{crmActivity}', [
+        CrmActivityController::class,
+        'destroy',
     ]);
 });
