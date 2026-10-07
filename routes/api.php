@@ -36,6 +36,8 @@ use App\Http\Controllers\CrmLeadController;
 
 use App\Http\Controllers\CrmTaskController;
 
+use App\Http\Controllers\CrmDashboardController;
+
 use App\Http\Controllers\CrmFollowUpController;
 
 use App\Http\Controllers\CrmActivityController;
@@ -1244,3 +1246,11 @@ Route::prefix('branches/{branch}/crm/follow-ups')->group(function () {
         'cancel',
     ]);
 });
+
+Route::get(
+    'branches/{branch}/crm/dashboard',
+    [
+        CrmDashboardController::class,
+        'index',
+    ]
+);
