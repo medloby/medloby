@@ -12,6 +12,7 @@ class CrmLead extends Model
         'branch_id',
         'patient_profile_id',
         'assigned_business_user_id',
+        'pipeline_stage_id',
         'first_name',
         'last_name',
         'email',
@@ -64,6 +65,14 @@ class CrmLead extends Model
         return $this->belongsTo(
             BusinessUser::class,
             'assigned_business_user_id'
+        );
+    }
+
+    public function pipelineStage(): BelongsTo
+    {
+        return $this->belongsTo(
+            CrmPipelineStage::class,
+            'pipeline_stage_id'
         );
     }
 }

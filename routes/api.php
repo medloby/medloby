@@ -34,6 +34,8 @@ use App\Http\Controllers\CalendarBlockController;
 
 use App\Http\Controllers\CrmLeadController;
 
+use App\Http\Controllers\CrmPipelineStageController;
+
 use App\Http\Controllers\TreatmentCategoryController;
 
 use App\Http\Controllers\TreatmentController;
@@ -1116,5 +1118,32 @@ Route::prefix('branches/{branch}/crm/leads')->group(function () {
     Route::post('/{crmLead}/lost', [
         CrmLeadController::class,
         'markLost',
+    ]);
+});
+
+Route::prefix('branches/{branch}/crm/pipeline-stages')->group(function () {
+    Route::get('/', [
+        CrmPipelineStageController::class,
+        'index',
+    ]);
+
+    Route::post('/', [
+        CrmPipelineStageController::class,
+        'store',
+    ]);
+
+    Route::get('/{crmPipelineStage}', [
+        CrmPipelineStageController::class,
+        'show',
+    ]);
+
+    Route::put('/{crmPipelineStage}', [
+        CrmPipelineStageController::class,
+        'update',
+    ]);
+
+    Route::delete('/{crmPipelineStage}', [
+        CrmPipelineStageController::class,
+        'deactivate',
     ]);
 });
