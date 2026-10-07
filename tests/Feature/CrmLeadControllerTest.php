@@ -4,6 +4,8 @@ use App\Models\Branch;
 use App\Models\Business;
 use App\Models\BusinessUser;
 use App\Models\CrmLead;
+use App\Models\CrmPipelineStage;
+use App\Models\CrmPipelineStageHistory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -523,4 +525,188 @@ test('can filter leads by assigned business user', function () {
             'data.0.id',
             $assignedLead->id
         );
+});
+
+test('can create crm lead with pipeline stage history', function () {
+    $stage = CrmPipelineStage::create([
+        'business_id' => $this->business->id,
+        'name' => 'Yeni Lead',
+        'slug' => 'yeni-lead-' . uniqid(),
+        'color' => '#3B82F6',
+        'sort_order' => 1,
+        'is_won' => false,
+        'is_lost' => false,
+        'is_active' => true,
+    ]);
+
+    $response = $this->postJson(
+        "/api/branches/{$this->branch->id}/crm/leads",
+        [
+            'first_name' => 'History',
+            'last_name' => 'Create',
+            'pipeline_stage_id' => $stage->id,
+        ]
+    );
+
+    $response
+        ->assertCreated()
+        ->assertJsonPath('data.pipeline_stage_id', $stage->id);
+
+    $this->assertDatabaseHas('crm_pipeline_stage_histories', [
+        'crm_lead_id' => $response->json('data.id'),
+        'from_stage_id' => null,
+        'to_stage_id' => $stage->id,
+        'notes' => 'Lead oluşturuldu.',
+    ]);
+});
+
+test('can record pipeline stage change history', function () {
+    $user = \App\Models\User::factory()->create();
+
+    BusinessUser::create([
+        'business_id' => $this->business->id,
+        'user_id' => $user->id,
+        'role' => 'staff',
+        'is_active' => true,
+    ]);
+
+    $this->actingAs($user);
+
+    $fromStage = CrmPipelineStage::create([
+        'business_id' => $this->business->id,
+        'name' => 'Yeni',
+        'slug' => 'yeni-' . uniqid(),
+        'color' => '#3B82F6',
+        'sort_order' => 1,
+        'is_won' => false,
+        'is_lost' => false,
+        'is_active' => true,
+    ]);
+
+    $toStage = CrmPipelineStage::create([
+        'business_id' => $this->business->id,
+        'name' => 'İletişim Kuruldu',
+        'slug' => 'iletisim-kuruldu-' . uniqid(),
+        'color' => '#10B981',
+        'sort_order' => 2,
+        'is_won' => false,
+        'is_lost' => false,
+        'is_active' => true,
+    ]);
+
+    $lead = CrmLead::create([
+        'business_id' => $this->business->id,
+        'branch_id' => $this->branch->id,
+        'first_name' => 'Stage',
+        'last_name' => 'Change',
+        'pipeline_stage_id' => $fromStage->id,
+    ]);
+
+    $response = $this->putJson(
+        "/api/branches/{$this->branch->id}/crm/leads/{$lead->id}",
+        [
+            'pipeline_stage_id' => $toStage->id,
+            'pipeline_stage_note' => 'Hasta ile ilk görüşme yapıldı.',
+        ]
+    );
+
+    $response
+        ->assertSuccessful()
+        ->assertJsonPath('data.pipeline_stage_id', $toStage->id);
+
+    $businessUser = BusinessUser::query()
+        ->where('business_id', $this->business->id)
+        ->where('user_id', $user->id)
+        ->first();
+
+    $this->assertDatabaseHas('crm_pipeline_stage_histories', [
+        'crm_lead_id' => $lead->id,
+        'from_stage_id' => $fromStage->id,
+        'to_stage_id' => $toStage->id,
+        'changed_by_business_user_id' => $businessUser->id,
+        'notes' => 'Hasta ile ilk görüşme yapıldı.',
+    ]);
+
+    expect(
+        CrmPipelineStageHistory::query()
+            ->where('crm_lead_id', $lead->id)
+            ->count()
+    )->toBe(1);
+});
+
+test('does not create pipeline stage history when stage does not change', function () {
+    $stage = CrmPipelineStage::create([
+        'business_id' => $this->business->id,
+        'name' => 'Yeni',
+        'slug' => 'yeni-' . uniqid(),
+        'color' => '#3B82F6',
+        'sort_order' => 1,
+        'is_won' => false,
+        'is_lost' => false,
+        'is_active' => true,
+    ]);
+
+    $lead = CrmLead::create([
+        'business_id' => $this->business->id,
+        'branch_id' => $this->branch->id,
+        'first_name' => 'No',
+        'last_name' => 'Stage Change',
+        'pipeline_stage_id' => $stage->id,
+    ]);
+
+    $response = $this->putJson(
+        "/api/branches/{$this->branch->id}/crm/leads/{$lead->id}",
+        [
+            'first_name' => 'Updated',
+        ]
+    );
+
+    $response->assertSuccessful();
+
+    $this->assertDatabaseMissing('crm_pipeline_stage_histories', [
+        'crm_lead_id' => $lead->id,
+    ]);
+});
+
+test('cannot move lead to pipeline stage belonging to another business', function () {
+    $otherBusiness = Business::create([
+        'name' => 'Other Klinik',
+        'slug' => 'other-klinik-' . uniqid(),
+    ]);
+
+    $otherStage = CrmPipelineStage::create([
+        'business_id' => $otherBusiness->id,
+        'name' => 'Başka İşletme Aşaması',
+        'slug' => 'baska-isletme-asamasi-' . uniqid(),
+        'color' => '#EF4444',
+        'sort_order' => 1,
+        'is_won' => false,
+        'is_lost' => false,
+        'is_active' => true,
+    ]);
+
+    $lead = CrmLead::create([
+        'business_id' => $this->business->id,
+        'branch_id' => $this->branch->id,
+        'first_name' => 'Isolation',
+        'last_name' => 'Test',
+    ]);
+
+    $response = $this->putJson(
+        "/api/branches/{$this->branch->id}/crm/leads/{$lead->id}",
+        [
+            'pipeline_stage_id' => $otherStage->id,
+        ]
+    );
+
+    $response
+        ->assertUnprocessable()
+        ->assertJsonPath('success', false);
+
+    expect($lead->fresh()->pipeline_stage_id)->toBeNull();
+
+    $this->assertDatabaseMissing('crm_pipeline_stage_histories', [
+        'crm_lead_id' => $lead->id,
+        'to_stage_id' => $otherStage->id,
+    ]);
 });

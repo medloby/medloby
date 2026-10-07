@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class CrmLead extends Model
 {
@@ -74,5 +75,13 @@ class CrmLead extends Model
             CrmPipelineStage::class,
             'pipeline_stage_id'
         );
+    }
+
+    public function pipelineStageHistories(): HasMany
+    {
+        return $this->hasMany(
+            CrmPipelineStageHistory::class,
+            'crm_lead_id'
+        )->orderBy('changed_at');
     }
 }

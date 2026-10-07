@@ -41,4 +41,12 @@ class CrmPipelineStage extends Model
             'pipeline_stage_id'
         );
     }
+
+    public function stageHistories(): HasMany
+    {
+        return $this->hasMany(
+            CrmPipelineStageHistory::class,
+            'to_stage_id'
+        );
+    }
 }
