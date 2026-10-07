@@ -36,6 +36,8 @@ use App\Http\Controllers\CrmLeadController;
 
 use App\Http\Controllers\CrmTaskController;
 
+use App\Http\Controllers\CrmFollowUpController;
+
 use App\Http\Controllers\CrmActivityController;
 
 use App\Http\Controllers\CrmPipelineStageController;
@@ -1208,5 +1210,37 @@ Route::prefix('branches/{branch}/crm/activities')->group(function () {
     Route::delete('/{crmActivity}', [
         CrmActivityController::class,
         'destroy',
+    ]);
+});
+
+Route::prefix('branches/{branch}/crm/follow-ups')->group(function () {
+    Route::get('/', [
+        CrmFollowUpController::class,
+        'index',
+    ]);
+
+    Route::post('/', [
+        CrmFollowUpController::class,
+        'store',
+    ]);
+
+    Route::get('/{crmFollowUp}', [
+        CrmFollowUpController::class,
+        'show',
+    ]);
+
+    Route::put('/{crmFollowUp}', [
+        CrmFollowUpController::class,
+        'update',
+    ]);
+
+    Route::post('/{crmFollowUp}/complete', [
+        CrmFollowUpController::class,
+        'complete',
+    ]);
+
+    Route::post('/{crmFollowUp}/cancel', [
+        CrmFollowUpController::class,
+        'cancel',
     ]);
 });

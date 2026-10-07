@@ -142,4 +142,9 @@ class Branch extends Model
     {
         return $this->hasMany(CrmActivity::class);
     }
+
+    public function crmFollowUps(): HasMany
+    {
+        return $this->hasMany(CrmFollowUp::class);
+    }
 }

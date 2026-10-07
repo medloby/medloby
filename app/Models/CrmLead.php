@@ -92,4 +92,12 @@ class CrmLead extends Model
             'crm_lead_id'
         )->orderByDesc('occurred_at');
     }
+
+    public function followUps(): HasMany
+    {
+        return $this->hasMany(
+            CrmFollowUp::class,
+            'crm_lead_id'
+        )->orderBy('scheduled_at');
+    }
 }
