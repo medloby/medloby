@@ -58,6 +58,8 @@ use App\Http\Controllers\ConversationController;
 
 use App\Http\Controllers\PackageServiceController;
 
+use App\Http\Controllers\PackageServiceItemController;
+
 use App\Http\Controllers\EmailVerificationController;
 
 use App\Http\Controllers\MessageAttachmentController;
@@ -1024,5 +1026,32 @@ Route::prefix('package-services')->group(function () {
     Route::delete('/{packageService}', [
         PackageServiceController::class,
         'deactivate',
+    ]);
+});
+
+Route::prefix('treatment-packages/{treatmentPackage}/service-items')->group(function () {
+    Route::get('/', [
+        PackageServiceItemController::class,
+        'index',
+    ]);
+
+    Route::post('/', [
+        PackageServiceItemController::class,
+        'store',
+    ]);
+
+    Route::get('/{packageServiceItem}', [
+        PackageServiceItemController::class,
+        'show',
+    ]);
+
+    Route::put('/{packageServiceItem}', [
+        PackageServiceItemController::class,
+        'update',
+    ]);
+
+    Route::delete('/{packageServiceItem}', [
+        PackageServiceItemController::class,
+        'destroy',
     ]);
 });
