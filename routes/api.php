@@ -32,6 +32,8 @@ use App\Http\Controllers\DoctorLeaveController;
 
 use App\Http\Controllers\CalendarBlockController;
 
+use App\Http\Controllers\CrmLeadController;
+
 use App\Http\Controllers\TreatmentCategoryController;
 
 use App\Http\Controllers\TreatmentController;
@@ -1082,5 +1084,37 @@ Route::prefix('branches/{branch}/social-media')->group(function () {
     Route::delete('/{socialMediaAccount}', [
         SocialMediaAccountController::class,
         'deactivate',
+    ]);
+});
+
+Route::prefix('branches/{branch}/crm/leads')->group(function () {
+    Route::get('/', [
+        CrmLeadController::class,
+        'index',
+    ]);
+
+    Route::post('/', [
+        CrmLeadController::class,
+        'store',
+    ]);
+
+    Route::get('/{crmLead}', [
+        CrmLeadController::class,
+        'show',
+    ]);
+
+    Route::put('/{crmLead}', [
+        CrmLeadController::class,
+        'update',
+    ]);
+
+    Route::post('/{crmLead}/convert', [
+        CrmLeadController::class,
+        'convert',
+    ]);
+
+    Route::post('/{crmLead}/lost', [
+        CrmLeadController::class,
+        'markLost',
     ]);
 });
