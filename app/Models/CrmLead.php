@@ -100,4 +100,12 @@ class CrmLead extends Model
             'crm_lead_id'
         )->orderBy('scheduled_at');
     }
+
+    public function conversations(): HasMany
+    {
+        return $this->hasMany(
+            Conversation::class,
+            'crm_lead_id'
+        )->orderByDesc('last_message_at');
+    }
 }

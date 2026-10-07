@@ -40,6 +40,8 @@ use App\Http\Controllers\CrmDashboardController;
 
 use App\Http\Controllers\CrmFollowUpController;
 
+use App\Http\Controllers\CrmConversationController;
+
 use App\Http\Controllers\CrmActivityController;
 
 use App\Http\Controllers\CrmPipelineStageController;
@@ -1244,6 +1246,13 @@ Route::prefix('branches/{branch}/crm/follow-ups')->group(function () {
     Route::post('/{crmFollowUp}/cancel', [
         CrmFollowUpController::class,
         'cancel',
+    ]);
+});
+
+Route::prefix('branches/{branch}/crm/leads/{crmLead}/conversations')->group(function () {
+    Route::post('/{conversation}/attach', [
+        CrmConversationController::class,
+        'attachLead',
     ]);
 });
 
