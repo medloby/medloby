@@ -38,6 +38,8 @@ use App\Http\Controllers\TreatmentController;
 
 use App\Http\Controllers\TreatmentPackageController;
 
+use App\Http\Controllers\TreatmentPackageItemController;
+
 use App\Http\Controllers\TreatmentPriceController;
 
 use App\Http\Controllers\BranchAppointmentSettingController;
@@ -966,5 +968,32 @@ Route::prefix('treatment-packages')->group(function () {
     Route::delete('/{treatmentPackage}', [
         TreatmentPackageController::class,
         'deactivate',
+    ]);
+});
+
+Route::prefix('treatment-packages/{treatmentPackage}/items')->group(function () {
+    Route::get('/', [
+        TreatmentPackageItemController::class,
+        'index',
+    ]);
+
+    Route::post('/', [
+        TreatmentPackageItemController::class,
+        'store',
+    ]);
+
+    Route::get('/{treatmentPackageItem}', [
+        TreatmentPackageItemController::class,
+        'show',
+    ]);
+
+    Route::put('/{treatmentPackageItem}', [
+        TreatmentPackageItemController::class,
+        'update',
+    ]);
+
+    Route::delete('/{treatmentPackageItem}', [
+        TreatmentPackageItemController::class,
+        'destroy',
     ]);
 });
