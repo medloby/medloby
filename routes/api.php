@@ -56,6 +56,8 @@ use App\Http\Controllers\BusinessRegistrationController;
 
 use App\Http\Controllers\ConversationController;
 
+use App\Http\Controllers\PackageServiceController;
+
 use App\Http\Controllers\EmailVerificationController;
 
 use App\Http\Controllers\MessageAttachmentController;
@@ -995,5 +997,32 @@ Route::prefix('treatment-packages/{treatmentPackage}/items')->group(function () 
     Route::delete('/{treatmentPackageItem}', [
         TreatmentPackageItemController::class,
         'destroy',
+    ]);
+});
+
+Route::prefix('package-services')->group(function () {
+    Route::get('/', [
+        PackageServiceController::class,
+        'index',
+    ]);
+
+    Route::post('/', [
+        PackageServiceController::class,
+        'store',
+    ]);
+
+    Route::get('/{packageService}', [
+        PackageServiceController::class,
+        'show',
+    ]);
+
+    Route::put('/{packageService}', [
+        PackageServiceController::class,
+        'update',
+    ]);
+
+    Route::delete('/{packageService}', [
+        PackageServiceController::class,
+        'deactivate',
     ]);
 });
