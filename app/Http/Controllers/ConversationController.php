@@ -10,7 +10,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 class ConversationController extends Controller
 {
@@ -18,26 +17,49 @@ class ConversationController extends Controller
     {
         $user = $request->user();
 
-        $patientProfile = PatientProfile::where('user_id', $user->id)->first();
+        $patientProfile = PatientProfile::where(
+            'user_id',
+            $user->id
+        )->first();
 
         $businessIds = $user->businessMemberships()
             ->where('is_active', true)
             ->pluck('business_id');
 
         $conversations = Conversation::query()
-            ->where(function ($query) use ($patientProfile, $businessIds) {
+            ->where(function ($query) use (
+                $patientProfile,
+                $businessIds
+            ) {
+                $hasAccessCondition = false;
+
                 if ($patientProfile) {
                     $query->where(
                         'patient_profile_id',
                         $patientProfile->id
                     );
+
+                    $hasAccessCondition = true;
                 }
 
                 if ($businessIds->isNotEmpty()) {
-                    $query->orWhereIn(
-                        'business_id',
-                        $businessIds
-                    );
+                    if ($hasAccessCondition) {
+                        $query->orWhereIn(
+                            'business_id',
+                            $businessIds
+                        );
+                    } else {
+                        $query->whereIn(
+                            'business_id',
+                            $businessIds
+                        );
+                    }
+
+                    $hasAccessCondition = true;
+                }
+
+                if (! $hasAccessCondition) {
+                    $query->whereRaw('1 = 0');
                 }
             })
             ->with([
@@ -81,42 +103,48 @@ class ConversationController extends Controller
         )->first();
 
         if (! $patientProfile) {
-            abort(403, 'Bu işlem yalnızca hasta hesabı ile yapılabilir.');
+            abort(
+                403,
+                'Bu işlem yalnızca hasta hesabı ile yapılabilir.'
+            );
         }
 
         $business = Business::findOrFail(
-    $validated['business_id']
-);
+            $validated['business_id']
+        );
 
-$branchId = $validated['branch_id'] ?? null;
+        $branchId = $validated['branch_id'] ?? null;
 
-if (
-    $branchId !== null &&
-    ! DB::table('branches')
-        ->where('id', $branchId)
-        ->where('business_id', $business->id)
-        ->exists()
-) {
-    abort(
-        422,
-        'Seçilen şube bu işletmeye ait değil.'
-    );
-}
+        if (
+            $branchId !== null &&
+            ! DB::table('branches')
+                ->where('id', $branchId)
+                ->where('business_id', $business->id)
+                ->exists()
+        ) {
+            abort(
+                422,
+                'Seçilen şube bu işletmeye ait değil.'
+            );
+        }
 
-if (
-    $business->status !== 'active' ||
-    ! $business->is_verified
-) {
-    abort(422, 'Bu sağlık merkezi şu anda iletişime açık değil.');
-}
+        if (
+            $business->status !== 'active' ||
+            ! $business->is_verified
+        ) {
+            abort(
+                422,
+                'Bu sağlık merkezi şu anda iletişime açık değil.'
+            );
+        }
 
-$conversation = Conversation::create([
-    'business_id' => $business->id,
-    'branch_id' => $branchId,
-    'patient_profile_id' => $patientProfile->id,
-    'subject' => $validated['subject'] ?? null,
-    'status' => 'open',
-]);
+        $conversation = Conversation::create([
+            'business_id' => $business->id,
+            'branch_id' => $branchId,
+            'patient_profile_id' => $patientProfile->id,
+            'subject' => $validated['subject'] ?? null,
+            'status' => 'open',
+        ]);
 
         return response()->json([
             'success' => true,
@@ -161,7 +189,10 @@ $conversation = Conversation::create([
         );
 
         if ($conversation->status !== 'open') {
-            abort(422, 'Kapalı görüşmeye mesaj gönderilemez.');
+            abort(
+                422,
+                'Kapalı görüşmeye mesaj gönderilemez.'
+            );
         }
 
         $validated = $request->validate([
