@@ -36,6 +36,8 @@ use App\Http\Controllers\TreatmentCategoryController;
 
 use App\Http\Controllers\TreatmentController;
 
+use App\Http\Controllers\TreatmentPriceController;
+
 use App\Http\Controllers\BranchAppointmentSettingController;
 
 use App\Http\Controllers\BookingCalendarController;
@@ -907,6 +909,33 @@ Route::prefix('branches/{branch}/treatments')->group(function () {
 
     Route::delete('/{treatment}', [
         BranchTreatmentController::class,
+        'deactivate',
+    ]);
+});
+
+Route::prefix('treatment-prices')->group(function () {
+    Route::get('/', [
+        TreatmentPriceController::class,
+        'index',
+    ]);
+
+    Route::post('/', [
+        TreatmentPriceController::class,
+        'store',
+    ]);
+
+    Route::get('/{treatmentPrice}', [
+        TreatmentPriceController::class,
+        'show',
+    ]);
+
+    Route::put('/{treatmentPrice}', [
+        TreatmentPriceController::class,
+        'update',
+    ]);
+
+    Route::delete('/{treatmentPrice}', [
+        TreatmentPriceController::class,
         'deactivate',
     ]);
 });
