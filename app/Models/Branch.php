@@ -78,17 +78,24 @@ class Branch extends Model
     public function treatments(): BelongsToMany
     {
         return $this->belongsToMany(
-    Treatment::class,
-    'branch_treatment'
-)
-    ->using(BranchTreatment::class)
-    ->withPivot([
-        'is_active',
-        'is_online_bookable',
-        'is_offer_enabled',
-        'duration_minutes',
-    ])
-    ->withTimestamps();
+            Treatment::class,
+            'branch_treatment'
+        )
+            ->using(BranchTreatment::class)
+            ->withPivot([
+                'is_active',
+                'is_online_bookable',
+                'is_offer_enabled',
+                'duration_minutes',
+            ])
+            ->withTimestamps();
+    }
+
+    public function socialMediaAccounts(): HasMany
+    {
+        return $this->hasMany(
+            SocialMediaAccount::class
+        )->orderBy('sort_order');
     }
 
     public function doctorWorkingHours(): HasMany

@@ -64,6 +64,8 @@ use App\Http\Controllers\EmailVerificationController;
 
 use App\Http\Controllers\MessageAttachmentController;
 
+use App\Http\Controllers\SocialMediaAccountController;
+
 use App\Http\Controllers\OfferController;
 
 use App\Http\Controllers\PatientRegistrationController;
@@ -1053,5 +1055,32 @@ Route::prefix('treatment-packages/{treatmentPackage}/service-items')->group(func
     Route::delete('/{packageServiceItem}', [
         PackageServiceItemController::class,
         'destroy',
+    ]);
+});
+
+Route::prefix('branches/{branch}/social-media')->group(function () {
+    Route::get('/', [
+        SocialMediaAccountController::class,
+        'index',
+    ]);
+
+    Route::post('/', [
+        SocialMediaAccountController::class,
+        'store',
+    ]);
+
+    Route::get('/{socialMediaAccount}', [
+        SocialMediaAccountController::class,
+        'show',
+    ]);
+
+    Route::put('/{socialMediaAccount}', [
+        SocialMediaAccountController::class,
+        'update',
+    ]);
+
+    Route::delete('/{socialMediaAccount}', [
+        SocialMediaAccountController::class,
+        'deactivate',
     ]);
 });
