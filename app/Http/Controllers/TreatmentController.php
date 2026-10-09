@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Treatment;
+use App\Models\TreatmentCategory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -114,8 +115,19 @@ class TreatmentController extends Controller
             ],
         ]);
 
+        $category = TreatmentCategory::findOrFail(
+            $validated['treatment_category_id']
+        );
+
+        if (! $category->is_active) {
+            abort(
+                422,
+                'Treatment category is not active.'
+            );
+        }
+
         $treatment = Treatment::create([
-            'treatment_category_id' => $validated['treatment_category_id'],
+            'treatment_category_id' => $category->id,
             'name' => $validated['name'],
             'slug' => $validated['slug']
                 ?? Str::slug($validated['name']),
@@ -126,10 +138,14 @@ class TreatmentController extends Controller
             'included_services' => $validated['included_services'] ?? null,
             'excluded_services' => $validated['excluded_services'] ?? null,
             'image' => $validated['image'] ?? null,
-            'is_online_bookable' => $validated['is_online_bookable'] ?? false,
-            'is_offer_enabled' => $validated['is_offer_enabled'] ?? true,
-            'is_active' => $validated['is_active'] ?? false,
-            'sort_order' => $validated['sort_order'] ?? 0,
+            'is_online_bookable' =>
+                $validated['is_online_bookable'] ?? false,
+            'is_offer_enabled' =>
+                $validated['is_offer_enabled'] ?? true,
+            'is_active' =>
+                $validated['is_active'] ?? false,
+            'sort_order' =>
+                $validated['sort_order'] ?? 0,
         ]);
 
         return response()->json([
@@ -225,6 +241,22 @@ class TreatmentController extends Controller
             ],
         ]);
 
+        if (array_key_exists(
+            'treatment_category_id',
+            $validated
+        )) {
+            $category = TreatmentCategory::findOrFail(
+                $validated['treatment_category_id']
+            );
+
+            if (! $category->is_active) {
+                abort(
+                    422,
+                    'Treatment category is not active.'
+                );
+            }
+        }
+
         $treatment->update($validated);
 
         return response()->json([
@@ -233,8 +265,9 @@ class TreatmentController extends Controller
         ]);
     }
 
-    public function deactivate(Treatment $treatment): JsonResponse
-    {
+    public function deactivate(
+        Treatment $treatment
+    ): JsonResponse {
         $treatment->update([
             'is_active' => false,
         ]);

@@ -3,9 +3,11 @@
 use App\Models\Branch;
 use App\Models\Business;
 use App\Models\Doctor;
+use App\Models\BusinessUser;
 use App\Models\Treatment;
 use App\Models\TreatmentCategory;
 use App\Models\TreatmentPrice;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -15,6 +17,15 @@ beforeEach(function () {
         'name' => 'Test Klinik',
         'slug' => 'test-klinik-' . uniqid(),
     ]);
+
+    $this->user = User::factory()->create();
+
+BusinessUser::create([
+    'user_id' => $this->user->id,
+    'business_id' => $this->business->id,
+    'role' => 'business_owner',
+    'is_active' => true,
+]);
 
     $this->branch = Branch::create([
         'business_id' => $this->business->id,
@@ -35,6 +46,16 @@ beforeEach(function () {
         'slug' => 'fue-sac-ekimi-' . uniqid(),
         'is_active' => true,
     ]);
+
+    $this->branch->treatments()->attach(
+    $this->treatment->id,
+    [
+        'is_active' => true,
+        'is_online_bookable' => true,
+        'is_offer_enabled' => true,
+        'duration_minutes' => 60,
+    ]
+);
 });
 
 test('can list treatment prices', function () {
@@ -229,7 +250,7 @@ test('can filter treatment prices by currency', function () {
 });
 
 test('can create fixed treatment price', function () {
-    $response = $this->postJson(
+    $response = $this->actingAs($this->user)->postJson(
         '/api/treatment-prices',
         [
             'business_id' => $this->business->id,
@@ -276,7 +297,7 @@ test('can create fixed treatment price', function () {
 });
 
 test('currency is automatically normalized to uppercase', function () {
-    $response = $this->postJson(
+    $response = $this->actingAs($this->user)->postJson(
         '/api/treatment-prices',
         [
             'business_id' => $this->business->id,
@@ -296,7 +317,7 @@ test('currency is automatically normalized to uppercase', function () {
 });
 
 test('can create treatment price range', function () {
-    $response = $this->postJson(
+    $response = $this->actingAs($this->user)->postJson(
         '/api/treatment-prices',
         [
             'business_id' => $this->business->id,
@@ -321,7 +342,7 @@ test('can create treatment price range', function () {
 });
 
 test('max price cannot be lower than min price', function () {
-    $response = $this->postJson(
+    $response = $this->actingAs($this->user)->postJson(
         '/api/treatment-prices',
         [
             'business_id' => $this->business->id,
@@ -341,7 +362,7 @@ test('max price cannot be lower than min price', function () {
 });
 
 test('valid until cannot be before valid from', function () {
-    $response = $this->postJson(
+    $response = $this->actingAs($this->user)->postJson(
         '/api/treatment-prices',
         [
             'business_id' => $this->business->id,
@@ -375,7 +396,14 @@ test('can create doctor specific treatment price', function () {
         'status' => 'active',
     ]);
 
-    $response = $this->postJson(
+    $doctor->branches()->attach(
+    $this->branch->id,
+    [
+        'status' => 'active',
+    ]
+);
+
+    $response = $this->actingAs($this->user)->postJson(
         '/api/treatment-prices',
         [
             'business_id' => $this->business->id,
@@ -406,7 +434,7 @@ test('can show treatment price with relationships', function () {
         'currency' => 'TRY',
     ]);
 
-    $response = $this->getJson(
+    $response = $this->actingAs($this->user)->getJson(
         "/api/treatment-prices/{$price->id}"
     );
 
@@ -441,7 +469,7 @@ test('can update treatment price', function () {
         'is_active' => true,
     ]);
 
-    $response = $this->putJson(
+    $response = $this->actingAs($this->user)->putJson(
         "/api/treatment-prices/{$price->id}",
         [
             'price' => 65000,
@@ -483,7 +511,7 @@ test('can deactivate treatment price', function () {
         'is_active' => true,
     ]);
 
-    $response = $this->deleteJson(
+    $response = $this->actingAs($this->user)->deleteJson(
         "/api/treatment-prices/{$price->id}"
     );
 

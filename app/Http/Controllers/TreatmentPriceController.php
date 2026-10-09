@@ -2,14 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Business;
 use App\Models\Branch;
 use App\Models\Doctor;
 use App\Models\Treatment;
 use App\Models\TreatmentPrice;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 
 class TreatmentPriceController extends Controller
 {
@@ -75,6 +73,10 @@ class TreatmentPriceController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        if (! $request->user()) {
+            abort(401);
+        }
+
         $validated = $request->validate([
             'business_id' => [
                 'required',
@@ -136,6 +138,93 @@ class TreatmentPriceController extends Controller
                 'after_or_equal:valid_from',
             ],
         ]);
+
+        if (
+            ! $request->user()
+                ->businessMemberships()
+                ->where('business_id', $validated['business_id'])
+                ->where('is_active', true)
+                ->exists()
+        ) {
+            abort(403, 'Bu işletmeye erişim yetkiniz yok.');
+        }
+
+        $branch = null;
+
+        if (! empty($validated['branch_id'])) {
+            $branch = Branch::findOrFail(
+                $validated['branch_id']
+            );
+
+            if (
+                (int) $branch->business_id !==
+                (int) $validated['business_id']
+            ) {
+                abort(
+                    422,
+                    'Branch does not belong to the selected business.'
+                );
+            }
+        }
+
+        $treatment = Treatment::findOrFail(
+            $validated['treatment_id']
+        );
+
+        if (! $treatment->is_active) {
+            abort(
+                422,
+                'Treatment is not active.'
+            );
+        }
+
+        if ($branch) {
+            if (
+                ! $treatment->branches()
+                    ->where('branches.id', $branch->id)
+                    ->wherePivot('is_active', true)
+                    ->exists()
+            ) {
+                abort(
+                    422,
+                    'Treatment is not active for the selected branch.'
+                );
+            }
+        }
+
+        if (! empty($validated['doctor_id'])) {
+            $doctor = Doctor::findOrFail(
+                $validated['doctor_id']
+            );
+
+            if (
+                ! $doctor->branches()
+                    ->where(
+                        'branches.business_id',
+                        $validated['business_id']
+                    )
+                    ->wherePivot('status', 'active')
+                    ->exists()
+            ) {
+                abort(
+                    422,
+                    'Doctor does not belong to the selected business.'
+                );
+            }
+
+            if (
+                $branch &&
+                ! $doctor->branches()
+                    ->where('branches.id', $branch->id)
+                    ->wherePivot('status', 'active')
+                    ->exists()
+            ) {
+                abort(
+                    422,
+                    'Doctor is not assigned to the selected branch.'
+                );
+            }
+        }
 
         $validated['currency'] = strtoupper(
             $validated['currency']
@@ -158,8 +247,26 @@ class TreatmentPriceController extends Controller
     }
 
     public function show(
+        Request $request,
         TreatmentPrice $treatmentPrice
     ): JsonResponse {
+        if (! $request->user()) {
+            abort(401);
+        }
+
+        if (
+            ! $request->user()
+                ->businessMemberships()
+                ->where(
+                    'business_id',
+                    $treatmentPrice->business_id
+                )
+                ->where('is_active', true)
+                ->exists()
+        ) {
+            abort(403, 'Bu işletmeye erişim yetkiniz yok.');
+        }
+
         $treatmentPrice->load([
             'business',
             'treatment',
@@ -177,6 +284,10 @@ class TreatmentPriceController extends Controller
         Request $request,
         TreatmentPrice $treatmentPrice
     ): JsonResponse {
+        if (! $request->user()) {
+            abort(401);
+        }
+
         $validated = $request->validate([
             'business_id' => [
                 'sometimes',
@@ -239,6 +350,107 @@ class TreatmentPriceController extends Controller
             ],
         ]);
 
+        $businessId = $validated['business_id']
+            ?? $treatmentPrice->business_id;
+
+        if (
+            ! $request->user()
+                ->businessMemberships()
+                ->where('business_id', $businessId)
+                ->where('is_active', true)
+                ->exists()
+        ) {
+            abort(403, 'Bu işletmeye erişim yetkiniz yok.');
+        }
+
+        $branchId = array_key_exists(
+            'branch_id',
+            $validated
+        )
+            ? $validated['branch_id']
+            : $treatmentPrice->branch_id;
+
+        $treatmentId = $validated['treatment_id']
+            ?? $treatmentPrice->treatment_id;
+
+        $doctorId = array_key_exists(
+            'doctor_id',
+            $validated
+        )
+            ? $validated['doctor_id']
+            : $treatmentPrice->doctor_id;
+
+        $branch = null;
+
+        if ($branchId !== null) {
+            $branch = Branch::findOrFail($branchId);
+
+            if (
+                (int) $branch->business_id !==
+                (int) $businessId
+            ) {
+                abort(
+                    422,
+                    'Branch does not belong to the selected business.'
+                );
+            }
+        }
+
+        $treatment = Treatment::findOrFail($treatmentId);
+
+        if (! $treatment->is_active) {
+            abort(
+                422,
+                'Treatment is not active.'
+            );
+        }
+
+        if ($branch) {
+            if (
+                ! $treatment->branches()
+                    ->where('branches.id', $branch->id)
+                    ->wherePivot('is_active', true)
+                    ->exists()
+            ) {
+                abort(
+                    422,
+                    'Treatment is not active for the selected branch.'
+                );
+            }
+        }
+
+        if ($doctorId !== null) {
+            $doctor = Doctor::findOrFail($doctorId);
+
+            if (
+                ! $doctor->branches()
+                    ->where(
+                        'branches.business_id',
+                        $businessId
+                    )
+                    ->wherePivot('status', 'active')
+                    ->exists()
+            ) {
+                abort(
+                    422,
+                    'Doctor does not belong to the selected business.'
+                );
+            }
+
+            if (
+                $branch &&
+                ! $doctor->branches()
+                    ->where('branches.id', $branch->id)
+                    ->wherePivot('status', 'active')
+                    ->exists()
+            ) {
+                abort(
+                    422,
+                    'Doctor is not assigned to the selected branch.'
+                );
+            }
+        }
+
         if (isset($validated['currency'])) {
             $validated['currency'] = strtoupper(
                 $validated['currency']
@@ -259,8 +471,26 @@ class TreatmentPriceController extends Controller
     }
 
     public function deactivate(
+        Request $request,
         TreatmentPrice $treatmentPrice
     ): JsonResponse {
+        if (! $request->user()) {
+            abort(401);
+        }
+
+        if (
+            ! $request->user()
+                ->businessMemberships()
+                ->where(
+                    'business_id',
+                    $treatmentPrice->business_id
+                )
+                ->where('is_active', true)
+                ->exists()
+        ) {
+            abort(403, 'Bu işletmeye erişim yetkiniz yok.');
+        }
+
         $treatmentPrice->update([
             'is_active' => false,
         ]);

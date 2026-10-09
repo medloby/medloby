@@ -377,3 +377,116 @@ test('inactive doctor branch relationship cannot receive a leave', function () {
 
     $response->assertUnprocessable();
 });
+
+test('leave belonging to another doctor cannot be updated', function () {
+    $otherPerson = Person::factory()->create([
+        'business_id' => $this->business->id,
+        'branch_id' => $this->branch->id,
+    ]);
+
+    $otherDoctor = Doctor::factory()->create([
+        'person_id' => $otherPerson->id,
+        'status' => 'active',
+    ]);
+
+    $otherDoctor->branches()->attach(
+        $this->branch->id,
+        [
+            'status' => 'active',
+        ]
+    );
+
+    $leave = DoctorLeave::create([
+        'doctor_id' => $otherDoctor->id,
+        'branch_id' => $this->branch->id,
+        'start_date' => '2027-02-01',
+        'end_date' => '2027-02-03',
+        'leave_type' => 'leave',
+        'is_approved' => true,
+    ]);
+
+    $response = $this->actingAs($this->owner)
+        ->putJson(
+            "/api/branches/{$this->branch->id}/doctors/{$this->doctor->id}/leaves/{$leave->id}",
+            [
+                'reason' => 'Yetkisiz güncelleme',
+            ]
+        );
+
+    $response->assertNotFound();
+});
+
+test('updating doctor leave to an overlapping date range is rejected', function () {
+    DoctorLeave::create([
+        'doctor_id' => $this->doctor->id,
+        'branch_id' => $this->branch->id,
+        'start_date' => '2027-02-10',
+        'end_date' => '2027-02-15',
+        'leave_type' => 'leave',
+        'is_approved' => true,
+    ]);
+
+    $leave = DoctorLeave::create([
+        'doctor_id' => $this->doctor->id,
+        'branch_id' => $this->branch->id,
+        'start_date' => '2027-02-20',
+        'end_date' => '2027-02-22',
+        'leave_type' => 'leave',
+        'is_approved' => true,
+    ]);
+
+    $response = $this->actingAs($this->owner)
+        ->putJson(
+            "/api/branches/{$this->branch->id}/doctors/{$this->doctor->id}/leaves/{$leave->id}",
+            [
+                'start_date' => '2027-02-12',
+                'end_date' => '2027-02-18',
+            ]
+        );
+
+    $response
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors([
+            'start_date',
+        ]);
+});
+
+test('leave belonging to another doctor cannot be deactivated', function () {
+    $otherPerson = Person::factory()->create([
+        'business_id' => $this->business->id,
+        'branch_id' => $this->branch->id,
+    ]);
+
+    $otherDoctor = Doctor::factory()->create([
+        'person_id' => $otherPerson->id,
+        'status' => 'active',
+    ]);
+
+    $otherDoctor->branches()->attach(
+        $this->branch->id,
+        [
+            'status' => 'active',
+        ]
+    );
+
+    $leave = DoctorLeave::create([
+        'doctor_id' => $otherDoctor->id,
+        'branch_id' => $this->branch->id,
+        'start_date' => '2027-03-01',
+        'end_date' => '2027-03-03',
+        'leave_type' => 'leave',
+        'is_approved' => true,
+    ]);
+
+    $response = $this->actingAs($this->owner)
+        ->deleteJson(
+            "/api/branches/{$this->branch->id}/doctors/{$this->doctor->id}/leaves/{$leave->id}"
+        );
+
+    $response->assertNotFound();
+
+    $this->assertDatabaseHas('doctor_leaves', [
+        'id' => $leave->id,
+        'is_approved' => true,
+    ]);
+});

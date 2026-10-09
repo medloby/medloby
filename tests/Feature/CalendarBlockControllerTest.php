@@ -462,3 +462,98 @@ test('inactive calendar blocks are not listed', function () {
         ->assertJsonPath('success', true)
         ->assertJsonCount(0, 'data.blocks');
 });
+
+test('calendar block belonging to another branch cannot be updated', function () {
+    $block = CalendarBlock::create([
+        'business_id' => $this->business->id,
+        'branch_id' => $this->otherBranch->id,
+        'doctor_id' => null,
+        'created_by_user_id' => $this->owner->id,
+        'starts_at' => '2026-11-02 09:00:00',
+        'ends_at' => '2026-11-02 11:00:00',
+        'block_type' => 'manual',
+        'is_active' => true,
+    ]);
+
+    $response = $this->actingAs($this->owner)
+        ->putJson(
+            "/api/branches/{$this->branch->id}/calendar-blocks/{$block->id}",
+            [
+                'title' => 'Yetkisiz güncelleme',
+            ]
+        );
+
+    $response->assertNotFound();
+});
+
+test('updating calendar block to an overlapping time is rejected', function () {
+    CalendarBlock::create([
+        'business_id' => $this->business->id,
+        'branch_id' => $this->branch->id,
+        'doctor_id' => $this->doctor->id,
+        'created_by_user_id' => $this->owner->id,
+        'starts_at' => '2026-11-03 09:00:00',
+        'ends_at' => '2026-11-03 12:00:00',
+        'block_type' => 'manual',
+        'is_active' => true,
+    ]);
+
+    $block = CalendarBlock::create([
+        'business_id' => $this->business->id,
+        'branch_id' => $this->branch->id,
+        'doctor_id' => $this->doctor->id,
+        'created_by_user_id' => $this->owner->id,
+        'starts_at' => '2026-11-03 13:00:00',
+        'ends_at' => '2026-11-03 15:00:00',
+        'block_type' => 'manual',
+        'is_active' => true,
+    ]);
+
+    $response = $this->actingAs($this->owner)
+        ->putJson(
+            "/api/branches/{$this->branch->id}/calendar-blocks/{$block->id}",
+            [
+                'starts_at' => '2026-11-03 11:00:00',
+                'ends_at' => '2026-11-03 14:00:00',
+            ]
+        );
+
+    $response
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors([
+            'starts_at',
+        ]);
+});
+
+test('calendar blocks can be filtered by date range', function () {
+    CalendarBlock::create([
+        'business_id' => $this->business->id,
+        'branch_id' => $this->branch->id,
+        'doctor_id' => $this->doctor->id,
+        'created_by_user_id' => $this->owner->id,
+        'starts_at' => '2026-11-04 09:00:00',
+        'ends_at' => '2026-11-04 10:00:00',
+        'block_type' => 'manual',
+        'is_active' => true,
+    ]);
+
+    CalendarBlock::create([
+        'business_id' => $this->business->id,
+        'branch_id' => $this->branch->id,
+        'doctor_id' => $this->doctor->id,
+        'created_by_user_id' => $this->owner->id,
+        'starts_at' => '2026-11-05 09:00:00',
+        'ends_at' => '2026-11-05 10:00:00',
+        'block_type' => 'manual',
+        'is_active' => true,
+    ]);
+
+    $response = $this->actingAs($this->owner)
+        ->getJson(
+            "/api/branches/{$this->branch->id}/calendar-blocks?from=2026-11-04 09:30:00&to=2026-11-04 10:30:00"
+        );
+
+    $response
+        ->assertSuccessful()
+        ->assertJsonCount(1, 'data.blocks');
+});

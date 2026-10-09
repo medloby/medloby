@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\User;
 use App\Models\Treatment;
 use App\Models\TreatmentCategory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -7,6 +8,10 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
+    $this->user = User::factory()->create([
+        'is_admin' => true,
+    ]);
+
     $this->category = TreatmentCategory::factory()->create([
         'name' => 'Sac Ekimi',
         'slug' => 'sac-ekimi',
@@ -158,7 +163,7 @@ test('can filter treatments by category', function () {
 });
 
 test('can create treatment', function () {
-    $response = $this->postJson('/api/treatments', [
+    $response = $this->actingAs($this->user)->postJson('/api/treatments', [
         'treatment_category_id' => $this->category->id,
         'name' => 'DHI Sac Ekimi',
         'slug' => 'dhi-sac-ekimi',
@@ -194,7 +199,7 @@ test('can create treatment', function () {
 });
 
 test('treatment slug can be generated automatically', function () {
-    $response = $this->postJson('/api/treatments', [
+    $response = $this->actingAs($this->user)->postJson('/api/treatments', [
         'treatment_category_id' => $this->category->id,
         'name' => 'Hair Transplant',
         'is_active' => true,
@@ -209,7 +214,7 @@ test('treatment slug can be generated automatically', function () {
 });
 
 test('treatment is inactive by default', function () {
-    $response = $this->postJson('/api/treatments', [
+    $response = $this->actingAs($this->user)->postJson('/api/treatments', [
         'treatment_category_id' => $this->category->id,
         'name' => 'Yeni Tedavi',
         'slug' => 'yeni-tedavi',
@@ -230,7 +235,7 @@ test('duplicate treatment slug is rejected', function () {
         'is_active' => true,
     ]);
 
-    $response = $this->postJson('/api/treatments', [
+    $response = $this->actingAs($this->user)->postJson('/api/treatments', [
         'treatment_category_id' => $this->category->id,
         'name' => 'Yeni FUE',
         'slug' => 'fue',
@@ -244,7 +249,7 @@ test('duplicate treatment slug is rejected', function () {
 });
 
 test('non existing category is rejected', function () {
-    $response = $this->postJson('/api/treatments', [
+    $response = $this->actingAs($this->user)->postJson('/api/treatments', [
         'treatment_category_id' => 999999,
         'name' => 'FUE',
         'slug' => 'fue',
@@ -293,7 +298,7 @@ test('can update treatment', function () {
         'is_active' => true,
     ]);
 
-    $response = $this->putJson(
+    $response = $this->actingAs($this->user)->putJson(
         "/api/treatments/{$treatment->id}",
         [
             'name' => 'Yeni Tedavi',
@@ -329,7 +334,7 @@ test('can deactivate treatment', function () {
         'is_active' => true,
     ]);
 
-    $response = $this->deleteJson(
+    $response = $this->actingAs($this->user)->deleteJson(
         "/api/treatments/{$treatment->id}"
     );
 

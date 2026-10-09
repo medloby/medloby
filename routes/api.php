@@ -894,25 +894,27 @@ Route::prefix('treatments')->group(function () {
         'index',
     ]);
 
-    Route::post('/', [
-        TreatmentController::class,
-        'store',
-    ]);
-
     Route::get('/{treatment}', [
         TreatmentController::class,
         'show',
     ]);
 
-    Route::put('/{treatment}', [
-        TreatmentController::class,
-        'update',
-    ]);
+    Route::middleware('admin')->group(function () {
+        Route::post('/', [
+            TreatmentController::class,
+            'store',
+        ]);
 
-    Route::delete('/{treatment}', [
-        TreatmentController::class,
-        'deactivate',
-    ]);
+        Route::put('/{treatment}', [
+            TreatmentController::class,
+            'update',
+        ]);
+
+        Route::delete('/{treatment}', [
+            TreatmentController::class,
+            'deactivate',
+        ]);
+    });
 });
 
 Route::prefix('branches/{branch}/treatments')->group(function () {
