@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\PlatformContract;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -15,12 +17,18 @@ class AdminPlatformContractController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
+        $filters = $request->validate([
+            'contract_type' => ['sometimes', 'required', 'string', 'max:50'],
+        ]);
+
         $contracts = PlatformContract::query()
+            ->when(isset($filters['contract_type']), fn ($query) => $query->where('contract_type', $filters['contract_type']))
             ->with([
                 'createdBy:id,name,email',
                 'updatedBy:id,name,email',
             ])
             ->latest()
+            ->orderByDesc('id')
             ->paginate(
                 min(
                     max((int) $request->input('per_page', 20), 1),
@@ -44,9 +52,14 @@ class AdminPlatformContractController extends Controller
             'updatedBy:id,name,email',
         ]);
 
+        $data = $platformContract->toArray();
+        if ($platformContract->status === 'draft') {
+            $data['draft_revision'] = $this->draftRevision($platformContract);
+        }
+
         return response()->json([
             'success' => true,
-            'data' => $platformContract,
+            'data' => $data,
         ]);
     }
 
@@ -92,23 +105,11 @@ class AdminPlatformContractController extends Controller
 
         $admin = $request->user();
 
-        $alreadyExists = PlatformContract::query()
-            ->where('contract_type', $validated['contract_type'])
-            ->where('version', $validated['version'])
-            ->exists();
-
-        if ($alreadyExists) {
-            throw ValidationException::withMessages([
-                'version' => [
-                    'Bu sözleşme türü için bu versiyon zaten mevcut.',
-                ],
-            ]);
-        }
-
-        $contract = PlatformContract::create([
+        $contract = PlatformContract::query()->createOrFirst([
             'contract_type' => $validated['contract_type'],
-            'title' => $validated['title'],
             'version' => $validated['version'],
+        ], [
+            'title' => $validated['title'],
             'content' => $validated['content'],
             'status' => 'draft',
             'is_required' => $validated['is_required'] ?? true,
@@ -118,6 +119,10 @@ class AdminPlatformContractController extends Controller
             'created_by_user_id' => $admin->id,
             'updated_by_user_id' => $admin->id,
         ]);
+
+        if (! $contract->wasRecentlyCreated) {
+            throw $this->duplicateVersion();
+        }
 
         $contract->load([
             'createdBy:id,name,email',
@@ -138,77 +143,70 @@ class AdminPlatformContractController extends Controller
         Request $request,
         PlatformContract $platformContract
     ): JsonResponse {
-        if ($platformContract->status !== 'draft') {
-            throw ValidationException::withMessages([
-                'contract' => [
-                    'Yalnızca taslak durumundaki sözleşmeler güncellenebilir.',
-                ],
-            ]);
+        try {
+            $platformContract = DB::transaction(function () use ($request, $platformContract) {
+                $platformContract = PlatformContract::query()->lockForUpdate()->findOrFail($platformContract->getKey());
+
+                if ($platformContract->status !== 'draft') {
+                    throw ValidationException::withMessages([
+                        'contract' => [
+                            'Yalnızca taslak durumundaki sözleşmeler güncellenebilir.',
+                        ],
+                    ]);
+                }
+
+                $validated = $request->validate([
+                    'draft_revision' => ['sometimes', 'required', 'string', 'size:64'],
+                    'contract_type' => [
+                        'sometimes',
+                        'string',
+                        'max:50',
+                    ],
+                    'title' => [
+                        'sometimes',
+                        'string',
+                        'max:255',
+                    ],
+                    'version' => [
+                        'sometimes',
+                        'string',
+                        'max:30',
+                    ],
+                    'content' => [
+                        'sometimes',
+                        'string',
+                    ],
+                    'is_required' => [
+                        'sometimes',
+                        'boolean',
+                    ],
+                    'effective_at' => [
+                        'nullable',
+                        'date',
+                    ],
+                    'expires_at' => [
+                        'nullable',
+                        'date',
+                        'after_or_equal:effective_at',
+                    ],
+                ]);
+
+                $revision = Arr::pull($validated, 'draft_revision');
+                if ($revision !== null && ! hash_equals($this->draftRevision($platformContract), $revision)) {
+                    abort(409, 'Bu taslak başka bir oturumda güncellendi. Değişikliklerinizi kopyalayıp güncel taslağı yeniden açın.');
+                }
+
+                $validated['updated_by_user_id'] = $request->user()->id;
+                $platformContract->update($validated);
+
+                return $platformContract->load([
+                    'createdBy:id,name,email',
+                    'updatedBy:id,name,email',
+                ]);
+            }, attempts: 3);
+        } catch (UniqueConstraintViolationException) {
+            throw $this->duplicateVersion();
         }
-
-        $validated = $request->validate([
-            'contract_type' => [
-                'sometimes',
-                'string',
-                'max:50',
-            ],
-            'title' => [
-                'sometimes',
-                'string',
-                'max:255',
-            ],
-            'version' => [
-                'sometimes',
-                'string',
-                'max:30',
-            ],
-            'content' => [
-                'sometimes',
-                'string',
-            ],
-            'is_required' => [
-                'sometimes',
-                'boolean',
-            ],
-            'effective_at' => [
-                'nullable',
-                'date',
-            ],
-            'expires_at' => [
-                'nullable',
-                'date',
-                'after_or_equal:effective_at',
-            ],
-        ]);
-
-        $contractType = $validated['contract_type']
-            ?? $platformContract->contract_type;
-
-        $version = $validated['version']
-            ?? $platformContract->version;
-
-        $duplicate = PlatformContract::query()
-            ->where('contract_type', $contractType)
-            ->where('version', $version)
-            ->whereKeyNot($platformContract->id)
-            ->exists();
-
-        if ($duplicate) {
-            throw ValidationException::withMessages([
-                'version' => [
-                    'Bu sözleşme türü için bu versiyon zaten mevcut.',
-                ],
-            ]);
-        }
-
-        $validated['updated_by_user_id'] = $request->user()->id;
-
-        $platformContract->update($validated);
-
-        $platformContract->load([
-            'createdBy:id,name,email',
-            'updatedBy:id,name,email',
-        ]);
 
         return response()->json([
             'success' => true,
@@ -228,7 +226,7 @@ class AdminPlatformContractController extends Controller
             $request,
             $platformContract
         ) {
-            $platformContract->refresh();
+            $platformContract = PlatformContract::query()->lockForUpdate()->findOrFail($platformContract->getKey());
 
             if ($platformContract->status !== 'draft') {
                 throw ValidationException::withMessages([
@@ -253,7 +251,7 @@ class AdminPlatformContractController extends Controller
             ]);
 
             return $platformContract;
-        });
+        }, attempts: 3);
 
         return response()->json([
             'success' => true,
@@ -273,7 +271,7 @@ class AdminPlatformContractController extends Controller
             $request,
             $platformContract
         ) {
-            $platformContract->refresh();
+            $platformContract = PlatformContract::query()->lockForUpdate()->findOrFail($platformContract->getKey());
 
             if ($platformContract->status !== 'published') {
                 throw ValidationException::withMessages([
@@ -294,12 +292,24 @@ class AdminPlatformContractController extends Controller
             ]);
 
             return $platformContract;
-        });
+        }, attempts: 3);
 
         return response()->json([
             'success' => true,
             'message' => 'Platform sözleşmesi pasifleştirildi.',
             'data' => $result,
+        ]);
+    }
+
+    private function draftRevision(PlatformContract $contract): string
+    {
+        return hash('sha256', json_encode($contract->getRawOriginal(), JSON_THROW_ON_ERROR));
+    }
+
+    private function duplicateVersion(): ValidationException
+    {
+        return ValidationException::withMessages([
+            'version' => ['Bu sözleşme türü için bu versiyon zaten mevcut.'],
         ]);
     }
 }

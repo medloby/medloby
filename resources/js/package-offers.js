@@ -4,6 +4,7 @@ import { mountPackageConversation } from './package-conversation';
 import { mountWorkspaceNotifications } from './workspace-notifications';
 import { mountWorkspaceRegistration } from './workspace-registration';
 import { mountClinicReview } from './clinic-review';
+import { mountClinicContracts } from './clinic-contracts';
 
 const statusLabels = {
     pending: 'Yanıt bekliyor',
@@ -116,6 +117,7 @@ export function mountPackageOffers(root) {
         api,
         timeLabel: (value) => offerDeadline.format(new Date(value)),
     });
+    const clinicContracts = mountClinicContracts(get('clinic-contracts-dialog'), get('clinic-contracts-button'), { api });
     const discoverySection = get('package-discovery');
     const discovery = mountPackageDiscovery(discoverySection, { api, priceLabel, startConversation });
     const thread = mountPackageConversation(get('package-conversation'), {
@@ -345,6 +347,7 @@ export function mountPackageOffers(root) {
         packageCatalog.close();
         notifications.stop();
         clinicReview.stop();
+        clinicContracts.stop();
         catalogButton.hidden = true;
         appointmentForm.reset();
         offerForm.reset();
@@ -785,6 +788,7 @@ export function mountPackageOffers(root) {
         notifications.start(ownedBusinesses());
         if (user.is_admin) {
             clinicReview.start();
+            clinicContracts.start();
         }
         syncPage();
 

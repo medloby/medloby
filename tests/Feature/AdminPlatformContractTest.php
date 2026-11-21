@@ -55,6 +55,18 @@ test('admin can access platform contract list', function () {
         ->toHaveCount(1);
 });
 
+test('admin can list clinic membership versions separately from other contract types', function () {
+    $admin = createAdminUser();
+    $clinicContract = createContract();
+    createContract(['contract_type' => 'patient_terms']);
+
+    $this->actingAs($admin, 'sanctum')
+        ->getJson('/api/admin/platform-contracts?contract_type=clinic_membership&per_page=1')
+        ->assertOk()
+        ->assertJsonPath('data.total', 1)
+        ->assertJsonPath('data.data.0.id', $clinicContract->id);
+});
+
 test('admin can view platform contract detail', function () {
     $admin = createAdminUser();
 
@@ -168,6 +180,33 @@ test('admin can update a draft platform contract', function () {
 
     expect($contract->updated_by_user_id)
         ->toBe($admin->id);
+});
+
+test('a stale draft edit cannot overwrite a newer edit made in the same second', function () {
+    $this->freezeTime();
+    $admin = createAdminUser();
+    $contract = createContract();
+    $path = '/api/admin/platform-contracts/'.$contract->id;
+    $client = $this->actingAs($admin, 'sanctum');
+    $revision = $client->getJson($path)->assertOk()->json('data.draft_revision');
+
+    $client->putJson($path, ['content' => 'İlk kayıt.', 'draft_revision' => $revision])->assertOk();
+    $client->putJson($path, ['content' => 'Eski ekrandan kayıt.', 'draft_revision' => $revision])->assertConflict();
+
+    expect($contract->fresh()->content)->toBe('İlk kayıt.');
+});
+
+test('a draft cannot be updated to an existing version of the same contract type', function () {
+    $admin = createAdminUser();
+    $contract = createContract();
+    createContract(['version' => '2.0']);
+
+    $this->actingAs($admin, 'sanctum')
+        ->putJson('/api/admin/platform-contracts/'.$contract->id, ['version' => '2.0'])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('version');
+
+    expect($contract->fresh()->version)->toBe('1.0');
 });
 
 test('admin cannot update a published platform contract', function () {
