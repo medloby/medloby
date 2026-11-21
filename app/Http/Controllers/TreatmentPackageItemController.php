@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Treatment;
 use App\Models\TreatmentPackage;
 use App\Models\TreatmentPackageItem;
 use App\Services\PackageCatalogAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class TreatmentPackageItemController extends Controller
 {
@@ -44,7 +46,6 @@ class TreatmentPackageItemController extends Controller
             'treatment_id' => [
                 'required',
                 'integer',
-                'exists:treatments,id',
             ],
             'quantity' => [
                 'sometimes',
@@ -61,6 +62,8 @@ class TreatmentPackageItemController extends Controller
                 'min:0',
             ],
         ]);
+
+        $this->validateTreatment((int) $validated['treatment_id'], $treatmentPackage);
 
         $alreadyExists = TreatmentPackageItem::query()
             ->where(
@@ -143,7 +146,6 @@ class TreatmentPackageItemController extends Controller
             'treatment_id' => [
                 'sometimes',
                 'integer',
-                'exists:treatments,id',
             ],
             'quantity' => [
                 'sometimes',
@@ -162,6 +164,8 @@ class TreatmentPackageItemController extends Controller
         ]);
 
         if (isset($validated['treatment_id'])) {
+            $this->validateTreatment((int) $validated['treatment_id'], $treatmentPackage);
+
             $duplicate = TreatmentPackageItem::query()
                 ->where(
                     'treatment_package_id',
@@ -219,5 +223,14 @@ class TreatmentPackageItemController extends Controller
             'success' => true,
             'message' => 'Tedavi paketten çıkarıldı.',
         ]);
+    }
+
+    private function validateTreatment(int $treatmentId, TreatmentPackage $package): void
+    {
+        if (! Treatment::query()->eligibleForPackage($package->branch_id)->whereKey($treatmentId)->exists()) {
+            throw ValidationException::withMessages([
+                'treatment_id' => 'Paket için aktif ve varsa paket şubesinde sunulan bir tedavi seçilmelidir.',
+            ]);
+        }
     }
 }

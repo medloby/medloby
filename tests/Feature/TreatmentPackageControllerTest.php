@@ -624,3 +624,21 @@ test('package creation compares validity by calendar day', function () {
     ])->assertCreated()
         ->assertJsonPath('data.name', 'Same Day Package');
 });
+
+test('a package can move only to a branch offering its treatments', function () {
+    $package = createPackage($this);
+    $package->treatments()->attach($this->treatment->id);
+    $targetBranch = $this->business->branches()->create([
+        'name' => 'New Branch',
+        'slug' => 'new-branch',
+        'status' => 'active',
+    ]);
+    $url = "/api/treatment-packages/{$package->id}";
+    $data = ['branch_id' => $targetBranch->id];
+
+    $this->putJson($url, $data)->assertUnprocessable()->assertJsonValidationErrors('branch_id');
+    $this->assertDatabaseHas('treatment_packages', ['id' => $package->id, 'branch_id' => $this->branch->id]);
+
+    $targetBranch->treatments()->attach($this->treatment->id, ['is_active' => true]);
+    $this->putJson($url, $data)->assertOk()->assertJsonPath('data.branch_id', $targetBranch->id);
+});

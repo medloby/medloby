@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Branch;
+use App\Models\Treatment;
 use App\Models\TreatmentPackage;
 use App\Services\PackageCatalogAccess;
 use DateTimeInterface;
@@ -316,7 +317,18 @@ class TreatmentPackageController extends Controller
                 ? $validated['branch_id']
                 : $treatmentPackage->branch_id;
 
-            $this->validateBranch($businessId, $branchId === null ? null : (int) $branchId);
+            $branchId = $branchId === null ? null : (int) $branchId;
+            $this->validateBranch($businessId, $branchId);
+
+            if ($branchId !== null && $branchId !== $treatmentPackage->branch_id
+                && $treatmentPackage->treatments()->whereNotIn(
+                    'treatments.id',
+                    Treatment::query()->eligibleForPackage($branchId)->select('treatments.id')
+                )->exists()) {
+                throw ValidationException::withMessages([
+                    'branch_id' => 'Pakette seçilen şubede aktif olarak sunulmayan tedaviler var.',
+                ]);
+            }
         }
 
         if ($businessId !== (int) $treatmentPackage->business_id

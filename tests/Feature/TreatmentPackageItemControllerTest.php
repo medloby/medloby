@@ -52,6 +52,11 @@ beforeEach(function () {
         'is_active' => true,
     ]);
 
+    $this->branch->treatments()->attach([
+        $this->treatment->id => ['is_active' => true],
+        $this->secondTreatment->id => ['is_active' => true],
+    ]);
+
     $this->package = TreatmentPackage::create([
         'business_id' => $this->business->id,
         'branch_id' => $this->branch->id,
@@ -498,4 +503,39 @@ test('cannot remove item belonging to another package', function () {
             'id' => $item->id,
         ]
     );
+});
+
+test('package items reject ineligible treatments', function (string $reason) {
+    $this->package->treatments()->attach($this->treatment->id);
+    $itemId = TreatmentPackageItem::query()
+        ->where('treatment_package_id', $this->package->id)->sole()->id;
+
+    match ($reason) {
+        'inactive treatment' => $this->secondTreatment->update(['is_active' => false]),
+        'inactive branch offering' => $this->branch->treatments()->updateExistingPivot(
+            $this->secondTreatment->id,
+            ['is_active' => false]
+        ),
+        'missing branch offering' => $this->branch->treatments()->detach($this->secondTreatment->id),
+    };
+
+    $url = "/api/treatment-packages/{$this->package->id}/items";
+    $data = ['treatment_id' => $this->secondTreatment->id];
+
+    $this->postJson($url, $data)->assertUnprocessable()->assertJsonValidationErrors('treatment_id');
+    $this->putJson("$url/$itemId", $data)->assertUnprocessable()->assertJsonValidationErrors('treatment_id');
+
+    $this->assertDatabaseHas('treatment_package_items', [
+        'id' => $itemId,
+        'treatment_id' => $this->treatment->id,
+    ]);
+})->with(['inactive treatment', 'inactive branch offering', 'missing branch offering']);
+
+test('an active treatment can be added to a package without a branch', function () {
+    $this->package->update(['branch_id' => null]);
+    $this->branch->treatments()->detach($this->treatment->id);
+
+    $this->postJson("/api/treatment-packages/{$this->package->id}/items", [
+        'treatment_id' => $this->treatment->id,
+    ])->assertCreated()->assertJsonPath('data.treatment_id', $this->treatment->id);
 });

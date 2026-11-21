@@ -2,7 +2,8 @@
 
 namespace App\Models;
 
-use App\Models\BranchTreatment;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -38,6 +39,17 @@ class Treatment extends Model
         ];
     }
 
+    #[Scope]
+    protected function eligibleForPackage(Builder $query, ?int $branchId): Builder
+    {
+        return $query->where('treatments.is_active', true)
+            ->when($branchId !== null, fn (Builder $query) => $query->whereHas(
+                'branches',
+                fn (Builder $branches) => $branches->whereKey($branchId)
+                    ->where('branch_treatment.is_active', true)
+            ));
+    }
+
     public function treatmentCategory(): BelongsTo
     {
         return $this->belongsTo(
@@ -49,17 +61,17 @@ class Treatment extends Model
     public function branches(): BelongsToMany
     {
         return $this->belongsToMany(
-    Branch::class,
-    'branch_treatment'
-)
-    ->using(BranchTreatment::class)
-    ->withPivot([
-        'is_active',
-        'is_online_bookable',
-        'is_offer_enabled',
-        'duration_minutes',
-    ])
-    ->withTimestamps();
+            Branch::class,
+            'branch_treatment'
+        )
+            ->using(BranchTreatment::class)
+            ->withPivot([
+                        'is_active',
+                        'is_online_bookable',
+                        'is_offer_enabled',
+                        'duration_minutes',
+                    ])
+            ->withTimestamps();
     }
 
     public function doctors(): BelongsToMany
