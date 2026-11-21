@@ -199,8 +199,11 @@ export function mountClinicReview(dialog, trigger, { api, timeLabel }) {
     approve.addEventListener('click', () => save('approve', {}));
     decision.addEventListener('submit', (event) => {
         event.preventDefault();
-        const reason = new FormData(decision).get('rejection_reason').trim();
-        save('reject', { rejection_reason: reason });
+        const fields = new FormData(decision);
+        save('reject', {
+            rejection_reason: fields.get('rejection_reason').trim(),
+            applicant_rejection_reason: fields.get('applicant_rejection_reason').trim() || null,
+        });
     });
     find('close').addEventListener('click', close);
     dialog.addEventListener('cancel', (event) => {

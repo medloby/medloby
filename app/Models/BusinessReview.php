@@ -14,6 +14,7 @@ class BusinessReview extends Model
         'reviewed_at',
         'notes',
         'rejection_reason',
+        'applicant_rejection_reason',
         'previous_status',
         'new_status',
     ];

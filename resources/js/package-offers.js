@@ -5,6 +5,7 @@ import { mountWorkspaceNotifications } from './workspace-notifications';
 import { mountWorkspaceRegistration } from './workspace-registration';
 import { mountClinicReview } from './clinic-review';
 import { mountClinicContracts } from './clinic-contracts';
+import { mountClinicApplications } from './clinic-applications';
 
 const statusLabels = {
     pending: 'Yanıt bekliyor',
@@ -28,11 +29,6 @@ const appointmentActionLabels = {
     reschedule: 'Tarihi değiştir',
     complete: 'Tamamlandı olarak işaretle',
     'no-show': 'Gelmedi olarak işaretle',
-};
-
-const clinicApplicationLabels = {
-    pending: 'Klinik başvurusu incelemede.',
-    rejected: 'Klinik başvurusu reddedildi.',
 };
 
 const offerDeadline = new Intl.DateTimeFormat('tr-TR', {
@@ -118,6 +114,10 @@ export function mountPackageOffers(root) {
         timeLabel: (value) => offerDeadline.format(new Date(value)),
     });
     const clinicContracts = mountClinicContracts(get('clinic-contracts-dialog'), get('clinic-contracts-button'), { api });
+    const clinicApplications = mountClinicApplications(get('clinic-applications'), {
+        api,
+        timeLabel: (value) => offerDeadline.format(new Date(value)),
+    });
     const discoverySection = get('package-discovery');
     const discovery = mountPackageDiscovery(discoverySection, { api, priceLabel, startConversation });
     const thread = mountPackageConversation(get('package-conversation'), {
@@ -228,13 +228,7 @@ export function mountPackageOffers(root) {
         get('verification-address').textContent = user?.email ?? '';
         get('workspace').hidden = browsing || !verified;
 
-        const clinicApplications = !browsing && user
-            ? ownedBusinesses().filter((item) => clinicApplicationLabels[item.status])
-            : [];
-        showStatus(
-            get('clinic-onboarding'),
-            clinicApplications.map((item) => item.name + ' · ' + clinicApplicationLabels[item.status]).join('\n'),
-        );
+        clinicApplications.setVisible(!browsing && Boolean(user));
 
         if (openingCatalogue) {
             discovery.open();
@@ -348,6 +342,7 @@ export function mountPackageOffers(root) {
         notifications.stop();
         clinicReview.stop();
         clinicContracts.stop();
+        clinicApplications.stop();
         catalogButton.hidden = true;
         appointmentForm.reset();
         offerForm.reset();
@@ -784,8 +779,10 @@ export function mountPackageOffers(root) {
     }
 
     async function openVerifiedWorkspace() {
-        catalogButton.hidden = ownedBusinesses().length === 0;
-        notifications.start(ownedBusinesses());
+        const businesses = ownedBusinesses();
+        catalogButton.hidden = businesses.length === 0;
+        notifications.start(businesses);
+        clinicApplications.setAccount(businesses, true);
         if (user.is_admin) {
             clinicReview.start();
             clinicContracts.start();
@@ -824,6 +821,8 @@ export function mountPackageOffers(root) {
         syncPage();
         if (user.email_verified_at) {
             await openVerifiedWorkspace();
+        } else {
+            clinicApplications.setAccount(ownedBusinesses(), false);
         }
     }
 

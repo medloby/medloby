@@ -36,7 +36,7 @@
             <main class="mx-auto max-w-7xl px-4 py-8 sm:px-8 sm:py-12">
                 <h1 id="page-title" class="text-3xl font-semibold tracking-tight sm:text-4xl">Paket teklifleri</h1>
                 <p id="page-message" class="mt-4 max-w-2xl text-sm text-slate-700 dark:text-slate-200" role="status" hidden></p>
-                <p id="clinic-onboarding" class="mt-4 max-w-2xl whitespace-pre-line rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100" role="status" hidden></p>
+                @include('clinic-applications')
 
                 @include('package-discovery')
 

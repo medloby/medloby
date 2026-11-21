@@ -57,8 +57,12 @@
                     <details data-clinic-rejection>
                         <summary class="w-fit cursor-pointer text-sm font-semibold text-rose-700 dark:text-rose-300">Başvuruyu reddet</summary>
                         <label class="offer-field mt-3">
-                            Ret nedeni
+                            Ret nedeni (yöneticiye özel)
                             <textarea name="rejection_reason" class="offer-control" rows="3" required minlength="10" maxlength="5000"></textarea>
+                        </label>
+                        <label class="offer-field mt-3">
+                            Klinik sahibine gösterilecek açıklama (isteğe bağlı)
+                            <textarea name="applicant_rejection_reason" class="offer-control" rows="3" maxlength="5000"></textarea>
                         </label>
                         <button type="submit" class="offer-button mt-3 bg-rose-700 hover:bg-rose-800 dark:bg-rose-700 dark:hover:bg-rose-600">Reddi kaydet</button>
                     </details>

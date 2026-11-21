@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Business extends Model
 {
@@ -110,6 +111,14 @@ class Business extends Model
     public function reviews(): HasMany
     {
         return $this->hasMany(BusinessReview::class);
+    }
+
+    public function latestApplicationReview(): HasOne
+    {
+        return $this->reviews()->one()->ofMany(
+            ['reviewed_at' => 'max', 'id' => 'max'],
+            fn ($query) => $query->whereIn('decision', ['approved', 'rejected']),
+        );
     }
 
     public function statusHistories(): HasMany

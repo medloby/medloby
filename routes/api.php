@@ -32,6 +32,8 @@ use App\Http\Controllers\DoctorLeaveController;
 
 use App\Http\Controllers\CalendarBlockController;
 
+use App\Http\Controllers\ClinicApplicationStatusController;
+
 use App\Http\Controllers\CrmLeadController;
 
 use App\Http\Controllers\CrmTaskController;
@@ -141,6 +143,8 @@ Route::middleware('auth:sanctum')->group(function () {
     ])->middleware('throttle:6,1');
 
     Route::middleware('verified')->group(function () {
+
+        Route::get('/clinic-applications', ClinicApplicationStatusController::class);
 
         /*
 

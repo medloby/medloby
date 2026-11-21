@@ -142,6 +142,7 @@ class AdminBusinessController extends Controller
                 'min:10',
                 'max:5000',
             ],
+            'applicant_rejection_reason' => ['nullable', 'string', 'max:5000'],
             'notes' => [
                 'nullable',
                 'string',
@@ -185,6 +186,7 @@ class AdminBusinessController extends Controller
                 'reviewed_at' => now(),
                 'notes' => $validated['notes'] ?? null,
                 'rejection_reason' => $validated['rejection_reason'],
+                'applicant_rejection_reason' => $validated['applicant_rejection_reason'] ?? null,
                 'previous_status' => $previousStatus,
                 'new_status' => 'rejected',
             ]);
