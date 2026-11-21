@@ -7,6 +7,10 @@
 <a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
 </p>
 
+## Medloby proje yol haritası
+
+Uygulama mimarisi, tamamlanan işler, eksikler ve geliştirme sırası proje yol haritasında tutulur. [Proje yol haritası](PROJE-YOL-HARITASI.md)
+
 ## Medloby yayına çıkmadan önce
 
 - [ ] **Canlı e-posta gönderimini aç.** Site geliştirmesi tamamlandığında yetkili gönderici adresini ve destek adresini belirle. Canlı ortamda SMTP sunucusunu ve portunu yapılandır, gerekiyorsa erişim bilgilerini gizli ayarlara ekle. Klinik başvurusu ve hasta kaydı için doğrulama e-postasının gerçek bir test gelen kutusuna ulaştığını ve bağlantının çalıştığını kontrol et.
