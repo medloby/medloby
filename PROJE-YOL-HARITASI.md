@@ -2,7 +2,7 @@
 
 **İnceleme tarihi** 22 Kasım 2026 · **İncelenen sürüm** `main / 668980d`
 
-**Sıradaki iş 1.2** CRM’de hasta ve personel ilişkileri ile görüşme ve ek erişimini işletme ve şube kapsamına göre doğrulamak.
+**Sıradaki iş 1.3** PHP ve JavaScript bağımlılıklarını gözden geçirmek, gerekli güncellemeleri test etmek ve derlemeyi doğrulamak.
 
 ## Kapsam ve doğrulama
 
@@ -71,9 +71,9 @@ Sunucu tarafında CRM, takvim, yönetim ve başvurunun temel kavramları mevcut.
 ### 1. Erişim ve veri tutarlılığı
 
 - [x] **1.1** Katalog yönetiminde 27 yazma rotasına doğrulanmış hesap ve ilgili rol/işletme/şube kontrolleri uygulandı. 157 ilgili test ve 787 testlik tam süit geçti. [Yetki değişiklikleri](https://github.com/medloby/medloby/commit/47195478eea381f9385883aa52ae405ee0f65d84)
-- [ ] **1.2** Katalog, CRM ve görüşme erişiminde işletme ve şube kapsamını uygula.
+- [x] **1.2** Katalog, CRM ve görüşme erişiminde işletme ve şube kapsamı uygulandı.
   - [x] Onaylı kliniklerin aktif paket ve hizmetleri kamuya açık katalogda yayımlanıyor. Tedavi fiyatları ve görüşmede teklif hazırlamak için kullanılan paket fiyatları doğrulanmış, yetkili klinik hesaplarına açık. 790 test geçti. Chromium’da katalogdan görüşme açma, özel teklif gönderme, hasta kabulü ve seans planlama ekranına geçiş doğrulandı. [Katalog değişiklikleri](https://github.com/medloby/medloby/commit/24b4e6552b52ed0b39e584dc81b725fbc6fca408)
-  - [ ] Aday atamasında ve hasta ilişkilendirmesinde mevcut işletme ve şube yetkilerini kullan. Görüşme ve ek erişiminde aynı kapsamı uygula. Klinik askıya alındığında yeni işlemlerin ve hastanın geçmiş kayıtlarına erişimin kurallarını belirle.
+  - [x] CRM adayı, aynı şubede görüşmesi veya doğrulanabilir randevusu olan hastaya ve yetkili personele bağlanabiliyor. Görüşmeler, mesajlar, teklifler ve ekler klinik ve şube yetkisine göre açılıyor. Şube seçilmeden açılan görüşmeler aktif klinik üyelerine açık. Klinik askıya alındığında hasta geçmişini görebiliyor ve yeni görüşme, mesaj, teklif yanıtı ve teklife bağlı randevu işlemleri duruyor. 795 test geçti. [CRM ve görüşme erişimi](https://github.com/medloby/medloby/commit/7ed1d7fcca430dfc8095e44ad8eb0e06145f3575)
 - [ ] **1.3** PHP ve JavaScript kilitli bağımlılıklarını doğrula, bildirilen geliştirme bağımlılığı güncellemelerini kontrollü uygula ve test/derlemeyi tekrarla.
 
 Aşama, olumsuz yetki testleri ve kendi kliniğinde çalışan olumlu akışlarla tamamlanır. Bundan sonra CRM düzenleme ekranına geçilir.
@@ -90,7 +90,7 @@ Kabul senaryosu e-posta doğrulama ve klinik onayıyla başlar. Klinik sahibi ya
 
 1. Klinik personeli ve şubeye yetki verme akışı, hekim ve tedavi ilişkilendirmesi.
 2. Takvim, çalışma saatleri, izin ve kapalı gün ekranları.
-3. Paket ve kişi bazlı randevu akışlarını klinik takvimiyle birleştir. Seansların tamamını kaydetme, çakışma, iptal ve yeniden planlamayı doğrula.
+3. Paket ve kişi bazlı randevu akışlarını klinik takvimiyle birleştir. Teklif dışındaki randevu işlemlerinde klinik durumunu ve hasta bağlantısını doğrula. Seansların tamamını kaydetme, çakışma, iptal ve yeniden planlamayı doğrula.
 
 Kabul senaryosu şubede hekim ve uygunluk hazırlığından başlayıp hastanın birkaç seansı seçmesi ve kliniğin randevuyu yönetmesiyle tamamlanır.
 
