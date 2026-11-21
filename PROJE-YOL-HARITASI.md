@@ -2,7 +2,7 @@
 
 **İnceleme tarihi** 22 Kasım 2026 · **İncelenen sürüm** `main / 668980d`
 
-**Sıradaki iş 1.2** Katalog okuma verilerini ve klinik içi fiyatları ayırmak. Ardından CRM, görüşme ve eklerde işletme/şube kapsamını doğrulamak.
+**Sıradaki iş 1.2** CRM’de hasta ve personel ilişkileri ile görüşme ve ek erişimini işletme ve şube kapsamına göre doğrulamak.
 
 ## Kapsam ve doğrulama
 
@@ -57,7 +57,7 @@ flowchart LR
 | CRM hasta adayları | Şube seçimi ve özet, takip aşaması sayıları, aday listeleme, durum filtresi, sayfalama ve aday ekleme | Aday ayrıntısı, iletişim bilgilerini düzenleme, personele atama, aşama geçmişi ve sonuçlandırma |
 | CRM görevleri ve takip | Görev, takip, aktivite ve görüşme ilişkilendirme uç noktaları. Takip aşaması yönetimi ve rapor verileri | Klinik ekranları, hasta ile ilişkilendirme akışı ve süresi gelen takiplerin nasıl işletileceği |
 | Klinik operasyonları | Şube, şube tedavileri, hekim çalışma saatleri/izinleri, takvim kuralları, istisnalar ve bloklar için sunucu işlevleri | Operasyon ekranlarını mevcut uç noktalara bağlama, personel/şube yetkilerini ve hekim kurulum akışını doğrulama |
-| Katalog ve fiyat | Tedavi, kategori ve fiyat kayıtları. Klinik paketleri, seans ve ek hizmet yönetimi. Kamuya açık paket keşfi | Kamuya açık tanıtım ile klinik içi fiyat ve kişiye özel teklif verilerini ayırma. Türkiye yayını için içerik incelemesi |
+| Katalog ve fiyat | Tedavi, kategori ve fiyat kayıtları. Klinik paketleri, seans ve ek hizmet yönetimi. Fiyatsız kamu kataloğu, yetkili kliniğe açık fiyat kayıtları ve hastaya özel paket teklifi | Türkiye yayını için içerik incelemesi |
 | Görüşme ve teklif | Paketle görüşme başlatma, mesaj ve özel ek, teklif oluşturma, kabul/ret ve paket içeriği kaydı | Farklı şube ve rollerin görmesi gereken verileri tutarlı hale getirme, geçmiş kayıt ve dosya saklama kurallarını belirleme |
 | Randevu | Uygun saat arama, doktor ve şube kontrolleri, kabul edilen paketin seanslarını ayrı ayrı ayırma, durum ve geçmiş. Teklif ekranında hasta ve klinik için randevu özeti ve işlemleri | Klinik takvimini tek ekranda kullanılır hale getirme, seçilecek üretim veritabanında eşzamanlı rezervasyon testi |
 | Bildirim | Görüşme, teklif ve randevu bildirimleri, okunma durumu ve klinik tercihleri | Klinik başvuru bildirimleri ve takip hatırlatmalarının kapsamı, kuyruk işçisi ve canlı e-posta teslimatı |
@@ -71,7 +71,9 @@ Sunucu tarafında CRM, takvim, yönetim ve başvurunun temel kavramları mevcut.
 ### 1. Erişim ve veri tutarlılığı
 
 - [x] **1.1** Katalog yönetiminde 27 yazma rotasına doğrulanmış hesap ve ilgili rol/işletme/şube kontrolleri uygulandı. 157 ilgili test ve 787 testlik tam süit geçti. [Yetki değişiklikleri](https://github.com/medloby/medloby/commit/47195478eea381f9385883aa52ae405ee0f65d84)
-- [ ] **1.2 Sıradaki iş.** Katalog okuma verilerini, klinik içi fiyatları, CRM ilişkilerini ve görüşme/ek erişimini işletme ve şube sınırlarıyla uyumlu hale getir. Aday atamasında ve hasta ilişkilendirmesinde mevcut yetkileri yeniden kullan. Klinik askıya alındığında yeni işlemler ve hastanın kendi geçmişini görmesi için ayrı kurallar belirle.
+- [ ] **1.2** Katalog, CRM ve görüşme erişiminde işletme ve şube kapsamını uygula.
+  - [x] Onaylı kliniklerin aktif paket ve hizmetleri kamuya açık katalogda yayımlanıyor. Tedavi fiyatları ve görüşmede teklif hazırlamak için kullanılan paket fiyatları doğrulanmış, yetkili klinik hesaplarına açık. 790 test geçti. Chromium’da katalogdan görüşme açma, özel teklif gönderme, hasta kabulü ve seans planlama ekranına geçiş doğrulandı. [Katalog değişiklikleri](https://github.com/medloby/medloby/commit/24b4e6552b52ed0b39e584dc81b725fbc6fca408)
+  - [ ] Aday atamasında ve hasta ilişkilendirmesinde mevcut işletme ve şube yetkilerini kullan. Görüşme ve ek erişiminde aynı kapsamı uygula. Klinik askıya alındığında yeni işlemlerin ve hastanın geçmiş kayıtlarına erişimin kurallarını belirle.
 - [ ] **1.3** PHP ve JavaScript kilitli bağımlılıklarını doğrula, bildirilen geliştirme bağımlılığı güncellemelerini kontrollü uygula ve test/derlemeyi tekrarla.
 
 Aşama, olumsuz yetki testleri ve kendi kliniğinde çalışan olumlu akışlarla tamamlanır. Bundan sonra CRM düzenleme ekranına geçilir.
