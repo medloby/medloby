@@ -29,6 +29,7 @@ class AdminBusinessController extends Controller
                 'contractAcceptances.platformContract',
             ])
             ->latest()
+            ->orderByDesc('id')
             ->paginate($perPage);
 
         return response()->json([
@@ -65,7 +66,7 @@ class AdminBusinessController extends Controller
         $admin = $request->user();
 
         $result = DB::transaction(function () use ($business, $admin) {
-            $business->refresh();
+            $business = Business::query()->lockForUpdate()->findOrFail($business->getKey());
 
             if ($business->status !== 'pending') {
                 throw ValidationException::withMessages([
@@ -118,7 +119,7 @@ class AdminBusinessController extends Controller
                 ]),
                 'review' => $review,
             ];
-        });
+        }, attempts: 3);
 
         return response()->json([
             'success' => true,
@@ -155,7 +156,7 @@ class AdminBusinessController extends Controller
             $admin,
             $validated
         ) {
-            $business->refresh();
+            $business = Business::query()->lockForUpdate()->findOrFail($business->getKey());
 
             if ($business->status !== 'pending') {
                 throw ValidationException::withMessages([
@@ -195,7 +196,7 @@ class AdminBusinessController extends Controller
                 ]),
                 'review' => $review,
             ];
-        });
+        }, attempts: 3);
 
         return response()->json([
             'success' => true,

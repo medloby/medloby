@@ -3,6 +3,7 @@ import { mountPackageDiscovery } from './package-discovery';
 import { mountPackageConversation } from './package-conversation';
 import { mountWorkspaceNotifications } from './workspace-notifications';
 import { mountWorkspaceRegistration } from './workspace-registration';
+import { mountClinicReview } from './clinic-review';
 
 const statusLabels = {
     pending: 'Yanıt bekliyor',
@@ -26,6 +27,11 @@ const appointmentActionLabels = {
     reschedule: 'Tarihi değiştir',
     complete: 'Tamamlandı olarak işaretle',
     'no-show': 'Gelmedi olarak işaretle',
+};
+
+const clinicApplicationLabels = {
+    pending: 'Klinik başvurusu incelemede.',
+    rejected: 'Klinik başvurusu reddedildi.',
 };
 
 const offerDeadline = new Intl.DateTimeFormat('tr-TR', {
@@ -106,6 +112,10 @@ export function mountPackageOffers(root) {
     const branchField = bookingForm.elements.namedItem('branch');
     const catalogButton = get('catalog-button');
     const packageCatalog = mountPackageCatalog(get('catalog-dialog'), api);
+    const clinicReview = mountClinicReview(get('clinic-review-dialog'), get('clinic-review-button'), {
+        api,
+        timeLabel: (value) => offerDeadline.format(new Date(value)),
+    });
     const discoverySection = get('package-discovery');
     const discovery = mountPackageDiscovery(discoverySection, { api, priceLabel, startConversation });
     const thread = mountPackageConversation(get('package-conversation'), {
@@ -216,10 +226,12 @@ export function mountPackageOffers(root) {
         get('verification-address').textContent = user?.email ?? '';
         get('workspace').hidden = browsing || !verified;
 
-        const pendingClinics = !browsing && user ? ownedBusinesses().filter((item) => item.status === 'pending') : [];
+        const clinicApplications = !browsing && user
+            ? ownedBusinesses().filter((item) => clinicApplicationLabels[item.status])
+            : [];
         showStatus(
             get('clinic-onboarding'),
-            pendingClinics.length ? pendingClinics.map((item) => item.name).join(', ') + ' · Klinik başvurusu incelemede.' : '',
+            clinicApplications.map((item) => item.name + ' · ' + clinicApplicationLabels[item.status]).join('\n'),
         );
 
         if (openingCatalogue) {
@@ -332,6 +344,7 @@ export function mountPackageOffers(root) {
         appointmentDialog.close();
         packageCatalog.close();
         notifications.stop();
+        clinicReview.stop();
         catalogButton.hidden = true;
         appointmentForm.reset();
         offerForm.reset();
@@ -770,6 +783,9 @@ export function mountPackageOffers(root) {
     async function openVerifiedWorkspace() {
         catalogButton.hidden = ownedBusinesses().length === 0;
         notifications.start(ownedBusinesses());
+        if (user.is_admin) {
+            clinicReview.start();
+        }
         syncPage();
 
         const requested = pendingPackage;

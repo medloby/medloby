@@ -26,6 +26,7 @@
                             <span id="notifications-count" class="rounded-full bg-teal-300 px-1.5 text-xs font-semibold text-slate-950" aria-hidden="true" hidden></span>
                         </button>
                         <button id="catalog-button" type="button" class="rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800" hidden>Paketleri yönet</button>
+                        <button id="clinic-review-button" type="button" class="rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800" hidden>Klinik başvuruları</button>
                         <button id="logout" type="button" class="rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800">Çıkış yap</button>
                     </div>
                 </div>
@@ -34,7 +35,7 @@
             <main class="mx-auto max-w-7xl px-4 py-8 sm:px-8 sm:py-12">
                 <h1 id="page-title" class="text-3xl font-semibold tracking-tight sm:text-4xl">Paket teklifleri</h1>
                 <p id="page-message" class="mt-4 max-w-2xl text-sm text-slate-700 dark:text-slate-200" role="status" hidden></p>
-                <p id="clinic-onboarding" class="mt-4 max-w-2xl rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100" role="status" hidden></p>
+                <p id="clinic-onboarding" class="mt-4 max-w-2xl whitespace-pre-line rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100" role="status" hidden></p>
 
                 @include('package-discovery')
 
@@ -96,6 +97,7 @@
             @include('workspace-registration')
             @include('package-catalog-dialog')
             @include('workspace-notifications')
+            @include('clinic-review-dialog')
 
             <dialog id="offer-dialog" class="offer-dialog" aria-labelledby="offer-dialog-title">
                 <div class="flex items-start justify-between gap-4">
