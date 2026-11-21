@@ -754,6 +754,7 @@ test('a patient can accept a package offer and book all sessions only once', fun
     )->assertCreated();
     $offerId = $response->json('data.id');
     $url = "/api/offers/$offerId/appointments";
+    $optionsUrl = "$url/options";
     $session = [
         'treatment_id' => $data['treatment']->id,
         'doctor_id' => $data['doctor']->id,
@@ -768,10 +769,31 @@ test('a patient can accept a package offer and book all sessions only once', fun
     ];
 
     $this->actingAs(User::factory()->create())->postJson($url, $payload)->assertForbidden();
+    $this->getJson($optionsUrl)->assertForbidden();
 
     $this->actingAs($data['patientUser']);
     $this->postJson($url, $payload)->assertUnprocessable();
+    $this->getJson($optionsUrl)->assertUnprocessable();
     $this->postJson("/api/offers/$offerId/accept")->assertOk();
+
+    $this->getJson($optionsUrl)->assertOk()
+        ->assertJsonCount(1, 'data.branches')
+        ->assertJsonPath('data.branches.0.id', $data['branch']->id)
+        ->assertJsonPath('data.treatments.0.quantity', 2);
+
+    $slotQuery = [
+        'branch_id' => $data['branch']->id,
+        'treatment_id' => $data['treatment']->id,
+        'date' => $data['startsAt']->toDateString(),
+    ];
+    $this->getJson($optionsUrl.'?'.http_build_query($slotQuery))->assertOk()
+        ->assertJsonCount(1, 'data.doctors')
+        ->assertJsonPath('data.doctors.0.id', $data['doctor']->id)
+        ->assertJsonPath('data.doctors.0.slots.2', $session['starts_at']);
+
+    $this->getJson($optionsUrl.'?'.http_build_query(array_replace($slotQuery, [
+        'treatment_id' => 999999,
+    ])))->assertUnprocessable()->assertJsonValidationErrors('treatment_id');
 
     $this->postJson($url, array_replace($payload, ['sessions' => [$session]]))->assertUnprocessable();
     $this->postJson($url, array_replace($payload, ['sessions' => [$session, $session]]))->assertUnprocessable();
@@ -789,4 +811,5 @@ test('a patient can accept a package offer and book all sessions only once', fun
 
     $this->postJson($url, $payload)->assertUnprocessable();
     $this->assertDatabaseCount('appointments', 2);
+    $this->getJson($optionsUrl)->assertUnprocessable();
 });
