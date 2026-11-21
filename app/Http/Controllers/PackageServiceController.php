@@ -3,22 +3,23 @@
 namespace App\Http\Controllers;
 
 use App\Models\PackageService;
+use App\Services\PackageCatalogAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class PackageServiceController extends Controller
 {
+    public function __construct(private PackageCatalogAccess $catalogAccess) {}
+
     public function index(Request $request): JsonResponse
     {
         $query = PackageService::query()
+            ->where('is_active', true)
             ->with('business')
             ->orderBy('sort_order')
             ->orderBy('name');
-
-        if ($request->boolean('active_only')) {
-            $query->where('is_active', true);
-        }
 
         if ($request->filled('business_id')) {
             $query->where(
@@ -87,6 +88,8 @@ class PackageServiceController extends Controller
             ],
         ]);
 
+        $this->catalogAccess->authorizeManagement($request->user(), $validated['business_id'] ?? null);
+
         $businessId = $validated['business_id'] ?? null;
 
         $validated['slug'] = $this->resolveSlug(
@@ -114,11 +117,13 @@ class PackageServiceController extends Controller
     public function show(
         PackageService $packageService
     ): JsonResponse {
+        abort_unless($packageService->is_active, 404);
+
         return response()->json([
             'success' => true,
             'data' => $packageService->load([
                 'business',
-                'packages',
+                'packages' => fn ($query) => $query->where('treatment_packages.is_active', true),
             ]),
         ]);
     }
@@ -127,6 +132,8 @@ class PackageServiceController extends Controller
         Request $request,
         PackageService $packageService
     ): JsonResponse {
+        $this->catalogAccess->authorizeManagement($request->user(), $packageService->business_id);
+
         $validated = $request->validate([
             'business_id' => [
                 'nullable',
@@ -169,6 +176,18 @@ class PackageServiceController extends Controller
             ],
         ]);
 
+        if (array_key_exists('business_id', $validated)) {
+            $this->catalogAccess->authorizeManagement($request->user(), $validated['business_id'] ?? null);
+        }
+
+        if (isset($validated['business_id'])
+            && (int) $validated['business_id'] !== (int) $packageService->business_id
+            && $packageService->packages()->where('treatment_packages.business_id', '!=', $validated['business_id'])->exists()) {
+            throw ValidationException::withMessages([
+                'business_id' => 'Hizmet, başka bir işletmeye ait pakette kullanılıyor.',
+            ]);
+        }
+
         if (
             array_key_exists('name', $validated)
             || array_key_exists('slug', $validated)
@@ -201,8 +220,11 @@ class PackageServiceController extends Controller
     }
 
     public function deactivate(
+        Request $request,
         PackageService $packageService
     ): JsonResponse {
+        $this->catalogAccess->authorizeManagement($request->user(), $packageService->business_id);
+
         $packageService->update([
             'is_active' => false,
         ]);
@@ -244,7 +266,7 @@ class PackageServiceController extends Controller
                 )
                 ->exists()
         ) {
-            $slug = $baseSlug . '-' . $counter;
+            $slug = $baseSlug.'-'.$counter;
             $counter++;
         }
 

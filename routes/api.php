@@ -975,7 +975,7 @@ Route::prefix('treatment-packages')->group(function () {
     Route::post('/', [
         TreatmentPackageController::class,
         'store',
-    ]);
+    ])->middleware('auth:sanctum');
 
     Route::get('/{treatmentPackage}', [
         TreatmentPackageController::class,
@@ -985,12 +985,12 @@ Route::prefix('treatment-packages')->group(function () {
     Route::put('/{treatmentPackage}', [
         TreatmentPackageController::class,
         'update',
-    ]);
+    ])->middleware('auth:sanctum');
 
     Route::delete('/{treatmentPackage}', [
         TreatmentPackageController::class,
         'deactivate',
-    ]);
+    ])->middleware('auth:sanctum');
 });
 
 Route::prefix('treatment-packages/{treatmentPackage}/items')->group(function () {
@@ -1002,7 +1002,7 @@ Route::prefix('treatment-packages/{treatmentPackage}/items')->group(function () 
     Route::post('/', [
         TreatmentPackageItemController::class,
         'store',
-    ]);
+    ])->middleware('auth:sanctum');
 
     Route::get('/{treatmentPackageItem}', [
         TreatmentPackageItemController::class,
@@ -1012,12 +1012,12 @@ Route::prefix('treatment-packages/{treatmentPackage}/items')->group(function () 
     Route::put('/{treatmentPackageItem}', [
         TreatmentPackageItemController::class,
         'update',
-    ]);
+    ])->middleware('auth:sanctum');
 
     Route::delete('/{treatmentPackageItem}', [
         TreatmentPackageItemController::class,
         'destroy',
-    ]);
+    ])->middleware('auth:sanctum');
 });
 
 Route::prefix('package-services')->group(function () {
@@ -1029,7 +1029,7 @@ Route::prefix('package-services')->group(function () {
     Route::post('/', [
         PackageServiceController::class,
         'store',
-    ]);
+    ])->middleware('auth:sanctum');
 
     Route::get('/{packageService}', [
         PackageServiceController::class,
@@ -1039,12 +1039,12 @@ Route::prefix('package-services')->group(function () {
     Route::put('/{packageService}', [
         PackageServiceController::class,
         'update',
-    ]);
+    ])->middleware('auth:sanctum');
 
     Route::delete('/{packageService}', [
         PackageServiceController::class,
         'deactivate',
-    ]);
+    ])->middleware('auth:sanctum');
 });
 
 Route::prefix('treatment-packages/{treatmentPackage}/service-items')->group(function () {
@@ -1056,7 +1056,7 @@ Route::prefix('treatment-packages/{treatmentPackage}/service-items')->group(func
     Route::post('/', [
         PackageServiceItemController::class,
         'store',
-    ]);
+    ])->middleware('auth:sanctum');
 
     Route::get('/{packageServiceItem}', [
         PackageServiceItemController::class,
@@ -1066,12 +1066,12 @@ Route::prefix('treatment-packages/{treatmentPackage}/service-items')->group(func
     Route::put('/{packageServiceItem}', [
         PackageServiceItemController::class,
         'update',
-    ]);
+    ])->middleware('auth:sanctum');
 
     Route::delete('/{packageServiceItem}', [
         PackageServiceItemController::class,
         'destroy',
-    ]);
+    ])->middleware('auth:sanctum');
 });
 
 Route::prefix('branches/{branch}/social-media')->group(function () {

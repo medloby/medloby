@@ -4,23 +4,29 @@ namespace App\Http\Controllers;
 
 use App\Models\TreatmentPackage;
 use App\Models\TreatmentPackageItem;
+use App\Services\PackageCatalogAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class TreatmentPackageItemController extends Controller
 {
+    public function __construct(private PackageCatalogAccess $catalogAccess) {}
+
     public function index(
         TreatmentPackage $treatmentPackage
     ): JsonResponse {
+        abort_unless($treatmentPackage->is_active, 404);
+
         $items = TreatmentPackageItem::query()
-    ->where(
-        'treatment_package_id',
-        $treatmentPackage->id
-    )
-    ->with('treatment')
-    ->orderBy('sort_order')
-    ->orderBy('id')
-    ->get();
+            ->where(
+                'treatment_package_id',
+                $treatmentPackage->id
+            )
+            ->whereHas('treatment', fn ($query) => $query->where('is_active', true))
+            ->with('treatment')
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get();
 
         return response()->json([
             'success' => true,
@@ -32,6 +38,8 @@ class TreatmentPackageItemController extends Controller
         Request $request,
         TreatmentPackage $treatmentPackage
     ): JsonResponse {
+        $this->catalogAccess->authorizeManagement($request->user(), $treatmentPackage->business_id);
+
         $validated = $request->validate([
             'treatment_id' => [
                 'required',
@@ -92,6 +100,8 @@ class TreatmentPackageItemController extends Controller
         TreatmentPackage $treatmentPackage,
         TreatmentPackageItem $treatmentPackageItem
     ): JsonResponse {
+        abort_unless($treatmentPackage->is_active, 404);
+
         if (
             $treatmentPackageItem->treatment_package_id
             !== $treatmentPackage->id
@@ -101,6 +111,8 @@ class TreatmentPackageItemController extends Controller
                 'message' => 'Bu öğe belirtilen pakete ait değil.',
             ], 404);
         }
+
+        abort_unless($treatmentPackageItem->treatment?->is_active, 404);
 
         return response()->json([
             'success' => true,
@@ -115,6 +127,8 @@ class TreatmentPackageItemController extends Controller
         TreatmentPackage $treatmentPackage,
         TreatmentPackageItem $treatmentPackageItem
     ): JsonResponse {
+        $this->catalogAccess->authorizeManagement($request->user(), $treatmentPackage->business_id);
+
         if (
             $treatmentPackageItem->treatment_package_id
             !== $treatmentPackage->id
@@ -183,9 +197,12 @@ class TreatmentPackageItemController extends Controller
     }
 
     public function destroy(
+        Request $request,
         TreatmentPackage $treatmentPackage,
         TreatmentPackageItem $treatmentPackageItem
     ): JsonResponse {
+        $this->catalogAccess->authorizeManagement($request->user(), $treatmentPackage->business_id);
+
         if (
             $treatmentPackageItem->treatment_package_id
             !== $treatmentPackage->id

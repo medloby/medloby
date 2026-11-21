@@ -4,6 +4,7 @@ use App\Models\Business;
 use App\Models\PackageService;
 use App\Models\PackageServiceItem;
 use App\Models\TreatmentPackage;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -11,13 +12,21 @@ uses(RefreshDatabase::class);
 beforeEach(function () {
     $this->business = Business::create([
         'name' => 'Test Klinik',
-        'slug' => 'test-klinik-' . uniqid(),
+        'slug' => 'test-klinik-'.uniqid(),
     ]);
+
+    $this->owner = User::factory()->create();
+    $this->business->memberships()->create([
+        'user_id' => $this->owner->id,
+        'role' => 'business_owner',
+        'is_active' => true,
+    ]);
+    $this->actingAs($this->owner, 'sanctum');
 
     $this->package = TreatmentPackage::create([
         'business_id' => $this->business->id,
         'name' => 'VIP Saç Ekimi Paketi',
-        'slug' => 'vip-sac-ekimi-' . uniqid(),
+        'slug' => 'vip-sac-ekimi-'.uniqid(),
         'package_type' => 'treatment',
         'price' => 75000,
         'currency' => 'TRY',
@@ -27,7 +36,7 @@ beforeEach(function () {
     $this->service = PackageService::create([
         'business_id' => $this->business->id,
         'name' => 'Havalimanı Transferi',
-        'slug' => 'havalimani-transferi-' . uniqid(),
+        'slug' => 'havalimani-transferi-'.uniqid(),
         'service_type' => 'transfer',
         'unit' => 'trip',
         'is_active' => true,
@@ -36,7 +45,7 @@ beforeEach(function () {
     $this->secondService = PackageService::create([
         'business_id' => $this->business->id,
         'name' => 'Otel Konaklama',
-        'slug' => 'otel-konaklama-' . uniqid(),
+        'slug' => 'otel-konaklama-'.uniqid(),
         'service_type' => 'hotel',
         'unit' => 'night',
         'is_active' => true,
@@ -265,7 +274,7 @@ test('cannot show item belonging to another package', function () {
     $otherPackage = TreatmentPackage::create([
         'business_id' => $this->business->id,
         'name' => 'Diğer Paket',
-        'slug' => 'diger-paket-' . uniqid(),
+        'slug' => 'diger-paket-'.uniqid(),
         'package_type' => 'treatment',
         'price' => 50000,
         'currency' => 'TRY',
@@ -388,7 +397,7 @@ test('cannot update item that belongs to another package', function () {
     $otherPackage = TreatmentPackage::create([
         'business_id' => $this->business->id,
         'name' => 'Diğer Paket',
-        'slug' => 'diger-paket-' . uniqid(),
+        'slug' => 'diger-paket-'.uniqid(),
         'package_type' => 'treatment',
         'price' => 50000,
         'currency' => 'TRY',
@@ -445,7 +454,7 @@ test('cannot remove item belonging to another package', function () {
     $otherPackage = TreatmentPackage::create([
         'business_id' => $this->business->id,
         'name' => 'Diğer Paket',
-        'slug' => 'diger-paket-' . uniqid(),
+        'slug' => 'diger-paket-'.uniqid(),
         'package_type' => 'treatment',
         'price' => 50000,
         'currency' => 'TRY',
@@ -474,4 +483,45 @@ test('cannot remove item belonging to another package', function () {
             'id' => $item->id,
         ]
     );
+});
+test('package items can use global services and reject services from another business', function () {
+    $otherBusiness = Business::factory()->create();
+    $foreignService = $this->secondService->replicate();
+    $foreignService->business_id = $otherBusiness->id;
+    $foreignService->save();
+
+    $itemsUrl = "/api/treatment-packages/{$this->package->id}/service-items";
+    $this->postJson($itemsUrl, [
+        'package_service_id' => $foreignService->id,
+    ])->assertUnprocessable()->assertJsonValidationErrors('package_service_id');
+
+    $globalService = $this->secondService->replicate();
+    $globalService->business_id = null;
+    $globalService->save();
+
+    $response = $this->postJson($itemsUrl, [
+        'package_service_id' => $globalService->id,
+    ])->assertCreated()->assertJsonPath('data.package_service_id', $globalService->id);
+
+    $this->putJson($itemsUrl.'/'.$response->json('data.id'), [
+        'package_service_id' => $foreignService->id,
+    ])->assertUnprocessable()->assertJsonValidationErrors('package_service_id');
+});
+
+test('updating ownership cannot leave a package linked to a foreign service', function () {
+    $otherBusiness = Business::factory()->create();
+    $otherBusiness->memberships()->create([
+        'user_id' => $this->owner->id,
+        'role' => 'business_owner',
+        'is_active' => true,
+    ]);
+    $this->package->services()->attach($this->service);
+
+    $this->putJson("/api/treatment-packages/{$this->package->id}", [
+        'business_id' => $otherBusiness->id,
+    ])->assertUnprocessable()->assertJsonValidationErrors('business_id');
+
+    $this->putJson("/api/package-services/{$this->service->id}", [
+        'business_id' => $otherBusiness->id,
+    ])->assertUnprocessable()->assertJsonValidationErrors('business_id');
 });

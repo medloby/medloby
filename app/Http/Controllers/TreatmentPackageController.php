@@ -3,29 +3,29 @@
 namespace App\Http\Controllers;
 
 use App\Models\Branch;
-use App\Models\Business;
 use App\Models\TreatmentPackage;
+use App\Services\PackageCatalogAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class TreatmentPackageController extends Controller
 {
+    public function __construct(private PackageCatalogAccess $catalogAccess) {}
+
     public function index(Request $request): JsonResponse
     {
         $query = TreatmentPackage::query()
+            ->where('is_active', true)
             ->with([
                 'business',
                 'branch',
-                'treatments',
-                'services',
+                'treatments' => fn ($query) => $query->where('treatments.is_active', true),
+                'services' => fn ($query) => $query->where('package_services.is_active', true),
             ])
             ->orderBy('name');
-
-        if ($request->boolean('active_only')) {
-            $query->where('is_active', true);
-        }
 
         if ($request->boolean('offer_enabled')) {
             $query->where('is_offer_enabled', true);
@@ -153,6 +153,13 @@ class TreatmentPackageController extends Controller
             ],
         ]);
 
+        $this->catalogAccess->authorizeManagement($request->user(), (int) $validated['business_id']);
+
+        $this->validateBranch(
+            (int) $validated['business_id'],
+            isset($validated['branch_id']) ? (int) $validated['branch_id'] : null
+        );
+
         $validated['slug'] = $this->resolveSlug(
             $validated['name'],
             $validated['slug'] ?? null,
@@ -196,11 +203,13 @@ class TreatmentPackageController extends Controller
     public function show(
         TreatmentPackage $treatmentPackage
     ): JsonResponse {
+        abort_unless($treatmentPackage->is_active, 404);
+
         $treatmentPackage->load([
             'business',
             'branch',
-            'treatments',
-            'services',
+            'treatments' => fn ($query) => $query->where('treatments.is_active', true),
+            'services' => fn ($query) => $query->where('package_services.is_active', true),
         ]);
 
         return response()->json([
@@ -213,6 +222,8 @@ class TreatmentPackageController extends Controller
         Request $request,
         TreatmentPackage $treatmentPackage
     ): JsonResponse {
+        $this->catalogAccess->authorizeManagement($request->user(), $treatmentPackage->business_id);
+
         $validated = $request->validate([
             'business_id' => [
                 'sometimes',
@@ -290,23 +301,55 @@ class TreatmentPackageController extends Controller
             'valid_until' => [
                 'nullable',
                 'date',
-                'after_or_equal:valid_from',
             ],
         ]);
+
+        if (array_key_exists('business_id', $validated)) {
+            $this->catalogAccess->authorizeManagement($request->user(), (int) $validated['business_id']);
+        }
+
+        $businessId = (int) ($validated['business_id'] ?? $treatmentPackage->business_id);
+        if (array_key_exists('business_id', $validated) || array_key_exists('branch_id', $validated)) {
+            $branchId = array_key_exists('branch_id', $validated)
+                ? $validated['branch_id']
+                : $treatmentPackage->branch_id;
+
+            $this->validateBranch($businessId, $branchId === null ? null : (int) $branchId);
+        }
+
+        if ($businessId !== (int) $treatmentPackage->business_id
+            && $treatmentPackage->services()->whereNotNull('package_services.business_id')
+                ->where('package_services.business_id', '!=', $businessId)->exists()) {
+            throw ValidationException::withMessages([
+                'business_id' => 'Paket, başka bir işletmeye ait ek hizmet içeriyor.',
+            ]);
+        }
+
+        if (array_key_exists('valid_from', $validated) || array_key_exists('valid_until', $validated)) {
+            $dates = $validated + [
+                'valid_from' => $treatmentPackage->valid_from,
+                'valid_until' => $treatmentPackage->valid_until,
+            ];
+
+            if ($dates['valid_from'] !== null && $dates['valid_until'] !== null
+                && Carbon::parse($dates['valid_until'])->toDateString() < Carbon::parse($dates['valid_from'])->toDateString()) {
+                throw ValidationException::withMessages([
+                    'valid_until' => 'Bitiş tarihi başlangıç tarihinden önce olamaz.',
+                ]);
+            }
+        }
 
         if (
             array_key_exists('name', $validated)
             || array_key_exists('slug', $validated)
+            || $businessId !== (int) $treatmentPackage->business_id
         ) {
             $validated['slug'] = $this->resolveSlug(
                 $validated['name']
                     ?? $treatmentPackage->name,
                 $validated['slug']
                     ?? $treatmentPackage->slug,
-                (int) (
-                    $validated['business_id']
-                    ?? $treatmentPackage->business_id
-                ),
+                $businessId,
                 $treatmentPackage->id
             );
         }
@@ -333,8 +376,11 @@ class TreatmentPackageController extends Controller
     }
 
     public function deactivate(
+        Request $request,
         TreatmentPackage $treatmentPackage
     ): JsonResponse {
+        $this->catalogAccess->authorizeManagement($request->user(), $treatmentPackage->business_id);
+
         $treatmentPackage->update([
             'is_active' => false,
         ]);
@@ -343,6 +389,15 @@ class TreatmentPackageController extends Controller
             'success' => true,
             'data' => $treatmentPackage->fresh(),
         ]);
+    }
+
+    private function validateBranch(int $businessId, ?int $branchId): void
+    {
+        if ($branchId !== null && ! Branch::query()->whereKey($branchId)->where('business_id', $businessId)->exists()) {
+            throw ValidationException::withMessages([
+                'branch_id' => 'Şube seçilen işletmeye ait olmalıdır.',
+            ]);
+        }
     }
 
     private function resolveSlug(
@@ -376,7 +431,7 @@ class TreatmentPackageController extends Controller
                 )
                 ->exists()
         ) {
-            $slug = $baseSlug . '-' . $counter;
+            $slug = $baseSlug.'-'.$counter;
             $counter++;
         }
 

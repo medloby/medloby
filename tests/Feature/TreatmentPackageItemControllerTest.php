@@ -6,6 +6,7 @@ use App\Models\Treatment;
 use App\Models\TreatmentCategory;
 use App\Models\TreatmentPackage;
 use App\Models\TreatmentPackageItem;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -13,33 +14,41 @@ uses(RefreshDatabase::class);
 beforeEach(function () {
     $this->business = Business::create([
         'name' => 'Test Klinik',
-        'slug' => 'test-klinik-' . uniqid(),
+        'slug' => 'test-klinik-'.uniqid(),
     ]);
+
+    $this->owner = User::factory()->create();
+    $this->business->memberships()->create([
+        'user_id' => $this->owner->id,
+        'role' => 'business_owner',
+        'is_active' => true,
+    ]);
+    $this->actingAs($this->owner, 'sanctum');
 
     $this->branch = Branch::create([
         'business_id' => $this->business->id,
         'name' => 'Merkez Şube',
-        'slug' => 'merkez-sube-' . uniqid(),
+        'slug' => 'merkez-sube-'.uniqid(),
         'status' => 'active',
     ]);
 
     $this->category = TreatmentCategory::create([
         'name' => 'Saç Ekimi',
-        'slug' => 'sac-ekimi-' . uniqid(),
+        'slug' => 'sac-ekimi-'.uniqid(),
         'is_active' => true,
     ]);
 
     $this->treatment = Treatment::create([
         'treatment_category_id' => $this->category->id,
         'name' => 'FUE Saç Ekimi',
-        'slug' => 'fue-sac-ekimi-' . uniqid(),
+        'slug' => 'fue-sac-ekimi-'.uniqid(),
         'is_active' => true,
     ]);
 
     $this->secondTreatment = Treatment::create([
         'treatment_category_id' => $this->category->id,
         'name' => 'PRP Tedavisi',
-        'slug' => 'prp-tedavisi-' . uniqid(),
+        'slug' => 'prp-tedavisi-'.uniqid(),
         'is_active' => true,
     ]);
 
@@ -47,7 +56,7 @@ beforeEach(function () {
         'business_id' => $this->business->id,
         'branch_id' => $this->branch->id,
         'name' => 'VIP Saç Ekimi Paketi',
-        'slug' => 'vip-sac-ekimi-' . uniqid(),
+        'slug' => 'vip-sac-ekimi-'.uniqid(),
         'package_type' => 'treatment',
         'price' => 75000,
         'currency' => 'TRY',
@@ -278,7 +287,7 @@ test('cannot show item belonging to another package', function () {
         'business_id' => $this->business->id,
         'branch_id' => $this->branch->id,
         'name' => 'Diğer Paket',
-        'slug' => 'diger-paket-' . uniqid(),
+        'slug' => 'diger-paket-'.uniqid(),
         'package_type' => 'treatment',
         'price' => 50000,
         'currency' => 'TRY',
@@ -402,7 +411,7 @@ test('cannot update item that belongs to another package', function () {
         'business_id' => $this->business->id,
         'branch_id' => $this->branch->id,
         'name' => 'Diğer Paket',
-        'slug' => 'diger-paket-' . uniqid(),
+        'slug' => 'diger-paket-'.uniqid(),
         'package_type' => 'treatment',
         'price' => 50000,
         'currency' => 'TRY',
@@ -460,7 +469,7 @@ test('cannot remove item belonging to another package', function () {
         'business_id' => $this->business->id,
         'branch_id' => $this->branch->id,
         'name' => 'Diğer Paket',
-        'slug' => 'diger-paket-' . uniqid(),
+        'slug' => 'diger-paket-'.uniqid(),
         'package_type' => 'treatment',
         'price' => 50000,
         'currency' => 'TRY',

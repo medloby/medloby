@@ -2,9 +2,10 @@
 
 use App\Models\Branch;
 use App\Models\Business;
+use App\Models\Treatment;
 use App\Models\TreatmentCategory;
 use App\Models\TreatmentPackage;
-use App\Models\Treatment;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -12,26 +13,34 @@ uses(RefreshDatabase::class);
 beforeEach(function () {
     $this->business = Business::create([
         'name' => 'Test Klinik',
-        'slug' => 'test-klinik-' . uniqid(),
+        'slug' => 'test-klinik-'.uniqid(),
     ]);
+
+    $this->owner = User::factory()->create();
+    $this->business->memberships()->create([
+        'user_id' => $this->owner->id,
+        'role' => 'business_owner',
+        'is_active' => true,
+    ]);
+    $this->actingAs($this->owner, 'sanctum');
 
     $this->branch = Branch::create([
         'business_id' => $this->business->id,
         'name' => 'Merkez Şube',
-        'slug' => 'merkez-sube-' . uniqid(),
+        'slug' => 'merkez-sube-'.uniqid(),
         'status' => 'active',
     ]);
 
     $this->category = TreatmentCategory::create([
         'name' => 'Saç Ekimi',
-        'slug' => 'sac-ekimi-' . uniqid(),
+        'slug' => 'sac-ekimi-'.uniqid(),
         'is_active' => true,
     ]);
 
     $this->treatment = Treatment::create([
         'treatment_category_id' => $this->category->id,
         'name' => 'FUE Saç Ekimi',
-        'slug' => 'fue-sac-ekimi-' . uniqid(),
+        'slug' => 'fue-sac-ekimi-'.uniqid(),
         'is_active' => true,
     ]);
 });
@@ -42,7 +51,7 @@ function createPackage($test, array $attributes = []): TreatmentPackage
         'business_id' => $test->business->id,
         'branch_id' => $test->branch->id,
         'name' => 'Premium Saç Ekimi Paketi',
-        'slug' => 'premium-sac-ekimi-' . uniqid(),
+        'slug' => 'premium-sac-ekimi-'.uniqid(),
         'package_type' => 'treatment',
         'price' => 50000,
         'currency' => 'TRY',
@@ -73,13 +82,13 @@ test('can list treatment packages', function () {
 test('can list only active treatment packages', function () {
     createPackage($this, [
         'name' => 'Aktif Paket',
-        'slug' => 'aktif-paket-' . uniqid(),
+        'slug' => 'aktif-paket-'.uniqid(),
         'is_active' => true,
     ]);
 
     createPackage($this, [
         'name' => 'Pasif Paket',
-        'slug' => 'pasif-paket-' . uniqid(),
+        'slug' => 'pasif-paket-'.uniqid(),
         'is_active' => false,
     ]);
 
@@ -99,13 +108,13 @@ test('can list only active treatment packages', function () {
 test('can list only offer enabled treatment packages', function () {
     createPackage($this, [
         'name' => 'Teklifli Paket',
-        'slug' => 'teklifli-paket-' . uniqid(),
+        'slug' => 'teklifli-paket-'.uniqid(),
         'is_offer_enabled' => true,
     ]);
 
     createPackage($this, [
         'name' => 'Teklifsiz Paket',
-        'slug' => 'teklifsiz-paket-' . uniqid(),
+        'slug' => 'teklifsiz-paket-'.uniqid(),
         'is_offer_enabled' => false,
     ]);
 
@@ -125,7 +134,7 @@ test('can list only offer enabled treatment packages', function () {
 test('can filter treatment packages by business', function () {
     $otherBusiness = Business::create([
         'name' => 'Other Klinik',
-        'slug' => 'other-klinik-' . uniqid(),
+        'slug' => 'other-klinik-'.uniqid(),
     ]);
 
     createPackage($this);
@@ -133,7 +142,7 @@ test('can filter treatment packages by business', function () {
     TreatmentPackage::create([
         'business_id' => $otherBusiness->id,
         'name' => 'Diğer Klinik Paketi',
-        'slug' => 'diger-klinik-paketi-' . uniqid(),
+        'slug' => 'diger-klinik-paketi-'.uniqid(),
         'package_type' => 'treatment',
         'price' => 60000,
         'currency' => 'TRY',
@@ -157,7 +166,7 @@ test('can filter treatment packages by branch', function () {
     $secondBranch = Branch::create([
         'business_id' => $this->business->id,
         'name' => 'İkinci Şube',
-        'slug' => 'ikinci-sube-' . uniqid(),
+        'slug' => 'ikinci-sube-'.uniqid(),
         'status' => 'active',
     ]);
 
@@ -165,7 +174,7 @@ test('can filter treatment packages by branch', function () {
 
     createPackage($this, [
         'name' => 'İkinci Şube Paketi',
-        'slug' => 'ikinci-sube-paketi-' . uniqid(),
+        'slug' => 'ikinci-sube-paketi-'.uniqid(),
         'branch_id' => $secondBranch->id,
     ]);
 
@@ -185,13 +194,13 @@ test('can filter treatment packages by branch', function () {
 test('can filter treatment packages by package type', function () {
     createPackage($this, [
         'name' => 'Treatment Paketi',
-        'slug' => 'treatment-paketi-' . uniqid(),
+        'slug' => 'treatment-paketi-'.uniqid(),
         'package_type' => 'treatment',
     ]);
 
     createPackage($this, [
         'name' => 'Health Tourism Paketi',
-        'slug' => 'health-tourism-paketi-' . uniqid(),
+        'slug' => 'health-tourism-paketi-'.uniqid(),
         'package_type' => 'health_tourism',
     ]);
 
@@ -211,13 +220,13 @@ test('can filter treatment packages by package type', function () {
 test('can filter treatment packages by currency', function () {
     createPackage($this, [
         'name' => 'TRY Paket',
-        'slug' => 'try-paket-' . uniqid(),
+        'slug' => 'try-paket-'.uniqid(),
         'currency' => 'TRY',
     ]);
 
     createPackage($this, [
         'name' => 'EUR Paket',
-        'slug' => 'eur-paket-' . uniqid(),
+        'slug' => 'eur-paket-'.uniqid(),
         'currency' => 'EUR',
     ]);
 
@@ -538,4 +547,70 @@ test('inactive treatment package remains in database after deactivation', functi
         'id' => $package->id,
         'is_active' => false,
     ]);
+});
+test('a package branch must belong to the selected business', function () {
+    $otherBusiness = Business::factory()->create();
+    $otherBusiness->memberships()->create([
+        'user_id' => $this->owner->id,
+        'role' => 'business_owner',
+        'is_active' => true,
+    ]);
+    $package = createPackage($this);
+
+    $this->postJson('/api/treatment-packages', [
+        'business_id' => $otherBusiness->id,
+        'branch_id' => $this->branch->id,
+        'name' => 'Yeni Paket',
+    ])->assertUnprocessable()->assertJsonValidationErrors('branch_id');
+
+    $this->putJson("/api/treatment-packages/{$package->id}", [
+        'business_id' => $otherBusiness->id,
+    ])->assertUnprocessable()->assertJsonValidationErrors('branch_id');
+
+    $this->assertDatabaseHas('treatment_packages', [
+        'id' => $package->id,
+        'business_id' => $this->business->id,
+        'branch_id' => $this->branch->id,
+    ]);
+});
+
+test('a partial update validates the effective package validity dates', function () {
+    $package = createPackage($this, [
+        'valid_from' => '2026-10-10',
+        'valid_until' => '2026-10-20',
+    ]);
+
+    $this->putJson("/api/treatment-packages/{$package->id}", [
+        'valid_from' => '2026-10-21',
+    ])->assertUnprocessable()->assertJsonValidationErrors('valid_until');
+
+    $this->putJson("/api/treatment-packages/{$package->id}", [
+        'valid_until' => '2026-10-09',
+    ])->assertUnprocessable()->assertJsonValidationErrors('valid_until');
+
+    $this->putJson("/api/treatment-packages/{$package->id}", [
+        'valid_from' => '2026-10-21',
+        'valid_until' => null,
+    ])->assertOk()->assertJsonPath('data.valid_until', null);
+});
+
+test('moving a package resolves slug conflicts in the destination business', function () {
+    $otherBusiness = Business::factory()->create();
+    $otherBusiness->memberships()->create([
+        'user_id' => $this->owner->id,
+        'role' => 'business_owner',
+        'is_active' => true,
+    ]);
+    $package = createPackage($this, ['branch_id' => null, 'slug' => 'shared-package']);
+    createPackage($this, [
+        'business_id' => $otherBusiness->id,
+        'branch_id' => null,
+        'slug' => $package->slug,
+    ]);
+
+    $this->putJson("/api/treatment-packages/{$package->id}", [
+        'business_id' => $otherBusiness->id,
+    ])->assertOk()
+        ->assertJsonPath('data.business_id', $otherBusiness->id)
+        ->assertJsonPath('data.slug', 'shared-package-2');
 });

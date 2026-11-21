@@ -2,6 +2,7 @@
 
 use App\Models\Business;
 use App\Models\PackageService;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -9,15 +10,23 @@ uses(RefreshDatabase::class);
 beforeEach(function () {
     $this->business = Business::create([
         'name' => 'Test Klinik',
-        'slug' => 'test-klinik-' . uniqid(),
+        'slug' => 'test-klinik-'.uniqid(),
     ]);
+
+    $this->owner = User::factory()->create();
+    $this->business->memberships()->create([
+        'user_id' => $this->owner->id,
+        'role' => 'business_owner',
+        'is_active' => true,
+    ]);
+    $this->actingAs($this->owner, 'sanctum');
 });
 
 test('can list package services', function () {
     $service = PackageService::create([
         'business_id' => $this->business->id,
         'name' => 'Havalimanı Transferi',
-        'slug' => 'havalimani-transferi-' . uniqid(),
+        'slug' => 'havalimani-transferi-'.uniqid(),
         'service_type' => 'transfer',
         'description' => 'Havalimanı ve klinik arası transfer.',
         'unit' => 'trip',
@@ -45,7 +54,7 @@ test('can list only active package services', function () {
     PackageService::create([
         'business_id' => $this->business->id,
         'name' => 'Aktif Transfer',
-        'slug' => 'aktif-transfer-' . uniqid(),
+        'slug' => 'aktif-transfer-'.uniqid(),
         'service_type' => 'transfer',
         'is_active' => true,
     ]);
@@ -53,7 +62,7 @@ test('can list only active package services', function () {
     PackageService::create([
         'business_id' => $this->business->id,
         'name' => 'Pasif Transfer',
-        'slug' => 'pasif-transfer-' . uniqid(),
+        'slug' => 'pasif-transfer-'.uniqid(),
         'service_type' => 'transfer',
         'is_active' => false,
     ]);
@@ -74,20 +83,20 @@ test('can list only active package services', function () {
 test('can filter package services by business', function () {
     $otherBusiness = Business::create([
         'name' => 'Diğer Klinik',
-        'slug' => 'diger-klinik-' . uniqid(),
+        'slug' => 'diger-klinik-'.uniqid(),
     ]);
 
     PackageService::create([
         'business_id' => $this->business->id,
         'name' => 'Benim Hizmetim',
-        'slug' => 'benim-hizmetim-' . uniqid(),
+        'slug' => 'benim-hizmetim-'.uniqid(),
         'service_type' => 'transfer',
     ]);
 
     PackageService::create([
         'business_id' => $otherBusiness->id,
         'name' => 'Diğer Hizmet',
-        'slug' => 'diger-hizmet-' . uniqid(),
+        'slug' => 'diger-hizmet-'.uniqid(),
         'service_type' => 'transfer',
     ]);
 
@@ -108,14 +117,14 @@ test('can filter package services by service type', function () {
     PackageService::create([
         'business_id' => $this->business->id,
         'name' => 'Transfer Hizmeti',
-        'slug' => 'transfer-hizmeti-' . uniqid(),
+        'slug' => 'transfer-hizmeti-'.uniqid(),
         'service_type' => 'transfer',
     ]);
 
     PackageService::create([
         'business_id' => $this->business->id,
         'name' => 'Otel Hizmeti',
-        'slug' => 'otel-hizmeti-' . uniqid(),
+        'slug' => 'otel-hizmeti-'.uniqid(),
         'service_type' => 'hotel',
     ]);
 
@@ -227,6 +236,7 @@ test('duplicate package service slug gets a unique slug', function () {
 });
 
 test('global package service can be created without business', function () {
+    $this->actingAs(User::factory()->create(['is_admin' => true]), 'sanctum');
     $response = $this->postJson(
         '/api/package-services',
         [
@@ -280,7 +290,7 @@ test('can show package service with relationships', function () {
     $service = PackageService::create([
         'business_id' => $this->business->id,
         'name' => 'Otel Konaklama',
-        'slug' => 'otel-konaklama-' . uniqid(),
+        'slug' => 'otel-konaklama-'.uniqid(),
         'service_type' => 'hotel',
         'unit' => 'night',
         'is_active' => true,
@@ -307,7 +317,7 @@ test('can update package service', function () {
     $service = PackageService::create([
         'business_id' => $this->business->id,
         'name' => 'Eski Transfer',
-        'slug' => 'eski-transfer-' . uniqid(),
+        'slug' => 'eski-transfer-'.uniqid(),
         'service_type' => 'transfer',
         'unit' => 'trip',
         'is_active' => true,
@@ -356,7 +366,7 @@ test('can deactivate package service', function () {
     $service = PackageService::create([
         'business_id' => $this->business->id,
         'name' => 'Pasifleştirilecek Hizmet',
-        'slug' => 'pasif-hizmet-' . uniqid(),
+        'slug' => 'pasif-hizmet-'.uniqid(),
         'service_type' => 'transfer',
         'is_active' => true,
     ]);
@@ -386,7 +396,7 @@ test('inactive package service remains in database after deactivation', function
     $service = PackageService::create([
         'business_id' => $this->business->id,
         'name' => 'Pasif Hizmet',
-        'slug' => 'pasif-hizmet-' . uniqid(),
+        'slug' => 'pasif-hizmet-'.uniqid(),
         'service_type' => 'transfer',
         'is_active' => true,
     ]);
@@ -404,7 +414,13 @@ test('inactive package service remains in database after deactivation', function
 test('same slug can exist for different businesses', function () {
     $otherBusiness = Business::create([
         'name' => 'İkinci Klinik',
-        'slug' => 'ikinci-klinik-' . uniqid(),
+        'slug' => 'ikinci-klinik-'.uniqid(),
+    ]);
+
+    $otherBusiness->memberships()->create([
+        'user_id' => $this->owner->id,
+        'role' => 'business_owner',
+        'is_active' => true,
     ]);
 
     PackageService::create([
