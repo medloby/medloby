@@ -232,6 +232,8 @@ test('doctor availability rejects appointment when treatment duration exceeds wo
 });
 
 test('authenticated business user can retrieve appointment availability', function () {
+    $this->travelTo(Carbon::parse('2026-10-11 09:00:00'));
+
     $user = User::factory()->create();
 
     $business = Business::factory()->create();
