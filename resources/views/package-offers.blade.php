@@ -17,6 +17,7 @@
                     </a>
                     <div id="account" class="flex flex-wrap items-center gap-3" hidden>
                         <span id="account-name" class="text-sm text-slate-200"></span>
+                        <button id="catalog-button" type="button" class="rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800" hidden>Paketleri yönet</button>
                         <button id="logout" type="button" class="rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800">Çıkış yap</button>
                     </div>
                 </div>
@@ -65,6 +66,8 @@
                 </div>
             </main>
 
+            @include('package-catalog-dialog')
+
             <dialog id="offer-dialog" class="offer-dialog" aria-labelledby="offer-dialog-title">
                 <div class="flex items-start justify-between gap-4">
                     <h2 id="offer-dialog-title" class="text-2xl font-semibold tracking-tight">Paket teklifi oluştur</h2>
@@ -93,6 +96,11 @@
                     <label class="offer-field">
                         Hastaya not (isteğe bağlı)
                         <textarea class="offer-control" name="description" rows="3" maxlength="10000"></textarea>
+                    </label>
+                    <label class="offer-field">
+                        Geçerlilik sonu (isteğe bağlı)
+                        <input class="offer-control" type="datetime-local" name="valid_until">
+                        <span class="text-xs font-normal text-slate-600 dark:text-slate-300">Cihazınızın saat dilimi kullanılır.</span>
                     </label>
                     <button type="submit" class="offer-button justify-self-start">Teklifi gönder</button>
                 </form>
@@ -133,6 +141,26 @@
                 </form>
             </dialog>
 
+            <dialog id="appointment-action-dialog" class="offer-dialog" aria-labelledby="appointment-action-title">
+                <div class="flex items-start justify-between gap-4">
+                    <h2 id="appointment-action-title" class="text-2xl font-semibold tracking-tight"></h2>
+                    <button type="button" class="offer-button offer-button-secondary" data-close>Vazgeç</button>
+                </div>
+                <p id="appointment-action-context" class="mt-2 text-sm text-slate-600 dark:text-slate-300"></p>
+                <p class="mt-3 text-sm text-slate-600 dark:text-slate-300" data-status role="status" hidden></p>
+                <form id="appointment-action-form" method="post" class="mt-5 grid gap-4">
+                    <label class="offer-field" data-action-start hidden>
+                        Yeni tarih ve saat
+                        <input class="offer-control" type="datetime-local" name="starts_at">
+                    </label>
+                    <label class="offer-field" data-action-reason hidden>
+                        <span data-action-reason-label></span>
+                        <textarea class="offer-control" name="reason" rows="3" maxlength="1000"></textarea>
+                    </label>
+                    <button type="submit" class="offer-button justify-self-start">Onayla</button>
+                </form>
+            </dialog>
+
             <template id="conversation-template">
                 <button type="button" class="grid w-full min-w-0 gap-0.5 rounded-xl px-3 py-2.5 text-left text-sm text-slate-700
                     hover:bg-slate-100 aria-[current=true]:bg-teal-50 aria-[current=true]:text-teal-900 dark:text-slate-200
@@ -148,6 +176,7 @@
                         <div class="min-w-0">
                             <h3 class="break-words text-lg font-semibold" data-title></h3>
                             <p class="mt-1 text-sm font-semibold text-teal-900 dark:text-teal-300" data-price></p>
+                            <p class="mt-1 text-sm text-slate-600 dark:text-slate-300" data-valid-until hidden></p>
                         </div>
                         <span class="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-medium text-slate-800 dark:bg-slate-800 dark:text-slate-200" data-offer-status></span>
                     </header>

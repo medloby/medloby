@@ -642,3 +642,44 @@ test('a package can move only to a branch offering its treatments', function () 
     $targetBranch->treatments()->attach($this->treatment->id, ['is_active' => true]);
     $this->putJson($url, $data)->assertOk()->assertJsonPath('data.branch_id', $targetBranch->id);
 });
+
+test('the management catalogue includes drafts and editable items only for the owner', function () {
+    $url = "/api/treatment-packages/manage/{$this->business->id}";
+    $other = Business::factory()->create();
+    $this->getJson("/api/treatment-packages/manage/{$other->id}")->assertForbidden();
+
+    $package = createPackage($this, ['is_active' => false]);
+    $this->branch->treatments()->attach($this->treatment->id, ['is_active' => true]);
+    $package->treatments()->attach($this->treatment->id, ['quantity' => 2]);
+    $service = $this->business->packageServices()->create([
+        'name' => 'Transfer',
+        'slug' => 'transfer',
+        'service_type' => 'transfer',
+    ]);
+    $package->services()->attach($service->id);
+    $other->packageServices()->create([
+        'name' => 'Başka merkezin hizmeti',
+        'slug' => 'other-transfer',
+        'service_type' => 'transfer',
+    ]);
+
+    $response = $this->getJson($url);
+    $response->assertOk()
+        ->assertJsonCount(1, 'data.packages')
+        ->assertJsonPath('data.packages.0.id', $package->id)
+        ->assertJsonPath('data.packages.0.is_active', false)
+        ->assertJsonPath('data.packages.0.treatments.0.pivot.quantity', 2)
+        ->assertJsonPath('data.treatments.0.branches.0.id', $this->branch->id)
+        ->assertJsonCount(1, 'data.services')
+        ->assertJsonPath('data.services.0.id', $service->id);
+    expect($response->json('data.packages.0.treatments.0.pivot.id'))->toBeInt();
+    expect($response->json('data.packages.0.services.0.pivot.id'))->toBeInt();
+
+    $member = User::factory()->create();
+    $this->business->memberships()->create([
+        'user_id' => $member->id,
+        'role' => 'staff',
+        'is_active' => true,
+    ]);
+    $this->actingAs($member, 'sanctum')->getJson($url)->assertForbidden();
+});

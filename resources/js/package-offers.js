@@ -1,3 +1,5 @@
+import { mountPackageCatalog } from './package-catalog';
+
 const statusLabels = {
     pending: 'Yanıt bekliyor',
     accepted: 'Kabul edildi',
@@ -13,6 +15,19 @@ const appointmentStatusLabels = {
     no_show: 'Hasta gelmedi',
     rescheduled: 'Tarihi değiştirildi',
 };
+
+const appointmentActionLabels = {
+    confirm: 'Randevuyu onayla',
+    cancel: 'Randevuyu iptal et',
+    reschedule: 'Tarihi değiştir',
+    complete: 'Tamamlandı olarak işaretle',
+    'no-show': 'Gelmedi olarak işaretle',
+};
+
+const offerDeadline = new Intl.DateTimeFormat('tr-TR', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+});
 
 const appointmentDate = new Intl.DateTimeFormat('tr-TR', {
     dateStyle: 'long',
@@ -68,9 +83,14 @@ export function mountPackageOffers(root) {
     const rejectStatus = rejectDialog.querySelector('[data-status]');
     const bookingDialog = get('booking-dialog');
     const bookingForm = get('booking-form');
+    const appointmentDialog = get('appointment-action-dialog');
+    const appointmentForm = get('appointment-action-form');
+    const appointmentNotice = appointmentDialog.querySelector('[data-status]');
     const sessionList = get('booking-sessions');
     const conversationList = get('conversation-list');
     const branchField = bookingForm.elements.namedItem('branch');
+    const catalogButton = get('catalog-button');
+    const packageCatalog = mountPackageCatalog(get('catalog-dialog'), api);
 
     let token;
     let user;
@@ -79,12 +99,13 @@ export function mountPackageOffers(root) {
     let selectedPackageById = new Map();
     let bookingOffer;
     let rejection;
+    let appointmentAction;
     let sessions = [];
     let offerRequest = 0;
     let pageRequest = 0;
     let dialogRequest = 0;
 
-    async function api(path, body) {
+    async function api(path, body, method = body === undefined ? 'GET' : 'POST') {
         const headers = { Accept: 'application/json' };
         if (token) {
             headers.Authorization = 'Bearer ' + token;
@@ -94,7 +115,7 @@ export function mountPackageOffers(root) {
         }
 
         const response = await fetch('/api' + path, {
-            method: body === undefined ? 'GET' : 'POST',
+            method,
             headers,
             body: body === undefined ? undefined : JSON.stringify(body),
             cache: 'no-store',
@@ -122,6 +143,7 @@ export function mountPackageOffers(root) {
         conversation = undefined;
         bookingOffer = undefined;
         rejection = undefined;
+        appointmentAction = undefined;
         sessions = [];
         selectedPackageById.clear();
         offerRequest++;
@@ -130,6 +152,10 @@ export function mountPackageOffers(root) {
         offerDialog.close();
         rejectDialog.close();
         bookingDialog.close();
+        appointmentDialog.close();
+        packageCatalog.close();
+        catalogButton.hidden = true;
+        appointmentForm.reset();
         offerForm.reset();
         rejectForm.reset();
         bookingForm.reset();
@@ -144,6 +170,14 @@ export function mountPackageOffers(root) {
         get('sign-in').hidden = false;
         signIn.reset();
     }
+
+    function ownedBusinesses() {
+        return user.business_memberships
+            .filter((membership) => membership.is_active && membership.role === 'business_owner' && membership.business)
+            .map((membership) => membership.business);
+    }
+
+    catalogButton.addEventListener('click', () => packageCatalog.open(ownedBusinesses()));
 
     function canSendOffer(item) {
         return item.status === 'open' && user.business_memberships.some(
@@ -233,9 +267,12 @@ export function mountPackageOffers(root) {
         const booked = offer.appointments_exists;
         card.querySelector('[data-title]').textContent = offer.title;
         card.querySelector('[data-price]').textContent = priceLabel(offer.amount, offer.currency);
+        const deadline = offer.valid_until ? new Date(offer.valid_until) : null;
+        const pastDeadline = deadline && deadline.getTime() < Date.now();
+        showStatus(card.querySelector('[data-valid-until]'), deadline ? 'Geçerlilik sonu: ' + offerDeadline.format(deadline) : '');
         card.querySelector('[data-offer-status]').textContent = booked
             ? 'Randevular oluşturuldu'
-            : statusLabels[offer.status] ?? offer.status;
+            : statusLabels[pastDeadline && offer.status === 'pending' ? 'expired' : offer.status] ?? offer.status;
         showStatus(card.querySelector('[data-description]'), offer.description ?? '');
 
         if (offer.status === 'rejected' && offer.rejection_reason) {
@@ -259,7 +296,7 @@ export function mountPackageOffers(root) {
         }
 
         const actions = card.querySelector('[data-actions]');
-        if (isPatient(item) && offer.status === 'pending') {
+        if (isPatient(item) && offer.status === 'pending' && !pastDeadline) {
             const accept = element('button', 'Teklifi kabul et', 'offer-button');
             accept.type = 'button';
             accept.addEventListener('click', async () => {
@@ -287,7 +324,7 @@ export function mountPackageOffers(root) {
                 rejectDialog.showModal();
             });
             actions.append(accept, reject);
-        } else if (isPatient(item) && offer.status === 'accepted' && !booked) {
+        } else if (isPatient(item) && offer.status === 'accepted' && !booked && !pastDeadline) {
             const plan = element('button', 'Seansları planla', 'offer-button');
             plan.type = 'button';
             plan.addEventListener('click', () => openBookingDialog(offer));
@@ -308,7 +345,7 @@ export function mountPackageOffers(root) {
         const status = details.querySelector('[data-schedule-status]');
         let loading = false;
 
-        details.addEventListener('toggle', async () => {
+        async function refresh() {
             if (!details.open || loading) {
                 return;
             }
@@ -331,6 +368,17 @@ export function mountPackageOffers(root) {
                         element('span', appointmentStatusLabels[appointment.status] ?? appointment.status, 'text-xs font-semibold text-slate-600 dark:text-slate-300'),
                     );
 
+                    if (appointment.actions?.length) {
+                        const controls = element('div', '', 'mt-2 flex flex-wrap gap-2');
+                        for (const action of appointment.actions) {
+                            const button = element('button', appointmentActionLabels[action], 'offer-button offer-button-secondary');
+                            button.type = 'button';
+                            button.addEventListener('click', () => openAppointmentAction(appointment, action, refresh));
+                            controls.append(button);
+                        }
+                        row.append(controls);
+                    }
+
                     return row;
                 }));
                 showStatus(status, appointments.length ? '' : 'Bu teklife ait randevu bulunamadı.');
@@ -339,7 +387,34 @@ export function mountPackageOffers(root) {
             } finally {
                 loading = false;
             }
-        });
+        }
+
+        details.addEventListener('toggle', refresh);
+    }
+
+    function openAppointmentAction(appointment, action, refresh) {
+        appointmentAction = { appointment, action, refresh };
+        appointmentForm.reset();
+        showStatus(appointmentNotice);
+        get('appointment-action-title').textContent = appointmentActionLabels[action];
+        get('appointment-action-context').textContent = [
+            appointment.treatment_name,
+            appointmentDateLabel(appointment.starts_at, appointment.ends_at),
+        ].filter(Boolean).join(' · ');
+
+        const needsDate = action === 'reschedule';
+        const needsReason = action === 'cancel';
+        const date = appointmentForm.elements.namedItem('starts_at');
+        const reason = appointmentForm.elements.namedItem('reason');
+        date.disabled = !needsDate;
+        date.required = needsDate;
+        date.value = needsDate ? appointment.starts_at.replace(' ', 'T').slice(0, 16) : '';
+        reason.disabled = !needsDate && !needsReason;
+        reason.required = needsReason;
+        appointmentForm.querySelector('[data-action-start]').hidden = !needsDate;
+        appointmentForm.querySelector('[data-action-reason]').hidden = reason.disabled;
+        appointmentForm.querySelector('[data-action-reason-label]').textContent = needsReason ? 'İptal nedeni' : 'Neden (isteğe bağlı)';
+        appointmentDialog.showModal();
     }
 
     async function openOfferDialog(item) {
@@ -513,6 +588,7 @@ export function mountPackageOffers(root) {
 
         signIn.reset();
         get('account-name').textContent = user.name;
+        catalogButton.hidden = ownedBusinesses().length === 0;
         get('account').hidden = false;
         get('sign-in').hidden = true;
         get('workspace').hidden = false;
@@ -558,6 +634,7 @@ export function mountPackageOffers(root) {
             amount: fields.get('amount'),
             currency: fields.get('currency').toUpperCase(),
             description: fields.get('description').trim() || null,
+            valid_until: fields.get('valid_until') ? new Date(fields.get('valid_until')).toISOString() : null,
         });
         offerDialog.close();
         showStatus(notice, 'Paket teklifi hastaya gönderildi.');
@@ -595,7 +672,29 @@ export function mountPackageOffers(root) {
         await loadOffers(item);
     });
 
-    for (const dialog of [offerDialog, rejectDialog, bookingDialog]) {
+    onSubmit(appointmentForm, appointmentNotice, async (fields) => {
+        const { appointment, action, refresh } = appointmentAction;
+        const body = {};
+        const reason = (fields.get('reason') ?? '').trim();
+
+        if (action === 'cancel') {
+            if (!reason) {
+                throw new Error('İptal nedeni yazın.');
+            }
+            body.cancellation_reason = reason;
+        }
+        if (action === 'reschedule') {
+            body.starts_at = fields.get('starts_at');
+            body.reason = reason || null;
+        }
+
+        await api('/appointments/' + appointment.id + '/' + action, body);
+        appointmentDialog.close();
+        showStatus(notice, 'Randevu güncellendi.');
+        await refresh();
+    });
+
+    for (const dialog of [offerDialog, rejectDialog, bookingDialog, appointmentDialog]) {
         const pending = () => dialog.querySelector('[type="submit"]').disabled;
         dialog.querySelector('[data-close]').addEventListener('click', () => {
             if (!pending()) {

@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Branch;
+use App\Models\Business;
+use App\Models\PackageService;
 use App\Models\Treatment;
 use App\Models\TreatmentPackage;
 use App\Services\PackageCatalogAccess;
@@ -69,6 +71,41 @@ class TreatmentPackageController extends Controller
             'success' => true,
             'data' => [
                 'packages' => $packages,
+            ],
+        ]);
+    }
+
+    public function manage(Request $request, Business $business): JsonResponse
+    {
+        $this->catalogAccess->authorizeManagement($request->user(), $business->id);
+
+        $packages = $business->treatmentPackages()->with([
+            'treatments' => fn ($relation) => $relation->withPivot('id')->orderByPivot('sort_order'),
+            'services' => fn ($relation) => $relation->withPivot('id')->orderByPivot('sort_order'),
+        ])->orderBy('name')->get();
+
+        $treatments = Treatment::query()
+            ->where('is_active', true)
+            ->with(['branches' => fn ($relation) => $relation
+                ->where('branches.business_id', $business->id)
+                ->where('branch_treatment.is_active', true)
+                ->select('branches.id')])
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $services = PackageService::query()
+            ->where('is_active', true)
+            ->where(fn ($query) => $query->where('business_id', $business->id)->orWhereNull('business_id'))
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'branches' => $business->branches()->orderBy('name')->get(['id', 'name']),
+                'packages' => $packages,
+                'treatments' => $treatments,
+                'services' => $services,
             ],
         ]);
     }

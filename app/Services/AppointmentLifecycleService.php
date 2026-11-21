@@ -303,6 +303,13 @@ class AppointmentLifecycleService
         ) {
             $appointment->refresh();
 
+            $packageOffer = $appointment->offer?->package_snapshot !== null
+                ? $appointment->offer()->lockForUpdate()->first()
+                : null;
+            if ($packageOffer) {
+                $appointment->refresh();
+            }
+
             $this->ensurePermission(
                 $appointment,
                 $changedBy,
@@ -358,6 +365,15 @@ class AppointmentLifecycleService
                 ->copy()
                 ->addMinutes($durationMinutes);
 
+            if ($packageOffer && $packageOffer->appointments()
+                ->where('id', '!=', $appointment->id)
+                ->whereIn('status', ['pending', 'confirmed'])
+                ->where('starts_at', '<', $newEndsAt)
+                ->where('ends_at', '>', $newStartsAt)
+                ->exists()) {
+                throw new RuntimeException('Paket randevularının saatleri çakışamaz.');
+            }
+
             $oldStatus = $appointment->status;
 
             $newAppointment = Appointment::create([
@@ -366,9 +382,7 @@ class AppointmentLifecycleService
                 'patient_profile_id' => $appointment->patient_profile_id,
                 'doctor_id' => $appointment->doctor_id,
                 'treatment_id' => $appointment->treatment_id,
-                'offer_id' => $appointment->offer?->package_snapshot !== null
-                    ? $appointment->offer_id
-                    : null,
+                'offer_id' => $packageOffer?->id,
                 'starts_at' => $newStartsAt,
                 'ends_at' => $newEndsAt,
                 'status' => $oldStatus,

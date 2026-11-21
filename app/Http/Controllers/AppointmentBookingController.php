@@ -23,16 +23,33 @@ class AppointmentBookingController extends Controller
 
     public function index(Request $request, Offer $offer): JsonResponse
     {
+        $user = $request->user();
+        $clinicBranchIds = $user->accessibleBranchIds($offer->business_id);
         $branchIds = null;
 
         if (! $this->isOfferPatient($request, $offer)) {
-            $branchIds = $request->user()->accessibleBranchIds($offer->business_id);
+            $branchIds = $clinicBranchIds;
             $offerBranchId = $offer->package_snapshot['branch_id'] ?? $offer->branch_id;
             abort_if(
                 $branchIds === [] || ($offerBranchId !== null && ! in_array($offerBranchId, $branchIds, true)),
                 403,
                 'Bu teklifin randevularını görme yetkiniz yok.'
             );
+        }
+
+        $permittedActions = [];
+        if ($clinicBranchIds !== []) {
+            foreach ([
+                'confirm' => 'appointments.confirm',
+                'cancel' => 'appointments.cancel',
+                'reschedule' => 'appointments.reschedule',
+                'complete' => 'appointments.complete',
+                'no-show' => 'appointments.mark_no_show',
+            ] as $action => $permission) {
+                if ($user->hasBusinessPermission($offer->business_id, $permission)) {
+                    $permittedActions[] = $action;
+                }
+            }
         }
 
         $appointments = $offer->appointments()
@@ -46,10 +63,10 @@ class AppointmentBookingController extends Controller
             ->orderBy('starts_at')
             ->orderBy('id')
             ->get()
-            ->map(function (Appointment $appointment) {
+            ->map(function (Appointment $appointment) use ($clinicBranchIds, $permittedActions) {
                 $person = $appointment->doctor?->person;
 
-                return [
+                $summary = [
                     'id' => $appointment->id,
                     'status' => $appointment->status,
                     'starts_at' => $appointment->starts_at->toDateTimeString(),
@@ -58,6 +75,21 @@ class AppointmentBookingController extends Controller
                     'treatment_name' => $appointment->treatment?->name,
                     'doctor_name' => $person ? trim($person->first_name.' '.$person->last_name) : null,
                 ];
+
+                if (in_array($appointment->branch_id, $clinicBranchIds, true)) {
+                    $actions = match ($appointment->status) {
+                        'pending' => ['confirm', 'cancel', 'reschedule'],
+                        'confirmed' => ['complete', 'no-show', 'cancel', 'reschedule'],
+                        default => [],
+                    };
+                    $actions = array_values(array_intersect($actions, $permittedActions));
+
+                    if ($actions !== []) {
+                        $summary['actions'] = $actions;
+                    }
+                }
+
+                return $summary;
             });
 
         return response()->json(['success' => true, 'data' => $appointments]);

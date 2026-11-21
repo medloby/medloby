@@ -8,6 +8,7 @@ use App\Models\Doctor;
 use App\Models\DoctorWorkingHour;
 use App\Models\Offer;
 use App\Models\PatientProfile;
+use App\Models\Permission;
 use App\Models\Person;
 use App\Models\Treatment;
 use App\Models\TreatmentCategory;
@@ -869,8 +870,73 @@ test('a patient can accept a package offer and book all sessions only once', fun
     $this->getJson($offersUrl)->assertOk()->assertJsonPath('data.0.appointments_exists', true);
     $this->getJson($url)->assertOk()
         ->assertJsonCount(2, 'data')
-        ->assertJsonPath('data.1.id', $replacement->id);
+        ->assertJsonPath('data.1.id', $replacement->id)
+        ->assertJsonMissingPath('data.1.actions');
+
+    $permission = Permission::create([
+        'name' => 'appointments.confirm',
+        'display_name' => 'Randevu onayla',
+        'module' => 'appointments',
+        'is_active' => true,
+    ]);
+    $data['businessUser']->permissions()->attach($permission->id, [
+        'business_id' => $data['business']->id,
+        'is_allowed' => true,
+    ]);
+    $this->getJson($url)->assertOk()->assertJsonPath('data.1.actions', ['confirm']);
+    $this->postJson("/api/appointments/{$replacement->id}/confirm")->assertOk();
+    $this->getJson($url)->assertOk()
+        ->assertJsonPath('data.1.status', 'confirmed')
+        ->assertJsonMissingPath('data.1.actions');
 
     $membership->update(['is_active' => false]);
     $this->getJson($url)->assertForbidden();
+});
+
+test('rescheduling a package session cannot overlap another session with a different doctor', function () {
+    $data = createOfferBookingData();
+    $offer = $data['offer'];
+    $offer->update([
+        'treatment_id' => null,
+        'package_snapshot' => [
+            'branch_id' => $data['branch']->id,
+            'treatments' => [['treatment_id' => $data['treatment']->id, 'quantity' => 2]],
+        ],
+    ]);
+
+    $this->actingAs($data['patientUser'])->postJson("/api/offers/{$offer->id}/appointments", [
+        'branch_id' => $data['branch']->id,
+        'sessions' => collect([0, 1])->map(fn (int $hours) => [
+            'doctor_id' => $data['doctor']->id,
+            'treatment_id' => $data['treatment']->id,
+            'starts_at' => $data['startsAt']->copy()->addHours($hours)->toDateTimeString(),
+        ])->all(),
+    ])->assertCreated();
+
+    $sessions = $offer->appointments()->orderBy('starts_at')->get();
+    $otherPerson = $data['doctor']->person->replicate(['email']);
+    $otherPerson->save();
+    $otherDoctor = $data['doctor']->replicate();
+    $otherDoctor->fill(['person_id' => $otherPerson->id, 'license_number' => 'OTHER-PACKAGE-DOCTOR'])->save();
+    $sessions->last()->update(['doctor_id' => $otherDoctor->id]);
+
+    $data['businessUser']->businessMemberships()->sole()->update(['role' => 'business_owner']);
+    $permission = Permission::create([
+        'name' => 'appointments.reschedule',
+        'display_name' => 'Randevu tarihini değiştir',
+        'module' => 'appointments',
+        'is_active' => true,
+    ]);
+    $data['businessUser']->permissions()->attach($permission->id, [
+        'business_id' => $data['business']->id,
+        'is_allowed' => true,
+    ]);
+
+    $first = $sessions->first();
+    $this->actingAs($data['businessUser'])->postJson("/api/appointments/{$first->id}/reschedule", [
+        'starts_at' => $sessions->last()->starts_at->toDateTimeString(),
+    ])->assertUnprocessable()->assertJsonPath('message', 'Paket randevularının saatleri çakışamaz.');
+
+    $this->assertDatabaseCount('appointments', 2);
+    $this->assertDatabaseHas('appointments', ['id' => $first->id, 'status' => 'pending']);
 });

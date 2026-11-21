@@ -206,25 +206,6 @@ class OfferController extends Controller
             );
         }
 
-        /*
-         * Süresi dolmuş teklifin expired olarak kalıcı şekilde
-         * işaretlenmesi transaction dışında yapılır.
-         */
-        if (
-            $offer->status === 'pending' &&
-            $offer->valid_until &&
-            $offer->valid_until->isPast()
-        ) {
-            $offer->update([
-                'status' => 'expired',
-            ]);
-
-            abort(
-                422,
-                'Bu teklifin geçerlilik süresi dolmuştur.'
-            );
-        }
-
         DB::transaction(function () use ($offer) {
             $lockedOffer = Offer::query()
                 ->whereKey($offer->id)
@@ -323,25 +304,6 @@ class OfferController extends Controller
                 'max:2000',
             ],
         ]);
-
-        /*
-         * Süresi dolmuş teklif için kalıcı expired durumu
-         * transaction dışında yazılır.
-         */
-        if (
-            $offer->status === 'pending' &&
-            $offer->valid_until &&
-            $offer->valid_until->isPast()
-        ) {
-            $offer->update([
-                'status' => 'expired',
-            ]);
-
-            abort(
-                422,
-                'Bu teklifin geçerlilik süresi dolmuştur.'
-            );
-        }
 
         DB::transaction(function () use (
             $offer,
