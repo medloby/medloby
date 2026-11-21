@@ -98,6 +98,24 @@
                 </form>
             </dialog>
 
+            <dialog id="reject-dialog" class="offer-dialog" aria-labelledby="reject-dialog-title">
+                <div class="flex items-start justify-between gap-4">
+                    <h2 id="reject-dialog-title" class="text-2xl font-semibold tracking-tight">Teklifi reddet</h2>
+                    <button type="button" class="offer-button offer-button-secondary" data-close>Vazgeç</button>
+                </div>
+                <p id="reject-offer-title" class="mt-2 break-words text-sm text-slate-600 dark:text-slate-300"></p>
+                <p class="mt-3 text-sm text-slate-600 dark:text-slate-300" data-status role="status" hidden></p>
+                <form id="reject-form" method="post" class="mt-5 grid gap-4">
+                    <label class="offer-field">
+                        Ret nedeni (isteğe bağlı)
+                        <textarea class="offer-control" name="rejection_reason" rows="3" maxlength="2000"></textarea>
+                    </label>
+                    <button type="submit" class="offer-button justify-self-start bg-rose-700 hover:bg-rose-800 dark:bg-rose-700 dark:hover:bg-rose-800">
+                        Reddetmeyi onayla
+                    </button>
+                </form>
+            </dialog>
+
             <dialog id="booking-dialog" class="offer-dialog" aria-labelledby="booking-dialog-title">
                 <div class="flex items-start justify-between gap-4">
                     <h2 id="booking-dialog-title" class="text-2xl font-semibold tracking-tight">Seansları planla</h2>
@@ -134,6 +152,10 @@
                         <span class="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-medium text-slate-800 dark:bg-slate-800 dark:text-slate-200" data-offer-status></span>
                     </header>
                     <p class="whitespace-pre-wrap break-words text-sm text-slate-600 dark:text-slate-300" data-description hidden></p>
+                    <div class="grid gap-1 text-sm text-slate-700 dark:text-slate-300" data-rejection hidden>
+                        <span class="font-semibold">Ret nedeni</span>
+                        <p class="whitespace-pre-wrap break-words" data-rejection-reason></p>
+                    </div>
                     <div class="grid gap-3 text-sm sm:grid-cols-2" data-contents></div>
                     <div class="flex flex-wrap gap-2" data-actions></div>
                     <details class="border-t border-slate-200 pt-3 dark:border-slate-700" data-schedule hidden>

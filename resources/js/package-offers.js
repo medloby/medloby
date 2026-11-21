@@ -63,6 +63,9 @@ export function mountPackageOffers(root) {
     const newOfferButton = get('new-offer');
     const offerDialog = get('offer-dialog');
     const offerForm = get('offer-form');
+    const rejectDialog = get('reject-dialog');
+    const rejectForm = get('reject-form');
+    const rejectStatus = rejectDialog.querySelector('[data-status]');
     const bookingDialog = get('booking-dialog');
     const bookingForm = get('booking-form');
     const sessionList = get('booking-sessions');
@@ -75,6 +78,7 @@ export function mountPackageOffers(root) {
     let currentPage = 1;
     let selectedPackageById = new Map();
     let bookingOffer;
+    let rejection;
     let sessions = [];
     let offerRequest = 0;
     let pageRequest = 0;
@@ -117,14 +121,17 @@ export function mountPackageOffers(root) {
         user = undefined;
         conversation = undefined;
         bookingOffer = undefined;
+        rejection = undefined;
         sessions = [];
         selectedPackageById.clear();
         offerRequest++;
         pageRequest++;
         dialogRequest++;
         offerDialog.close();
+        rejectDialog.close();
         bookingDialog.close();
         offerForm.reset();
+        rejectForm.reset();
         bookingForm.reset();
         sessionList.replaceChildren();
         offerList.replaceChildren();
@@ -231,6 +238,11 @@ export function mountPackageOffers(root) {
             : statusLabels[offer.status] ?? offer.status;
         showStatus(card.querySelector('[data-description]'), offer.description ?? '');
 
+        if (offer.status === 'rejected' && offer.rejection_reason) {
+            card.querySelector('[data-rejection]').hidden = false;
+            card.querySelector('[data-rejection-reason]').textContent = offer.rejection_reason;
+        }
+
         const contents = card.querySelector('[data-contents]');
         for (const [heading, entries] of [['Tedaviler', snapshot.treatments], ['Ek hizmetler', snapshot.services]]) {
             if (!entries?.length) {
@@ -265,7 +277,16 @@ export function mountPackageOffers(root) {
                     accept.disabled = false;
                 }
             });
-            actions.append(accept);
+            const reject = element('button', 'Teklifi reddet', 'offer-button offer-button-secondary');
+            reject.type = 'button';
+            reject.addEventListener('click', () => {
+                rejection = { offer, item };
+                rejectForm.reset();
+                showStatus(rejectStatus);
+                get('reject-offer-title').textContent = offer.title;
+                rejectDialog.showModal();
+            });
+            actions.append(accept, reject);
         } else if (isPatient(item) && offer.status === 'accepted' && !booked) {
             const plan = element('button', 'Seansları planla', 'offer-button');
             plan.type = 'button';
@@ -543,6 +564,16 @@ export function mountPackageOffers(root) {
         await loadOffers(item);
     });
 
+    onSubmit(rejectForm, rejectStatus, async (fields) => {
+        const { offer, item } = rejection;
+        await api('/offers/' + offer.id + '/reject', {
+            rejection_reason: fields.get('rejection_reason').trim() || null,
+        });
+        rejectDialog.close();
+        showStatus(notice, 'Paket teklifi reddedildi.');
+        await loadOffers(item);
+    });
+
     branchField.addEventListener('change', () => sessions.forEach(loadSlots));
     onSubmit(bookingForm, bookingDialog.querySelector('[data-status]'), async () => {
         if (sessions.some((session) => !session.doctor.value || !session.time.value)) {
@@ -564,7 +595,7 @@ export function mountPackageOffers(root) {
         await loadOffers(item);
     });
 
-    for (const dialog of [offerDialog, bookingDialog]) {
+    for (const dialog of [offerDialog, rejectDialog, bookingDialog]) {
         const pending = () => dialog.querySelector('[type="submit"]').disabled;
         dialog.querySelector('[data-close]').addEventListener('click', () => {
             if (!pending()) {
