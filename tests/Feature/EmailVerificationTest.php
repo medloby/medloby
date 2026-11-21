@@ -181,3 +181,12 @@ test('changing user email invalidates the old verification hash', function () {
 
     expect($user->fresh()->hasVerifiedEmail())->toBeFalse();
 });
+test('a browser verification link returns to the workspace after verifying the account', function () {
+    $user = User::factory()->unverified()->create();
+    $url = emailVerificationUrl($user->id, emailVerificationHash($user));
+
+    $this->get($url, ['Accept' => 'text/html,application/xhtml+xml,*/*;q=0.8'])
+        ->assertRedirect(route('package-offers', ['email_verified' => 1]));
+
+    expect($user->fresh()->hasVerifiedEmail())->toBeTrue();
+});

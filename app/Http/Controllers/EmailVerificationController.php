@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 class EmailVerificationController extends Controller
@@ -13,7 +14,7 @@ class EmailVerificationController extends Controller
         Request $request,
         int $id,
         string $hash
-    ): JsonResponse {
+    ): JsonResponse|RedirectResponse {
         $user = User::findOrFail($id);
 
         if (! hash_equals(
@@ -23,20 +24,21 @@ class EmailVerificationController extends Controller
             abort(403, 'Geçersiz doğrulama bağlantısı.');
         }
 
-        if ($user->hasVerifiedEmail()) {
-            return response()->json([
-                'success' => true,
-                'message' => 'E-posta adresi zaten doğrulanmış.',
-            ]);
+        $verified = $user->hasVerifiedEmail();
+
+        if (! $verified && $user->markEmailAsVerified()) {
+            event(new Verified($user));
         }
 
-        if ($user->markEmailAsVerified()) {
-            event(new Verified($user));
+        if ($request->prefers(['application/json', 'text/html']) === 'text/html') {
+            return redirect()->route('package-offers', ['email_verified' => 1]);
         }
 
         return response()->json([
             'success' => true,
-            'message' => 'E-posta adresi başarıyla doğrulandı.',
+            'message' => $verified
+                ? 'E-posta adresi zaten doğrulanmış.'
+                : 'E-posta adresi başarıyla doğrulandı.',
         ]);
     }
 

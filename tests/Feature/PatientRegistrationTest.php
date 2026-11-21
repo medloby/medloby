@@ -120,6 +120,10 @@ test('patient registration rejects duplicate email', function () {
         ->assertJsonValidationErrors([
             'email',
         ]);
+
+    $this->postJson('/api/register/patient', array_replace(validPatientRegistrationPayload(), [
+        'email' => 'PATIENT@EXAMPLE.COM',
+    ]))->assertUnprocessable()->assertJsonValidationErrors('email');
 });
 
 test('patient registration requires password confirmation', function () {

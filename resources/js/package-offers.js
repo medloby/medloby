@@ -2,6 +2,7 @@ import { mountPackageCatalog } from './package-catalog';
 import { mountPackageDiscovery } from './package-discovery';
 import { mountPackageConversation } from './package-conversation';
 import { mountWorkspaceNotifications } from './workspace-notifications';
+import { mountWorkspaceRegistration } from './workspace-registration';
 
 const statusLabels = {
     pending: 'Yanıt bekliyor',
@@ -73,6 +74,17 @@ function priceLabel(amount, currency) {
     return new Intl.NumberFormat('tr-TR', { style: 'currency', currency }).format(amount);
 }
 
+const pendingPackageKey = 'medloby-pending-package';
+
+function restorePackageChoice() {
+    try {
+        const choice = JSON.parse(sessionStorage.getItem(pendingPackageKey));
+        return Number.isSafeInteger(choice?.id) && choice.id > 0 && typeof choice.name === 'string' ? choice : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
 export function mountPackageOffers(root) {
     const get = (id) => root.querySelector('#' + id);
     const notice = get('page-message');
@@ -114,10 +126,21 @@ export function mountPackageOffers(root) {
         },
     );
 
+    const registration = mountWorkspaceRegistration(get('registration-dialog'), {
+        api,
+        async onRegistered(sessionToken) {
+            try {
+                await activateSession(sessionToken);
+            } catch (error) {
+                showStatus(notice, error.message);
+            }
+        },
+    });
+
     let token;
     let user;
     let conversation;
-    let pendingPackage;
+    let pendingPackage = restorePackageChoice();
     let currentPage = 1;
     let selectedPackageById = new Map();
     let bookingOffer;
@@ -156,11 +179,13 @@ export function mountPackageOffers(root) {
                 endSession();
             }
 
-            throw new Error(
+            const error = new Error(
                 Object.values(result?.errors ?? {}).flat()[0]
                     ?? result?.message
                     ?? 'İşlem tamamlanamadı. Lütfen tekrar deneyin.',
             );
+            error.status = response.status;
+            throw error;
         }
 
         return result.data;
@@ -185,8 +210,17 @@ export function mountPackageOffers(root) {
         document.title = get('page-title').textContent + ' | Medloby';
         get('discovery-link').setAttribute('aria-current', browsing ? 'page' : 'false');
         get('offers-link').setAttribute('aria-current', browsing ? 'false' : 'page');
+        const verified = Boolean(user?.email_verified_at);
         get('sign-in').hidden = browsing || Boolean(user);
-        get('workspace').hidden = browsing || !user;
+        get('email-verification').hidden = browsing || !user || verified;
+        get('verification-address').textContent = user?.email ?? '';
+        get('workspace').hidden = browsing || !verified;
+
+        const pendingClinics = !browsing && user ? ownedBusinesses().filter((item) => item.status === 'pending') : [];
+        showStatus(
+            get('clinic-onboarding'),
+            pendingClinics.length ? pendingClinics.map((item) => item.name).join(', ') + ' · Klinik başvurusu incelemede.' : '',
+        );
 
         if (openingCatalogue) {
             discovery.open();
@@ -195,13 +229,31 @@ export function mountPackageOffers(root) {
 
     window.addEventListener('hashchange', syncPage);
 
+    function rememberPackage(pkg) {
+        pendingPackage = pkg;
+        try {
+            if (pkg) {
+                sessionStorage.setItem(pendingPackageKey, JSON.stringify({ id: pkg.id, name: pkg.name }));
+            } else {
+                sessionStorage.removeItem(pendingPackageKey);
+            }
+        } catch {
+            // Keep the choice in the current page when tab storage is unavailable.
+        }
+    }
+
     async function startConversation(pkg) {
-        if (!user) {
-            pendingPackage = pkg;
+        if (!user?.email_verified_at) {
+            rememberPackage(pkg);
             window.location.hash = 'gorusmeler';
             syncPage();
-            showStatus(notice, pkg.name + ' için görüşme başlatmak üzere hasta hesabınızla giriş yapın.');
-            signIn.elements.namedItem('email').focus();
+            if (user) {
+                showStatus(notice, pkg.name + ' için görüşme başlatmak üzere e-posta adresinizi doğrulayın.');
+                get('check-verification').focus();
+            } else {
+                showStatus(notice, pkg.name + ' için görüşme başlatmak üzere hasta hesabınızla giriş yapın veya hesap oluşturun.');
+                signIn.elements.namedItem('email').focus();
+            }
             return;
         }
         if (!user.patient_profile_exists) {
@@ -265,7 +317,7 @@ export function mountPackageOffers(root) {
         token = undefined;
         user = undefined;
         conversation = undefined;
-        pendingPackage = undefined;
+        rememberPackage(undefined);
         bookingOffer = undefined;
         rejection = undefined;
         appointmentAction = undefined;
@@ -715,27 +767,13 @@ export function mountPackageOffers(root) {
         });
     }
 
-    onSubmit(signIn, notice, async (fields) => {
-        const result = await api('/login', Object.fromEntries(fields));
-        token = result.token;
-        try {
-            user = (await api('/me')).user;
-        } catch (error) {
-            endSession();
-            throw error;
-        }
-
-        signIn.reset();
-        get('account-name').textContent = user.name;
+    async function openVerifiedWorkspace() {
         catalogButton.hidden = ownedBusinesses().length === 0;
-        get('account').hidden = false;
-        if (user.email_verified_at) {
-            notifications.start(ownedBusinesses());
-        }
+        notifications.start(ownedBusinesses());
         syncPage();
 
         const requested = pendingPackage;
-        pendingPackage = undefined;
+        rememberPackage(undefined);
         if (requested) {
             try {
                 await startConversation(requested);
@@ -748,7 +786,74 @@ export function mountPackageOffers(root) {
         } else {
             await loadConversations(1);
         }
+    }
+
+    async function activateSession(sessionToken) {
+        token = sessionToken;
+        try {
+            user = (await api('/me')).user;
+        } catch (error) {
+            endSession();
+            throw error;
+        }
+
+        signIn.reset();
+        get('account-name').textContent = user.name;
+        get('account').hidden = false;
+        showStatus(notice);
+        syncPage();
+        if (user.email_verified_at) {
+            await openVerifiedWorkspace();
+        }
+    }
+
+    onSubmit(signIn, notice, async (fields) => {
+        const result = await api('/login', {
+            email: fields.get('email').trim().toLowerCase(),
+            password: fields.get('password'),
+        });
+        await activateSession(result.token);
     });
+
+    get('patient-registration').addEventListener('click', () => registration.open('patient'));
+    get('clinic-registration').addEventListener('click', () => {
+        rememberPackage(undefined);
+        registration.open('business');
+    });
+
+    async function verifyAccount(button, action) {
+        button.disabled = true;
+        showStatus(notice);
+        try {
+            await action();
+        } catch (error) {
+            showStatus(notice, error.message);
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    get('resend-verification').addEventListener('click', (event) => verifyAccount(event.currentTarget, async () => {
+        await api('/email/verification-notification', {});
+        showStatus(notice, 'Doğrulama e-postası yeniden gönderildi.');
+    }));
+
+    get('check-verification').addEventListener('click', (event) => verifyAccount(event.currentTarget, async () => {
+        const previous = user;
+        const verifiedUser = (await api('/me')).user;
+        if (user !== previous) {
+            return;
+        }
+        user = verifiedUser;
+        if (user.email_verified_at) {
+            await openVerifiedWorkspace();
+            if (!notice.textContent) {
+                showStatus(notice, 'E-posta adresiniz doğrulandı.');
+            }
+        } else {
+            showStatus(notice, 'E-postanız henüz doğrulanmadı. Gelen kutunuzdaki bağlantıyı açın.');
+        }
+    }));
 
     get('logout').addEventListener('click', async (event) => {
         const button = event.currentTarget;
@@ -874,4 +979,10 @@ export function mountPackageOffers(root) {
     }
 
     syncPage();
+    const pageUrl = new URL(window.location.href);
+    if (pageUrl.searchParams.get('email_verified') === '1') {
+        showStatus(notice, 'Doğrulamayı kontrol etmek için hesabınıza giriş yapın.');
+        pageUrl.searchParams.delete('email_verified');
+        history.replaceState(null, '', pageUrl);
+    }
 }

@@ -15,6 +15,10 @@ class PatientRegistrationController extends Controller
 {
     public function store(Request $request): JsonResponse
     {
+        if (is_string($request->input('email'))) {
+            $request->merge(['email' => strtolower($request->input('email'))]);
+        }
+
         $validated = $request->validate([
             'first_name' => ['required', 'string', 'max:100'],
             'last_name' => ['required', 'string', 'max:100'],

@@ -34,6 +34,7 @@
             <main class="mx-auto max-w-7xl px-4 py-8 sm:px-8 sm:py-12">
                 <h1 id="page-title" class="text-3xl font-semibold tracking-tight sm:text-4xl">Paket teklifleri</h1>
                 <p id="page-message" class="mt-4 max-w-2xl text-sm text-slate-700 dark:text-slate-200" role="status" hidden></p>
+                <p id="clinic-onboarding" class="mt-4 max-w-2xl rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100" role="status" hidden></p>
 
                 @include('package-discovery')
 
@@ -51,6 +52,21 @@
                         </label>
                         <button type="submit" class="offer-button mt-1">Giriş yap</button>
                     </form>
+                    <div class="mt-5 grid gap-2 border-t border-slate-200 pt-5 sm:grid-cols-2 dark:border-slate-700">
+                        <button id="patient-registration" type="button" class="offer-button offer-button-secondary">Hasta hesabı oluştur</button>
+                        <button id="clinic-registration" type="button" class="offer-button offer-button-secondary">Klinik başvurusu yap</button>
+                    </div>
+                </section>
+
+                <section id="email-verification" class="mt-6 max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900" aria-labelledby="verification-title" hidden>
+                    <h2 id="verification-title" class="text-xl font-semibold">E-posta adresinizi doğrulayın</h2>
+                    <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                        <strong id="verification-address" class="break-all"></strong> adresinize gelen doğrulama bağlantısını açın.
+                    </p>
+                    <div class="mt-4 flex flex-wrap gap-2">
+                        <button id="check-verification" type="button" class="offer-button">Doğrulamayı kontrol et</button>
+                        <button id="resend-verification" type="button" class="offer-button offer-button-secondary">E-postayı yeniden gönder</button>
+                    </div>
                 </section>
 
                 <div id="workspace" class="mt-7 grid items-start gap-5 lg:grid-cols-[minmax(16rem,18rem)_minmax(0,1fr)]" hidden>
@@ -77,6 +93,7 @@
                 </div>
             </main>
 
+            @include('workspace-registration')
             @include('package-catalog-dialog')
             @include('workspace-notifications')
 

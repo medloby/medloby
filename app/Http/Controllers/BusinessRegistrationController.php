@@ -18,8 +18,23 @@ use Illuminate\Validation\Rules\Password;
 
 class BusinessRegistrationController extends Controller
 {
+    public function contract(): JsonResponse
+    {
+        $contract = $this->currentClinicContract();
+        abort_unless($contract, 404, 'Yayımlanmış bir klinik üyelik sözleşmesi bulunamadı.');
+
+        return response()->json([
+            'success' => true,
+            'data' => $contract->only(['id', 'title', 'version', 'content']),
+        ]);
+    }
+
     public function store(Request $request): JsonResponse
     {
+        if (is_string($request->input('owner_email'))) {
+            $request->merge(['owner_email' => strtolower($request->input('owner_email'))]);
+        }
+
         $validated = $request->validate([
             'owner_name' => ['required', 'string', 'max:255'],
             'owner_email' => ['required', 'email', 'max:255', 'unique:users,email'],
@@ -45,30 +60,23 @@ class BusinessRegistrationController extends Controller
             'branch_name' => ['nullable', 'string', 'max:255'],
 
             'contract_accepted' => ['accepted'],
+            'platform_contract_id' => ['sometimes', 'required', 'integer'],
         ]);
 
-        $contract = PlatformContract::query()
-            ->where('contract_type', 'clinic_membership')
-            ->where('status', 'published')
-            ->where('is_required', true)
-            ->where(function ($query) {
-                $query
-                    ->whereNull('effective_at')
-                    ->orWhere('effective_at', '<=', now());
-            })
-            ->where(function ($query) {
-                $query
-                    ->whereNull('expires_at')
-                    ->orWhere('expires_at', '>', now());
-            })
-            ->latest('published_at')
-            ->first();
+        $contract = $this->currentClinicContract();
 
         if (! $contract) {
             return response()->json([
                 'success' => false,
                 'message' => 'Şu anda kabul edilebilir aktif klinik üyelik sözleşmesi bulunmuyor.',
             ], 422);
+        }
+
+        if (isset($validated['platform_contract_id']) && (int) $validated['platform_contract_id'] !== $contract->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Üyelik sözleşmesi güncellendi. Güncel metni inceleyip tekrar onaylayın.',
+            ], 409);
         }
 
         $result = DB::transaction(function () use (
@@ -188,6 +196,27 @@ class BusinessRegistrationController extends Controller
         ], 201);
     }
 
+    private function currentClinicContract(): ?PlatformContract
+    {
+        return PlatformContract::query()
+            ->where('contract_type', 'clinic_membership')
+            ->where('status', 'published')
+            ->where('is_required', true)
+            ->where(function ($query) {
+                $query
+                    ->whereNull('effective_at')
+                    ->orWhere('effective_at', '<=', now());
+            })
+            ->where(function ($query) {
+                $query
+                    ->whereNull('expires_at')
+                    ->orWhere('expires_at', '>', now());
+            })
+            ->latest('published_at')
+            ->orderByDesc('id')
+            ->first();
+    }
+
     private function uniqueBusinessSlug(string $name): string
     {
         $baseSlug = Str::slug($name) ?: 'saglik-merkezi';
@@ -195,7 +224,7 @@ class BusinessRegistrationController extends Controller
         $counter = 2;
 
         while (Business::where('slug', $slug)->exists()) {
-            $slug = $baseSlug . '-' . $counter;
+            $slug = $baseSlug.'-'.$counter;
             $counter++;
         }
 
@@ -215,7 +244,7 @@ class BusinessRegistrationController extends Controller
                 ->where('slug', $slug)
                 ->exists()
         ) {
-            $slug = $baseSlug . '-' . $counter;
+            $slug = $baseSlug.'-'.$counter;
             $counter++;
         }
 

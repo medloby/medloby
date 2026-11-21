@@ -98,6 +98,8 @@ Route::post('/register/patient', [
 
 ]);
 
+Route::get('/register/business/contract', [BusinessRegistrationController::class, 'contract']);
+
 Route::post('/register/business', [
 
     BusinessRegistrationController::class,

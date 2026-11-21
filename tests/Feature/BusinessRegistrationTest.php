@@ -269,6 +269,10 @@ test('business registration rejects duplicate owner email', function () {
         ->assertJsonValidationErrors([
             'owner_email',
         ]);
+
+    $this->postJson('/api/register/business', array_replace(validBusinessRegistrationPayload(), [
+        'owner_email' => 'OWNER@EXAMPLE.COM',
+    ]))->assertUnprocessable()->assertJsonValidationErrors('owner_email');
 });
 
 test('business registration generates unique business slug', function () {
@@ -447,4 +451,39 @@ test('business registration hashes owner password', function () {
             'password123',
             $user->password
         ))->toBeTrue();
+});
+test('clinic applications can read and accept only the currently published membership contract', function () {
+    $this->getJson('/api/register/business/contract')->assertNotFound();
+
+    $previous = createPublishedClinicContract();
+    $latest = $previous->replicate();
+    $latest->fill([
+        'version' => '2.0',
+        'content' => 'Güncel test sözleşmesi.',
+        'published_at' => now(),
+    ])->save();
+
+    $this->getJson('/api/register/business/contract')->assertOk()->assertExactJson([
+        'success' => true,
+        'data' => [
+            'id' => $latest->id,
+            'title' => $latest->title,
+            'version' => $latest->version,
+            'content' => $latest->content,
+        ],
+    ]);
+    $payload = validBusinessRegistrationPayload();
+    $this->postJson('/api/register/business', $payload + ['platform_contract_id' => $previous->id])
+        ->assertStatus(409);
+    $this->assertDatabaseCount('clinic_contract_acceptances', 0);
+    $this->assertDatabaseCount('businesses', 0);
+
+    $this->postJson('/api/register/business', $payload + ['platform_contract_id' => $latest->id])
+        ->assertCreated()
+        ->assertJsonPath('data.approval_status', 'pending')
+        ->assertJsonPath('data.contract.id', $latest->id);
+    $this->assertDatabaseHas('clinic_contract_acceptances', [
+        'platform_contract_id' => $latest->id,
+        'contract_version' => $latest->version,
+    ]);
 });
