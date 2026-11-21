@@ -3,6 +3,7 @@
 use App\Models\Branch;
 use App\Models\Business;
 use App\Models\SocialMediaAccount;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -25,6 +26,13 @@ beforeEach(function () {
         'name' => 'İkinci Şube',
         'slug' => 'ikinci-sube-' . uniqid(),
         'status' => 'active',
+    ]);
+
+    $this->catalogOwner = User::factory()->create();
+    $this->business->memberships()->create([
+        'user_id' => $this->catalogOwner->id,
+        'role' => 'business_owner',
+        'is_active' => true,
     ]);
 });
 
@@ -95,7 +103,7 @@ test('social media accounts are returned in sort order', function () {
 });
 
 test('can add social media account to branch', function () {
-    $response = $this->postJson(
+    $response = $this->actingAs($this->catalogOwner, 'sanctum')->postJson(
         "/api/branches/{$this->branch->id}/social-media",
         [
             'platform' => 'Instagram',
@@ -150,7 +158,7 @@ test('can add social media account to branch', function () {
 });
 
 test('platform is automatically normalized to lowercase', function () {
-    $response = $this->postJson(
+    $response = $this->actingAs($this->catalogOwner, 'sanctum')->postJson(
         "/api/branches/{$this->branch->id}/social-media",
         [
             'platform' => 'FACEBOOK',
@@ -168,7 +176,7 @@ test('platform is automatically normalized to lowercase', function () {
 });
 
 test('social media account uses correct default values', function () {
-    $response = $this->postJson(
+    $response = $this->actingAs($this->catalogOwner, 'sanctum')->postJson(
         "/api/branches/{$this->branch->id}/social-media",
         [
             'platform' => 'instagram',
@@ -203,7 +211,7 @@ test('duplicate platform cannot be added to same branch', function () {
         'profile_url' => 'https://instagram.com/testklinik',
     ]);
 
-    $response = $this->postJson(
+    $response = $this->actingAs($this->catalogOwner, 'sanctum')->postJson(
         "/api/branches/{$this->branch->id}/social-media",
         [
             'platform' => 'instagram',
@@ -231,7 +239,7 @@ test('same platform can be added to different branches', function () {
         'profile_url' => 'https://instagram.com/branchone',
     ]);
 
-    $response = $this->postJson(
+    $response = $this->actingAs($this->catalogOwner, 'sanctum')->postJson(
         "/api/branches/{$this->otherBranch->id}/social-media",
         [
             'platform' => 'instagram',
@@ -252,7 +260,7 @@ test('same platform can be added to different branches', function () {
 });
 
 test('profile url is required', function () {
-    $response = $this->postJson(
+    $response = $this->actingAs($this->catalogOwner, 'sanctum')->postJson(
         "/api/branches/{$this->branch->id}/social-media",
         [
             'platform' => 'instagram',
@@ -267,7 +275,7 @@ test('profile url is required', function () {
 });
 
 test('profile url must be a valid url', function () {
-    $response = $this->postJson(
+    $response = $this->actingAs($this->catalogOwner, 'sanctum')->postJson(
         "/api/branches/{$this->branch->id}/social-media",
         [
             'platform' => 'instagram',
@@ -336,7 +344,7 @@ test('can update social media account', function () {
         'sort_order' => 1,
     ]);
 
-    $response = $this->putJson(
+    $response = $this->actingAs($this->catalogOwner, 'sanctum')->putJson(
         "/api/branches/{$this->branch->id}/social-media/{$account->id}",
         [
             'platform' => 'facebook',
@@ -397,7 +405,7 @@ test('cannot update account to duplicate platform on same branch', function () {
         'profile_url' => 'https://facebook.com/testklinik',
     ]);
 
-    $response = $this->putJson(
+    $response = $this->actingAs($this->catalogOwner, 'sanctum')->putJson(
         "/api/branches/{$this->branch->id}/social-media/{$instagram->id}",
         [
             'platform' => 'facebook',
@@ -419,7 +427,7 @@ test('cannot update account belonging to another branch', function () {
         'profile_url' => 'https://instagram.com/otherbranch',
     ]);
 
-    $response = $this->putJson(
+    $response = $this->actingAs($this->catalogOwner, 'sanctum')->putJson(
         "/api/branches/{$this->branch->id}/social-media/{$account->id}",
         [
             'page_name' => 'Yetkisiz Güncelleme',
@@ -442,7 +450,7 @@ test('can deactivate social media account', function () {
         'is_active' => true,
     ]);
 
-    $response = $this->deleteJson(
+    $response = $this->actingAs($this->catalogOwner, 'sanctum')->deleteJson(
         "/api/branches/{$this->branch->id}/social-media/{$account->id}"
     );
 
@@ -474,7 +482,7 @@ test('inactive social media account remains in database after deactivation', fun
         'is_active' => true,
     ]);
 
-    $this->deleteJson(
+    $this->actingAs($this->catalogOwner, 'sanctum')->deleteJson(
         "/api/branches/{$this->branch->id}/social-media/{$account->id}"
     );
 
@@ -488,7 +496,7 @@ test('inactive social media account remains in database after deactivation', fun
 });
 
 test('can add facebook account to branch', function () {
-    $response = $this->postJson(
+    $response = $this->actingAs($this->catalogOwner, 'sanctum')->postJson(
         "/api/branches/{$this->branch->id}/social-media",
         [
             'platform' => 'facebook',
@@ -510,7 +518,7 @@ test('can add facebook account to branch', function () {
 });
 
 test('can add tiktok account to branch', function () {
-    $response = $this->postJson(
+    $response = $this->actingAs($this->catalogOwner, 'sanctum')->postJson(
         "/api/branches/{$this->branch->id}/social-media",
         [
             'platform' => 'tiktok',

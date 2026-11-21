@@ -5,14 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\Treatment;
 use App\Models\TreatmentPackage;
 use App\Models\TreatmentPackageItem;
-use App\Services\PackageCatalogAccess;
+use App\Services\CatalogManagementAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 
 class TreatmentPackageItemController extends Controller
 {
-    public function __construct(private PackageCatalogAccess $catalogAccess) {}
+    public function __construct(private CatalogManagementAccess $catalogAccess) {}
 
     public function index(
         TreatmentPackage $treatmentPackage

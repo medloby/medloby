@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\PackageService;
-use App\Services\PackageCatalogAccess;
+use App\Services\CatalogManagementAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -11,7 +11,7 @@ use Illuminate\Validation\ValidationException;
 
 class PackageServiceController extends Controller
 {
-    public function __construct(private PackageCatalogAccess $catalogAccess) {}
+    public function __construct(private CatalogManagementAccess $catalogAccess) {}
 
     public function index(Request $request): JsonResponse
     {

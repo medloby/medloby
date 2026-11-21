@@ -7,7 +7,7 @@ use App\Models\Business;
 use App\Models\PackageService;
 use App\Models\Treatment;
 use App\Models\TreatmentPackage;
-use App\Services\PackageCatalogAccess;
+use App\Services\CatalogManagementAccess;
 use DateTimeInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,7 +17,7 @@ use Illuminate\Validation\ValidationException;
 
 class TreatmentPackageController extends Controller
 {
-    public function __construct(private PackageCatalogAccess $catalogAccess) {}
+    public function __construct(private CatalogManagementAccess $catalogAccess) {}
 
     public function index(Request $request): JsonResponse
     {

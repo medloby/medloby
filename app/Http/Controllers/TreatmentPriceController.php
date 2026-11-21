@@ -6,11 +6,15 @@ use App\Models\Branch;
 use App\Models\Doctor;
 use App\Models\Treatment;
 use App\Models\TreatmentPrice;
+use App\Services\CatalogManagementAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class TreatmentPriceController extends Controller
 {
+    public function __construct(private CatalogManagementAccess $catalogAccess) {}
+
     public function index(Request $request): JsonResponse
     {
         $query = TreatmentPrice::query()
@@ -73,10 +77,6 @@ class TreatmentPriceController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        if (! $request->user()) {
-            abort(401);
-        }
-
         $validated = $request->validate([
             'business_id' => [
                 'required',
@@ -139,15 +139,11 @@ class TreatmentPriceController extends Controller
             ],
         ]);
 
-        if (
-            ! $request->user()
-                ->businessMemberships()
-                ->where('business_id', $validated['business_id'])
-                ->where('is_active', true)
-                ->exists()
-        ) {
-            abort(403, 'Bu işletmeye erişim yetkiniz yok.');
-        }
+        $this->catalogAccess->authorizeManagement(
+            $request->user(),
+            $validated['business_id'],
+            $validated['branch_id'] ?? null,
+        );
 
         $branch = null;
 
@@ -284,10 +280,14 @@ class TreatmentPriceController extends Controller
         Request $request,
         TreatmentPrice $treatmentPrice
     ): JsonResponse {
-        if (! $request->user()) {
-            abort(401);
-        }
+        return DB::transaction(fn () => $this->updateAuthorizedPrice(
+            $request,
+            $this->lockPriceForManagement($request, $treatmentPrice),
+        ), attempts: 3);
+    }
 
+    private function updateAuthorizedPrice(Request $request, TreatmentPrice $treatmentPrice): JsonResponse
+    {
         $validated = $request->validate([
             'business_id' => [
                 'sometimes',
@@ -350,18 +350,7 @@ class TreatmentPriceController extends Controller
             ],
         ]);
 
-        $businessId = $validated['business_id']
-            ?? $treatmentPrice->business_id;
-
-        if (
-            ! $request->user()
-                ->businessMemberships()
-                ->where('business_id', $businessId)
-                ->where('is_active', true)
-                ->exists()
-        ) {
-            abort(403, 'Bu işletmeye erişim yetkiniz yok.');
-        }
+        $businessId = (int) ($validated['business_id'] ?? $treatmentPrice->business_id);
 
         $branchId = array_key_exists(
             'branch_id',
@@ -369,6 +358,11 @@ class TreatmentPriceController extends Controller
         )
             ? $validated['branch_id']
             : $treatmentPrice->branch_id;
+        $branchId = $branchId === null ? null : (int) $branchId;
+
+        if ($businessId !== $treatmentPrice->business_id || $branchId !== $treatmentPrice->branch_id) {
+            $this->catalogAccess->authorizeManagement($request->user(), $businessId, $branchId);
+        }
 
         $treatmentId = $validated['treatment_id']
             ?? $treatmentPrice->treatment_id;
@@ -474,30 +468,24 @@ class TreatmentPriceController extends Controller
         Request $request,
         TreatmentPrice $treatmentPrice
     ): JsonResponse {
-        if (! $request->user()) {
-            abort(401);
-        }
+        $price = DB::transaction(function () use ($request, $treatmentPrice): TreatmentPrice {
+            $price = $this->lockPriceForManagement($request, $treatmentPrice);
+            $price->update(['is_active' => false]);
 
-        if (
-            ! $request->user()
-                ->businessMemberships()
-                ->where(
-                    'business_id',
-                    $treatmentPrice->business_id
-                )
-                ->where('is_active', true)
-                ->exists()
-        ) {
-            abort(403, 'Bu işletmeye erişim yetkiniz yok.');
-        }
-
-        $treatmentPrice->update([
-            'is_active' => false,
-        ]);
+            return $price;
+        }, attempts: 3);
 
         return response()->json([
             'success' => true,
-            'data' => $treatmentPrice->fresh(),
+            'data' => $price,
         ]);
+    }
+
+    private function lockPriceForManagement(Request $request, TreatmentPrice $price): TreatmentPrice
+    {
+        $price = TreatmentPrice::query()->lockForUpdate()->findOrFail($price->getKey());
+        $this->catalogAccess->authorizeManagement($request->user(), $price->business_id, $price->branch_id);
+
+        return $price;
     }
 }

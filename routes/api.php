@@ -90,6 +90,8 @@ use App\Http\Controllers\PatientRegistrationController;
 
 use App\Http\Controllers\NotificationController;
 
+use App\Http\Middleware\EnsureBranchCatalogManagementAccess;
+
 use App\Http\Middleware\EnsureClinicCrmAccess;
 
 use Illuminate\Support\Facades\Route;
@@ -882,109 +884,47 @@ Route::get('/availability', [AppointmentController::class, 'availability']);
 
 });
 
-Route::prefix('treatment-categories')->group(function () {
-    Route::get('/', [
-        TreatmentCategoryController::class,
-        'index',
-    ]);
+Route::controller(TreatmentCategoryController::class)->prefix('treatment-categories')->group(function () {
+    Route::get('/', 'index');
+    Route::get('/{treatmentCategory}', 'show');
 
-    Route::post('/', [
-        TreatmentCategoryController::class,
-        'store',
-    ]);
-
-    Route::get('/{treatmentCategory}', [
-        TreatmentCategoryController::class,
-        'show',
-    ]);
-
-    Route::put('/{treatmentCategory}', [
-        TreatmentCategoryController::class,
-        'update',
-    ]);
-
-    Route::delete('/{treatmentCategory}', [
-        TreatmentCategoryController::class,
-        'deactivate',
-    ]);
-});
-
-Route::prefix('treatments')->group(function () {
-    Route::get('/', [
-        TreatmentController::class,
-        'index',
-    ]);
-
-    Route::get('/{treatment}', [
-        TreatmentController::class,
-        'show',
-    ]);
-
-    Route::middleware('admin')->group(function () {
-        Route::post('/', [
-            TreatmentController::class,
-            'store',
-        ]);
-
-        Route::put('/{treatment}', [
-            TreatmentController::class,
-            'update',
-        ]);
-
-        Route::delete('/{treatment}', [
-            TreatmentController::class,
-            'deactivate',
-        ]);
+    Route::middleware(['auth:sanctum', 'verified', 'admin'])->group(function () {
+        Route::post('/', 'store');
+        Route::put('/{treatmentCategory}', 'update');
+        Route::delete('/{treatmentCategory}', 'deactivate');
     });
 });
 
-Route::prefix('branches/{branch}/treatments')->group(function () {
-    Route::get('/', [
-        BranchTreatmentController::class,
-        'index',
-    ]);
+Route::controller(TreatmentController::class)->prefix('treatments')->group(function () {
+    Route::get('/', 'index');
+    Route::get('/{treatment}', 'show');
 
-    Route::post('/', [
-        BranchTreatmentController::class,
-        'store',
-    ]);
-
-    Route::put('/{treatment}', [
-        BranchTreatmentController::class,
-        'update',
-    ]);
-
-    Route::delete('/{treatment}', [
-        BranchTreatmentController::class,
-        'deactivate',
-    ]);
+    Route::middleware(['auth:sanctum', 'verified', 'admin'])->group(function () {
+        Route::post('/', 'store');
+        Route::put('/{treatment}', 'update');
+        Route::delete('/{treatment}', 'deactivate');
+    });
 });
 
-Route::prefix('treatment-prices')->group(function () {
-    Route::get('/', [
-        TreatmentPriceController::class,
-        'index',
-    ]);
+Route::controller(BranchTreatmentController::class)->prefix('branches/{branch}/treatments')->group(function () {
+    Route::get('/', 'index');
 
-    Route::post('/', [
-        TreatmentPriceController::class,
-        'store',
-    ]);
+    Route::middleware(['auth:sanctum', 'verified', EnsureBranchCatalogManagementAccess::class])->group(function () {
+        Route::post('/', 'store');
+        Route::put('/{treatment}', 'update');
+        Route::delete('/{treatment}', 'deactivate');
+    });
+});
 
-    Route::get('/{treatmentPrice}', [
-        TreatmentPriceController::class,
-        'show',
-    ]);
+Route::controller(TreatmentPriceController::class)->prefix('treatment-prices')->group(function () {
+    Route::get('/', 'index');
+    Route::get('/{treatmentPrice}', 'show');
 
-    Route::put('/{treatmentPrice}', [
-        TreatmentPriceController::class,
-        'update',
-    ]);
-
-    Route::delete('/{treatmentPrice}', [
-        TreatmentPriceController::class,
-        'deactivate',
-    ]);
+    Route::middleware(['auth:sanctum', 'verified'])->group(function () {
+        Route::post('/', 'store');
+        Route::put('/{treatmentPrice}', 'update');
+        Route::delete('/{treatmentPrice}', 'deactivate');
+    });
 });
 
 Route::get('/package-catalog', [TreatmentPackageController::class, 'discover']);
@@ -992,139 +932,59 @@ Route::get('/package-catalog', [TreatmentPackageController::class, 'discover']);
 Route::get('/treatment-packages/manage/{business}', [TreatmentPackageController::class, 'manage'])
     ->middleware(['auth:sanctum', 'verified']);
 
-Route::prefix('treatment-packages')->group(function () {
-    Route::get('/', [
-        TreatmentPackageController::class,
-        'index',
-    ]);
+Route::controller(TreatmentPackageController::class)->prefix('treatment-packages')->group(function () {
+    Route::get('/', 'index');
+    Route::get('/{treatmentPackage}', 'show');
 
-    Route::post('/', [
-        TreatmentPackageController::class,
-        'store',
-    ])->middleware('auth:sanctum');
-
-    Route::get('/{treatmentPackage}', [
-        TreatmentPackageController::class,
-        'show',
-    ]);
-
-    Route::put('/{treatmentPackage}', [
-        TreatmentPackageController::class,
-        'update',
-    ])->middleware('auth:sanctum');
-
-    Route::delete('/{treatmentPackage}', [
-        TreatmentPackageController::class,
-        'deactivate',
-    ])->middleware('auth:sanctum');
+    Route::middleware(['auth:sanctum', 'verified'])->group(function () {
+        Route::post('/', 'store');
+        Route::put('/{treatmentPackage}', 'update');
+        Route::delete('/{treatmentPackage}', 'deactivate');
+    });
 });
 
-Route::prefix('treatment-packages/{treatmentPackage}/items')->group(function () {
-    Route::get('/', [
-        TreatmentPackageItemController::class,
-        'index',
-    ]);
+Route::controller(TreatmentPackageItemController::class)->prefix('treatment-packages/{treatmentPackage}/items')->group(function () {
+    Route::get('/', 'index');
+    Route::get('/{treatmentPackageItem}', 'show');
 
-    Route::post('/', [
-        TreatmentPackageItemController::class,
-        'store',
-    ])->middleware('auth:sanctum');
-
-    Route::get('/{treatmentPackageItem}', [
-        TreatmentPackageItemController::class,
-        'show',
-    ]);
-
-    Route::put('/{treatmentPackageItem}', [
-        TreatmentPackageItemController::class,
-        'update',
-    ])->middleware('auth:sanctum');
-
-    Route::delete('/{treatmentPackageItem}', [
-        TreatmentPackageItemController::class,
-        'destroy',
-    ])->middleware('auth:sanctum');
+    Route::middleware(['auth:sanctum', 'verified'])->group(function () {
+        Route::post('/', 'store');
+        Route::put('/{treatmentPackageItem}', 'update');
+        Route::delete('/{treatmentPackageItem}', 'destroy');
+    });
 });
 
-Route::prefix('package-services')->group(function () {
-    Route::get('/', [
-        PackageServiceController::class,
-        'index',
-    ]);
+Route::controller(PackageServiceController::class)->prefix('package-services')->group(function () {
+    Route::get('/', 'index');
+    Route::get('/{packageService}', 'show');
 
-    Route::post('/', [
-        PackageServiceController::class,
-        'store',
-    ])->middleware('auth:sanctum');
-
-    Route::get('/{packageService}', [
-        PackageServiceController::class,
-        'show',
-    ]);
-
-    Route::put('/{packageService}', [
-        PackageServiceController::class,
-        'update',
-    ])->middleware('auth:sanctum');
-
-    Route::delete('/{packageService}', [
-        PackageServiceController::class,
-        'deactivate',
-    ])->middleware('auth:sanctum');
+    Route::middleware(['auth:sanctum', 'verified'])->group(function () {
+        Route::post('/', 'store');
+        Route::put('/{packageService}', 'update');
+        Route::delete('/{packageService}', 'deactivate');
+    });
 });
 
-Route::prefix('treatment-packages/{treatmentPackage}/service-items')->group(function () {
-    Route::get('/', [
-        PackageServiceItemController::class,
-        'index',
-    ]);
+Route::controller(PackageServiceItemController::class)->prefix('treatment-packages/{treatmentPackage}/service-items')->group(function () {
+    Route::get('/', 'index');
+    Route::get('/{packageServiceItem}', 'show');
 
-    Route::post('/', [
-        PackageServiceItemController::class,
-        'store',
-    ])->middleware('auth:sanctum');
-
-    Route::get('/{packageServiceItem}', [
-        PackageServiceItemController::class,
-        'show',
-    ]);
-
-    Route::put('/{packageServiceItem}', [
-        PackageServiceItemController::class,
-        'update',
-    ])->middleware('auth:sanctum');
-
-    Route::delete('/{packageServiceItem}', [
-        PackageServiceItemController::class,
-        'destroy',
-    ])->middleware('auth:sanctum');
+    Route::middleware(['auth:sanctum', 'verified'])->group(function () {
+        Route::post('/', 'store');
+        Route::put('/{packageServiceItem}', 'update');
+        Route::delete('/{packageServiceItem}', 'destroy');
+    });
 });
 
-Route::prefix('branches/{branch}/social-media')->group(function () {
-    Route::get('/', [
-        SocialMediaAccountController::class,
-        'index',
-    ]);
+Route::controller(SocialMediaAccountController::class)->prefix('branches/{branch}/social-media')->group(function () {
+    Route::get('/', 'index');
+    Route::get('/{socialMediaAccount}', 'show');
 
-    Route::post('/', [
-        SocialMediaAccountController::class,
-        'store',
-    ]);
-
-    Route::get('/{socialMediaAccount}', [
-        SocialMediaAccountController::class,
-        'show',
-    ]);
-
-    Route::put('/{socialMediaAccount}', [
-        SocialMediaAccountController::class,
-        'update',
-    ]);
-
-    Route::delete('/{socialMediaAccount}', [
-        SocialMediaAccountController::class,
-        'deactivate',
-    ]);
+    Route::middleware(['auth:sanctum', 'verified', EnsureBranchCatalogManagementAccess::class])->group(function () {
+        Route::post('/', 'store');
+        Route::put('/{socialMediaAccount}', 'update');
+        Route::delete('/{socialMediaAccount}', 'deactivate');
+    });
 });
 
 Route::middleware(['auth:sanctum', 'verified', EnsureClinicCrmAccess::class])

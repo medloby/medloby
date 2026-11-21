@@ -4,6 +4,7 @@ use App\Models\Branch;
 use App\Models\Business;
 use App\Models\Treatment;
 use App\Models\TreatmentCategory;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -24,6 +25,13 @@ beforeEach(function () {
     $this->category = TreatmentCategory::create([
         'name' => 'Saç Ekimi',
         'slug' => 'sac-ekimi-' . uniqid(),
+        'is_active' => true,
+    ]);
+
+    $this->catalogOwner = User::factory()->create();
+    $this->business->memberships()->create([
+        'user_id' => $this->catalogOwner->id,
+        'role' => 'business_owner',
         'is_active' => true,
     ]);
 });
@@ -171,7 +179,7 @@ test('can list only offer enabled branch treatments', function () {
 test('business can attach treatment to branch', function () {
     $treatment = createTreatment($this);
 
-    $response = $this->postJson(
+    $response = $this->actingAs($this->catalogOwner, 'sanctum')->postJson(
         "/api/branches/{$this->branch->id}/treatments",
         [
             'treatment_id' => $treatment->id,
@@ -219,7 +227,7 @@ test('business can attach treatment to branch', function () {
 test('branch treatment uses correct default values', function () {
     $treatment = createTreatment($this);
 
-    $response = $this->postJson(
+    $response = $this->actingAs($this->catalogOwner, 'sanctum')->postJson(
         "/api/branches/{$this->branch->id}/treatments",
         [
             'treatment_id' => $treatment->id,
@@ -251,7 +259,7 @@ test('duplicate treatment cannot be attached to same branch', function () {
         'is_offer_enabled' => true,
     ]);
 
-    $response = $this->postJson(
+    $response = $this->actingAs($this->catalogOwner, 'sanctum')->postJson(
         "/api/branches/{$this->branch->id}/treatments",
         [
             'treatment_id' => $treatment->id,
@@ -266,7 +274,7 @@ test('duplicate treatment cannot be attached to same branch', function () {
 });
 
 test('non existing treatment cannot be attached', function () {
-    $response = $this->postJson(
+    $response = $this->actingAs($this->catalogOwner, 'sanctum')->postJson(
         "/api/branches/{$this->branch->id}/treatments",
         [
             'treatment_id' => 999999,
@@ -290,7 +298,7 @@ test('can update branch treatment settings', function () {
         'duration_minutes' => 120,
     ]);
 
-    $response = $this->putJson(
+    $response = $this->actingAs($this->catalogOwner, 'sanctum')->putJson(
         "/api/branches/{$this->branch->id}/treatments/{$treatment->id}",
         [
             'is_active' => true,
@@ -328,7 +336,7 @@ test('can update branch treatment settings', function () {
 test('cannot update treatment that is not attached to branch', function () {
     $treatment = createTreatment($this);
 
-    $response = $this->putJson(
+    $response = $this->actingAs($this->catalogOwner, 'sanctum')->putJson(
         "/api/branches/{$this->branch->id}/treatments/{$treatment->id}",
         [
             'is_active' => false,
@@ -347,7 +355,7 @@ test('can deactivate branch treatment', function () {
         'is_offer_enabled' => true,
     ]);
 
-    $response = $this->deleteJson(
+    $response = $this->actingAs($this->catalogOwner, 'sanctum')->deleteJson(
         "/api/branches/{$this->branch->id}/treatments/{$treatment->id}"
     );
 

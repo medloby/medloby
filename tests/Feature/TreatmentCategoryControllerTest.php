@@ -1,9 +1,14 @@
 <?php
 
 use App\Models\TreatmentCategory;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    $this->catalogAdmin = User::factory()->create(['is_admin' => true]);
+});
 
 test('can list treatment categories', function () {
     TreatmentCategory::create([
@@ -48,7 +53,7 @@ test('can list only active treatment categories', function () {
 });
 
 test('can create treatment category', function () {
-    $response = $this->postJson('/api/treatment-categories', [
+    $response = $this->actingAs($this->catalogAdmin, 'sanctum')->postJson('/api/treatment-categories', [
         'name' => 'Dis Tedavileri',
         'slug' => 'dis-tedavileri',
         'description' => 'Dis tedavileri kategorisi',
@@ -72,7 +77,7 @@ test('can create treatment category', function () {
 });
 
 test('category slug can be generated automatically', function () {
-    $response = $this->postJson('/api/treatment-categories', [
+    $response = $this->actingAs($this->catalogAdmin, 'sanctum')->postJson('/api/treatment-categories', [
         'name' => 'Hair Transplant',
         'is_active' => true,
     ]);
@@ -83,7 +88,7 @@ test('category slug can be generated automatically', function () {
 });
 
 test('category is inactive by default', function () {
-    $response = $this->postJson('/api/treatment-categories', [
+    $response = $this->actingAs($this->catalogAdmin, 'sanctum')->postJson('/api/treatment-categories', [
         'name' => 'Yeni Kategori',
         'slug' => 'yeni-kategori',
     ]);
@@ -100,7 +105,7 @@ test('duplicate category slug is rejected', function () {
         'is_active' => true,
     ]);
 
-    $response = $this->postJson('/api/treatment-categories', [
+    $response = $this->actingAs($this->catalogAdmin, 'sanctum')->postJson('/api/treatment-categories', [
         'name' => 'Yeni Sac Ekimi',
         'slug' => 'sac-ekimi',
     ]);
@@ -119,7 +124,7 @@ test('can create child treatment category', function () {
         'is_active' => true,
     ]);
 
-    $response = $this->postJson('/api/treatment-categories', [
+    $response = $this->actingAs($this->catalogAdmin, 'sanctum')->postJson('/api/treatment-categories', [
         'parent_id' => $parent->id,
         'name' => 'FUE',
         'slug' => 'fue',
@@ -133,7 +138,7 @@ test('can create child treatment category', function () {
 });
 
 test('cannot use non existing parent category', function () {
-    $response = $this->postJson('/api/treatment-categories', [
+    $response = $this->actingAs($this->catalogAdmin, 'sanctum')->postJson('/api/treatment-categories', [
         'parent_id' => 999999,
         'name' => 'FUE',
         'slug' => 'fue',
@@ -210,7 +215,7 @@ test('can update treatment category', function () {
         'is_active' => true,
     ]);
 
-    $response = $this->putJson(
+    $response = $this->actingAs($this->catalogAdmin, 'sanctum')->putJson(
         "/api/treatment-categories/{$category->id}",
         [
             'name' => 'Yeni Kategori',
@@ -240,7 +245,7 @@ test('category cannot be its own parent', function () {
         'is_active' => true,
     ]);
 
-    $response = $this->putJson(
+    $response = $this->actingAs($this->catalogAdmin, 'sanctum')->putJson(
         "/api/treatment-categories/{$category->id}",
         [
             'parent_id' => $category->id,
@@ -259,7 +264,7 @@ test('can deactivate treatment category', function () {
         'is_active' => true,
     ]);
 
-    $response = $this->deleteJson(
+    $response = $this->actingAs($this->catalogAdmin, 'sanctum')->deleteJson(
         "/api/treatment-categories/{$category->id}"
     );
 
