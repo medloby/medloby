@@ -812,4 +812,8 @@ test('a patient can accept a package offer and book all sessions only once', fun
     $this->postJson($url, $payload)->assertUnprocessable();
     $this->assertDatabaseCount('appointments', 2);
     $this->getJson($optionsUrl)->assertUnprocessable();
+    $this->getJson("/api/conversations/{$data['conversation']->id}/offers")
+        ->assertOk()
+        ->assertJsonPath('data.0.id', $offerId)
+        ->assertJsonPath('data.0.appointments_exists', true);
 });

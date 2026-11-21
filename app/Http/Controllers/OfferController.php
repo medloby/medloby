@@ -52,6 +52,7 @@ class OfferController extends Controller
                 'treatment',
                 'creator',
             ])
+            ->withExists('appointments')
             ->latest('id')
             ->get();
 
