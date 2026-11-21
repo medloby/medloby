@@ -14,8 +14,7 @@ class AppointmentLifecycleService
     public function __construct(
         protected AppointmentAvailabilityService $availabilityService,
         protected AppointmentNotificationService $notificationService
-    ) {
-    }
+    ) {}
 
     private function ensurePermission(
         Appointment $appointment,
@@ -367,6 +366,9 @@ class AppointmentLifecycleService
                 'patient_profile_id' => $appointment->patient_profile_id,
                 'doctor_id' => $appointment->doctor_id,
                 'treatment_id' => $appointment->treatment_id,
+                'offer_id' => $appointment->offer?->package_snapshot !== null
+                    ? $appointment->offer_id
+                    : null,
                 'starts_at' => $newStartsAt,
                 'ends_at' => $newEndsAt,
                 'status' => $oldStatus,

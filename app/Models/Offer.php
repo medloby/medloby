@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Offer extends Model
@@ -14,6 +15,8 @@ class Offer extends Model
         'branch_id',
         'patient_profile_id',
         'treatment_id',
+        'treatment_package_id',
+        'package_snapshot',
         'created_by',
         'title',
         'description',
@@ -28,6 +31,7 @@ class Offer extends Model
     protected function casts(): array
     {
         return [
+            'package_snapshot' => 'array',
             'amount' => 'decimal:2',
             'valid_until' => 'datetime',
             'responded_at' => 'datetime',
@@ -59,9 +63,19 @@ class Offer extends Model
         return $this->belongsTo(Treatment::class);
     }
 
+    public function treatmentPackage(): BelongsTo
+    {
+        return $this->belongsTo(TreatmentPackage::class);
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function appointments(): HasMany
+    {
+        return $this->hasMany(Appointment::class);
     }
 
     public function appointment(): HasOne

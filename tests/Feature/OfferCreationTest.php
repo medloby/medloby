@@ -594,3 +594,60 @@ test('offer creation succeeds when treatment is active for conversation branch',
         'status' => 'pending',
     ]);
 });
+test('a clinic can send a package offer with a fixed copy of its contents', function () {
+    Notification::fake();
+    $data = createOfferCreationData();
+    $package = $data['business']->treatmentPackages()->create([
+        'name' => 'Bakım Paketi',
+        'slug' => 'bakim-paketi',
+    ]);
+    $package->treatments()->attach($data['treatment']->id, ['quantity' => 2]);
+    $service = $data['business']->packageServices()->create([
+        'name' => 'Transfer',
+        'slug' => 'transfer',
+        'service_type' => 'transfer',
+    ]);
+    $package->services()->attach($service->id, ['quantity' => 1]);
+
+    $url = "/api/conversations/{$data['conversation']->id}/offers";
+    $payload = offerCreationPayload($data, ['treatment_package_id' => $package->id]);
+    unset($payload['treatment_id']);
+
+    $this->actingAs($data['businessUser'])->postJson($url, $payload)
+        ->assertCreated()
+        ->assertJsonPath('data.treatment_id', null)
+        ->assertJsonPath('data.treatment_package_id', $package->id)
+        ->assertJsonPath('data.package_snapshot.treatments.0.quantity', 2)
+        ->assertJsonPath('data.package_snapshot.services.0.name', 'Transfer');
+
+    Notification::assertSentTo($data['patientUser'], NewOfferNotification::class);
+
+    $package->treatments()->updateExistingPivot($data['treatment']->id, ['quantity' => 3]);
+    $this->actingAs($data['patientUser'])->getJson($url)
+        ->assertOk()
+        ->assertJsonPath('data.0.package_snapshot.treatments.0.quantity', 2);
+});
+
+test('a package must be available to the business to be offered', function (array $attributes, bool $foreign) {
+    $data = createOfferCreationData();
+    $business = $foreign ? Business::factory()->create() : $data['business'];
+    $package = $business->treatmentPackages()->create(array_merge([
+        'name' => 'Bakım Paketi',
+        'slug' => 'bakim-paketi',
+    ], $attributes));
+    $package->treatments()->attach($data['treatment']->id);
+
+    $url = "/api/conversations/{$data['conversation']->id}/offers";
+    $payload = offerCreationPayload($data, ['treatment_package_id' => $package->id]);
+    unset($payload['treatment_id']);
+
+    $this->actingAs($data['businessUser'])->postJson($url, $payload)
+        ->assertUnprocessable()->assertJsonValidationErrors('treatment_package_id');
+
+    $this->assertDatabaseCount('offers', 0);
+})->with([
+    'inactive' => [['is_active' => false], false],
+    'offers disabled' => [['is_offer_enabled' => false], false],
+    'outside validity' => [['valid_until' => '2020-01-01'], false],
+    'another business' => [[], true],
+]);

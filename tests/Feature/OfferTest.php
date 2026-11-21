@@ -65,7 +65,7 @@ function createOfferBookingData(): array
     $branch = DB::table('branches')->insertGetId([
         'business_id' => $data['business']->id,
         'name' => 'Teklif Test Şubesi',
-        'slug' => 'teklif-test-subesi-' . uniqid(),
+        'slug' => 'teklif-test-subesi-'.uniqid(),
         'country_code' => 'TR',
         'city' => 'Istanbul',
         'district' => 'Kadikoy',
@@ -82,7 +82,7 @@ function createOfferBookingData(): array
         'title' => 'Dr.',
         'job_title' => 'Doktor',
         'specialty' => 'Test Uzmanlığı',
-        'email' => 'doctor' . uniqid() . '@example.com',
+        'email' => 'doctor'.uniqid().'@example.com',
         'phone' => '05551111111',
         'status' => 'active',
         'start_date' => now()->toDateString(),
@@ -92,7 +92,7 @@ function createOfferBookingData(): array
 
     $doctor = Doctor::create([
         'person_id' => $person->id,
-        'license_number' => 'TEST-' . uniqid(),
+        'license_number' => 'TEST-'.uniqid(),
         'specialty' => 'Test Uzmanlığı',
         'status' => 'active',
         'is_public' => true,
@@ -100,7 +100,7 @@ function createOfferBookingData(): array
 
     $category = TreatmentCategory::create([
         'name' => 'Teklif Test Kategorisi',
-        'slug' => 'teklif-test-kategorisi-' . uniqid(),
+        'slug' => 'teklif-test-kategorisi-'.uniqid(),
         'sort_order' => 1,
         'is_active' => true,
     ]);
@@ -108,7 +108,7 @@ function createOfferBookingData(): array
     $treatment = Treatment::create([
         'treatment_category_id' => $category->id,
         'name' => 'Teklif Test Tedavisi',
-        'slug' => 'teklif-test-tedavisi-' . uniqid(),
+        'slug' => 'teklif-test-tedavisi-'.uniqid(),
         'duration_minutes' => 60,
         'is_online_bookable' => true,
         'is_offer_enabled' => true,
@@ -472,7 +472,7 @@ test('patient cannot create appointment in branch different from offer branch', 
     $otherBranchId = DB::table('branches')->insertGetId([
         'business_id' => $data['business']->id,
         'name' => 'Diğer Teklif Şubesi',
-        'slug' => 'diger-teklif-subesi-' . uniqid(),
+        'slug' => 'diger-teklif-subesi-'.uniqid(),
         'country_code' => 'TR',
         'city' => 'Istanbul',
         'district' => 'Besiktas',
@@ -510,7 +510,7 @@ test('patient cannot use doctor from another business', function () {
     $otherBranchId = DB::table('branches')->insertGetId([
         'business_id' => $otherBusiness->id,
         'name' => 'Diğer İşletme Şubesi',
-        'slug' => 'diger-isletme-subesi-' . uniqid(),
+        'slug' => 'diger-isletme-subesi-'.uniqid(),
         'country_code' => 'TR',
         'city' => 'Istanbul',
         'district' => 'Sisli',
@@ -527,7 +527,7 @@ test('patient cannot use doctor from another business', function () {
         'title' => 'Dr.',
         'job_title' => 'Doktor',
         'specialty' => 'Test Uzmanlığı',
-        'email' => 'otherdoctor' . uniqid() . '@example.com',
+        'email' => 'otherdoctor'.uniqid().'@example.com',
         'phone' => '05552222222',
         'status' => 'active',
         'start_date' => now()->toDateString(),
@@ -537,7 +537,7 @@ test('patient cannot use doctor from another business', function () {
 
     $otherDoctor = Doctor::create([
         'person_id' => $person->id,
-        'license_number' => 'OTHER-' . uniqid(),
+        'license_number' => 'OTHER-'.uniqid(),
         'specialty' => 'Test Uzmanlığı',
         'status' => 'active',
         'is_public' => true,
@@ -578,7 +578,7 @@ test('patient cannot use doctor from another branch', function () {
     $otherBranchId = DB::table('branches')->insertGetId([
         'business_id' => $data['business']->id,
         'name' => 'İkinci Test Şubesi',
-        'slug' => 'ikinci-test-subesi-' . uniqid(),
+        'slug' => 'ikinci-test-subesi-'.uniqid(),
         'country_code' => 'TR',
         'city' => 'Istanbul',
         'district' => 'Sisli',
@@ -595,7 +595,7 @@ test('patient cannot use doctor from another branch', function () {
         'title' => 'Dr.',
         'job_title' => 'Doktor',
         'specialty' => 'Test Uzmanlığı',
-        'email' => 'branchdoctor' . uniqid() . '@example.com',
+        'email' => 'branchdoctor'.uniqid().'@example.com',
         'phone' => '05553333333',
         'status' => 'active',
         'start_date' => now()->toDateString(),
@@ -605,7 +605,7 @@ test('patient cannot use doctor from another branch', function () {
 
     $otherDoctor = Doctor::create([
         'person_id' => $person->id,
-        'license_number' => 'BRANCH-' . uniqid(),
+        'license_number' => 'BRANCH-'.uniqid(),
         'specialty' => 'Test Uzmanlığı',
         'status' => 'active',
         'is_public' => true,
@@ -645,7 +645,7 @@ test('patient cannot create appointment for treatment unavailable at offer branc
 
     $otherTreatmentCategory = TreatmentCategory::create([
         'name' => 'Başka Tedavi Kategorisi',
-        'slug' => 'baska-tedavi-kategorisi-' . uniqid(),
+        'slug' => 'baska-tedavi-kategorisi-'.uniqid(),
         'sort_order' => 2,
         'is_active' => true,
     ]);
@@ -653,7 +653,7 @@ test('patient cannot create appointment for treatment unavailable at offer branc
     $otherTreatment = Treatment::create([
         'treatment_category_id' => $otherTreatmentCategory->id,
         'name' => 'Başka Tedavi',
-        'slug' => 'baska-tedavi-' . uniqid(),
+        'slug' => 'baska-tedavi-'.uniqid(),
         'duration_minutes' => 60,
         'is_online_bookable' => true,
         'is_offer_enabled' => true,
@@ -732,4 +732,61 @@ test('patient cannot create a second appointment from the same accepted offer', 
     $this->assertDatabaseHas('appointments', [
         'offer_id' => $data['offer']->id,
     ]);
+});
+test('a patient can accept a package offer and book all sessions only once', function () {
+    $data = createOfferBookingData();
+    $package = $data['business']->treatmentPackages()->create([
+        'branch_id' => $data['branch']->id,
+        'name' => 'İki Seanslık Paket',
+        'slug' => 'iki-seans',
+        'price' => 5000,
+    ]);
+    $package->treatments()->attach($data['treatment']->id, ['quantity' => 2]);
+
+    $response = $this->actingAs($data['businessUser'])->postJson(
+        "/api/conversations/{$data['conversation']->id}/offers",
+        [
+            'treatment_package_id' => $package->id,
+            'title' => 'Paket teklifi',
+            'amount' => 5000,
+            'currency' => 'TRY',
+        ]
+    )->assertCreated();
+    $offerId = $response->json('data.id');
+    $url = "/api/offers/$offerId/appointments";
+    $session = [
+        'treatment_id' => $data['treatment']->id,
+        'doctor_id' => $data['doctor']->id,
+        'starts_at' => $data['startsAt']->toDateTimeString(),
+    ];
+    $validSecondSession = array_replace($session, [
+        'starts_at' => $data['startsAt']->copy()->addHour()->toDateTimeString(),
+    ]);
+    $payload = [
+        'branch_id' => $data['branch']->id,
+        'sessions' => [$session, $validSecondSession],
+    ];
+
+    $this->actingAs(User::factory()->create())->postJson($url, $payload)->assertForbidden();
+
+    $this->actingAs($data['patientUser']);
+    $this->postJson($url, $payload)->assertUnprocessable();
+    $this->postJson("/api/offers/$offerId/accept")->assertOk();
+
+    $this->postJson($url, array_replace($payload, ['sessions' => [$session]]))->assertUnprocessable();
+    $this->postJson($url, array_replace($payload, ['sessions' => [$session, $session]]))->assertUnprocessable();
+    $this->assertDatabaseCount('appointments', 0);
+    $this->assertDatabaseCount('appointment_status_histories', 0);
+
+    $package->treatments()->updateExistingPivot($data['treatment']->id, ['quantity' => 3]);
+
+    $this->postJson($url, $payload)
+        ->assertCreated()
+        ->assertJsonCount(2, 'data.appointments')
+        ->assertJsonPath('data.appointments.0.offer_id', $offerId)
+        ->assertJsonPath('data.appointments.1.offer_id', $offerId)
+        ->assertJsonPath('data.offer.package_snapshot.treatments.0.quantity', 2);
+
+    $this->postJson($url, $payload)->assertUnprocessable();
+    $this->assertDatabaseCount('appointments', 2);
 });

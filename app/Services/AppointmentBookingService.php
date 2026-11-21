@@ -11,15 +11,13 @@ use App\Models\Treatment;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
-use App\Services\AppointmentNotificationService;
 
 class AppointmentBookingService
 {
     public function __construct(
-    protected AppointmentAvailabilityService $availabilityService,
-    protected AppointmentNotificationService $notificationService
-) {
-}
+        protected AppointmentAvailabilityService $availabilityService,
+        protected AppointmentNotificationService $notificationService
+    ) {}
 
     /**
      * Yeni randevu oluşturur.
@@ -37,117 +35,180 @@ class AppointmentBookingService
         ?Offer $offer = null
     ): Appointment {
         return DB::transaction(function () use (
-            $businessId,
-            $branchId,
-            $patient,
-            $doctor,
-            $treatment,
-            $startsAt,
-            $source,
-            $requireOnlineBookable,
-            $notes,
-            $offer
+            $businessId, $branchId, $patient, $doctor, $treatment,
+            $startsAt, $source, $requireOnlineBookable, $notes, $offer
         ) {
             if ($offer) {
-                $this->validateOfferContext(
-                    $offer,
-                    $businessId,
-                    $branchId,
-                    $patient,
-                    $treatment
-                );
+                $offer = Offer::query()->lockForUpdate()->findOrFail($offer->id);
+                if ($offer->package_snapshot !== null) {
+                    throw new RuntimeException('Paket randevuları birlikte oluşturulmalıdır.');
+                }
+                if ($offer->appointments()->exists()) {
+                    throw new RuntimeException('Bu teklif daha önce randevuya dönüştürülmüş.');
+                }
             }
 
-            $this->validateBookingContext(
-                $businessId,
-                $branchId,
+            return $this->createBooking(
+                $businessId, $branchId, $patient, $doctor, $treatment,
+                $startsAt, $source, $requireOnlineBookable, $notes, $offer
+            );
+        });
+    }
+
+    private function createBooking(
+        int $businessId,
+        int $branchId,
+        PatientProfile $patient,
+        Doctor $doctor,
+        Treatment $treatment,
+        Carbon $startsAt,
+        string $source = 'medloby',
+        bool $requireOnlineBookable = true,
+        ?string $notes = null,
+        ?Offer $offer = null
+    ): Appointment {
+        if ($offer) {
+            $this->validateOfferContext($offer, $businessId, $branchId, $patient, $treatment);
+        }
+
+        $this->validateBookingContext(
+            $businessId,
+            $branchId,
+            $doctor,
+            $treatment,
+            $requireOnlineBookable
+        );
+
+        $startsAt = $startsAt->copy();
+
+        $durationMinutes = $this->availabilityService
+            ->getDurationMinutes(
                 $doctor,
-                $treatment,
-                $requireOnlineBookable
+                $branchId,
+                $treatment
             );
 
-            $startsAt = $startsAt->copy();
-
-            $durationMinutes = $this->availabilityService
-                ->getDurationMinutes(
-                    $doctor,
-                    $branchId,
-                    $treatment
-                );
-
-            if ($durationMinutes === null || $durationMinutes <= 0) {
-                throw new RuntimeException(
-                    'Bu tedavi için geçerli bir süre tanımlanmamış.'
-                );
-            }
-
-            $endsAt = $startsAt->copy()->addMinutes($durationMinutes);
-
-            $isAvailable = $this->availabilityService->isAvailable(
-                $doctor,
-                $branchId,
-                $treatment,
-                $startsAt,
-                null,
-                $requireOnlineBookable
+        if ($durationMinutes === null || $durationMinutes <= 0) {
+            throw new RuntimeException(
+                'Bu tedavi için geçerli bir süre tanımlanmamış.'
             );
+        }
 
-            if (! $isAvailable) {
-                throw new RuntimeException(
-                    'Seçilen tarih ve saat için randevu müsait değil.'
-                );
-            }
+        $endsAt = $startsAt->copy()->addMinutes($durationMinutes);
 
-            $appointment = Appointment::create([
-                'business_id' => $businessId,
-                'branch_id' => $branchId,
-                'patient_profile_id' => $patient->id,
-                'doctor_id' => $doctor->id,
-                'treatment_id' => $treatment->id,
-                'offer_id' => $offer?->id,
-                'starts_at' => $startsAt,
-                'ends_at' => $endsAt,
-                'status' => 'pending',
-                'source' => $source,
-                'patient_name' => trim(
-                    $patient->first_name . ' ' . $patient->last_name
-                ),
-                'patient_phone' => $patient->phone,
-                'patient_email' => $patient->user?->email,
-                'notes' => $notes,
-            ]);
+        $isAvailable = $this->availabilityService->isAvailable(
+            $doctor,
+            $branchId,
+            $treatment,
+            $startsAt,
+            null,
+            $requireOnlineBookable
+        );
 
-            AppointmentStatusHistory::create([
-                'appointment_id' => $appointment->id,
-                'changed_by_user_id' => null,
-                'old_status' => null,
-                'new_status' => 'pending',
-                'reason' => 'Randevu oluşturuldu.',
-                'changed_at' => now(),
-            ]);
+        if (! $isAvailable) {
+            throw new RuntimeException(
+                'Seçilen tarih ve saat için randevu müsait değil.'
+            );
+        }
 
-            DB::afterCommit(function () use ($appointment) {
-    $this->notificationService->notifyNewAppointment(
-        $appointment->fresh([
+        $appointment = Appointment::create([
+            'business_id' => $businessId,
+            'branch_id' => $branchId,
+            'patient_profile_id' => $patient->id,
+            'doctor_id' => $doctor->id,
+            'treatment_id' => $treatment->id,
+            'offer_id' => $offer?->id,
+            'starts_at' => $startsAt,
+            'ends_at' => $endsAt,
+            'status' => 'pending',
+            'source' => $source,
+            'patient_name' => trim(
+                $patient->first_name.' '.$patient->last_name
+            ),
+            'patient_phone' => $patient->phone,
+            'patient_email' => $patient->user?->email,
+            'notes' => $notes,
+        ]);
+
+        AppointmentStatusHistory::create([
+            'appointment_id' => $appointment->id,
+            'changed_by_user_id' => null,
+            'old_status' => null,
+            'new_status' => 'pending',
+            'reason' => 'Randevu oluşturuldu.',
+            'changed_at' => now(),
+        ]);
+
+        DB::afterCommit(function () use ($appointment) {
+            $this->notificationService->notifyNewAppointment(
+                $appointment->fresh([
+                    'business',
+                    'branch',
+                    'patientProfile',
+                    'doctor.person',
+                    'treatment',
+                    'offer',
+                ])
+            );
+        });
+
+        return $appointment->fresh([
             'business',
             'branch',
             'patientProfile',
-            'doctor.person',
+            'doctor',
             'treatment',
             'offer',
-        ])
-    );
-});
-            
-return $appointment->fresh([
-                'business',
-                'branch',
-                'patientProfile',
-                'doctor',
-                'treatment',
-                'offer',
-                'statusHistories',
-            ]);
+            'statusHistories',
+        ]);
+    }
+
+    public function bookPackage(Offer $offer, int $branchId, array $sessions): array
+    {
+        return DB::transaction(function () use ($offer, $branchId, $sessions) {
+            $offer = Offer::query()->lockForUpdate()->findOrFail($offer->id);
+            if ($offer->appointments()->exists()) {
+                throw new RuntimeException('Bu teklif daha önce randevuya dönüştürülmüş.');
+            }
+
+            $required = collect($offer->package_snapshot['treatments'] ?? [])
+                ->pluck('quantity', 'treatment_id')->sortKeys()->all();
+            $requested = collect($sessions)->countBy(fn (array $session) => (int) $session['treatment_id'])
+                ->sortKeys()->all();
+
+            if ($required === [] || $requested !== $required) {
+                throw new RuntimeException('Paket teklifindeki her tedavi seansı için bir randevu seçilmelidir.');
+            }
+
+            $patient = $offer->patientProfile;
+            if (! $patient) {
+                throw new RuntimeException('Teklife bağlı hasta profili bulunamadı.');
+            }
+
+            $appointments = [];
+            foreach ($sessions as $session) {
+                $appointment = $this->createBooking(
+                    $offer->business_id,
+                    $branchId,
+                    $patient,
+                    Doctor::findOrFail($session['doctor_id']),
+                    Treatment::findOrFail($session['treatment_id']),
+                    Carbon::parse($session['starts_at']),
+                    notes: $session['notes'] ?? null,
+                    offer: $offer,
+                );
+
+                foreach ($appointments as $previous) {
+                    if ($appointment->starts_at->lt($previous->ends_at)
+                        && $appointment->ends_at->gt($previous->starts_at)) {
+                        throw new RuntimeException('Paket randevularının saatleri çakışamaz.');
+                    }
+                }
+
+                $appointments[] = $appointment;
+            }
+
+            return $appointments;
         });
     }
 
@@ -182,10 +243,8 @@ return $appointment->fresh([
             );
         }
 
-        if (
-            $offer->branch_id !== null &&
-            $offer->branch_id !== $branchId
-        ) {
+        $offerBranchId = $offer->package_snapshot['branch_id'] ?? $offer->branch_id;
+        if ($offerBranchId !== null && $offerBranchId !== $branchId) {
             throw new RuntimeException(
                 'Teklif farklı bir şubeye aittir.'
             );
@@ -206,15 +265,6 @@ return $appointment->fresh([
             );
         }
 
-        $existingAppointment = Appointment::query()
-            ->where('offer_id', $offer->id)
-            ->exists();
-
-        if ($existingAppointment) {
-            throw new RuntimeException(
-                'Bu teklif daha önce randevuya dönüştürülmüş.'
-            );
-        }
     }
 
     /**

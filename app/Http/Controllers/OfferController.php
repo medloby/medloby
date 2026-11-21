@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Conversation;
 use App\Models\Offer;
+use App\Models\Treatment;
+use App\Models\TreatmentPackage;
 use App\Notifications\NewOfferNotification;
 use App\Notifications\NotificationType;
 use App\Notifications\OfferAcceptedNotification;
@@ -12,13 +14,13 @@ use App\Services\BusinessNotificationPreferenceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class OfferController extends Controller
 {
     public function __construct(
         protected BusinessNotificationPreferenceService $notificationPreferenceService
-    ) {
-    }
+    ) {}
 
     public function index(
         Request $request,
@@ -86,9 +88,16 @@ class OfferController extends Controller
 
         $validated = $request->validate([
             'treatment_id' => [
-                'required',
+                'required_without:treatment_package_id',
+                'prohibits:treatment_package_id',
                 'integer',
                 'exists:treatments,id',
+            ],
+            'treatment_package_id' => [
+                'sometimes',
+                'required',
+                'integer',
+                'exists:treatment_packages,id',
             ],
             'title' => [
                 'required',
@@ -117,17 +126,26 @@ class OfferController extends Controller
             ],
         ]);
 
-        $this->validateTreatmentForConversation(
-            $conversation,
-            (int) $validated['treatment_id']
-        );
+        $branchId = $conversation->branch_id;
+        $package = null;
+        $snapshot = null;
+
+        if (isset($validated['treatment_package_id'])) {
+            $package = TreatmentPackage::findOrFail($validated['treatment_package_id']);
+            $branchId ??= $package->branch_id;
+            $snapshot = $this->packageSnapshot($package, $conversation, $branchId);
+        } else {
+            $this->validateTreatmentForConversation($conversation, (int) $validated['treatment_id']);
+        }
 
         $offer = Offer::create([
             'conversation_id' => $conversation->id,
             'business_id' => $conversation->business_id,
-            'branch_id' => $conversation->branch_id,
+            'branch_id' => $branchId,
             'patient_profile_id' => $conversation->patient_profile_id,
-            'treatment_id' => $validated['treatment_id'],
+            'treatment_id' => $validated['treatment_id'] ?? null,
+            'treatment_package_id' => $package?->id,
+            'package_snapshot' => $snapshot,
             'created_by' => $user->id,
             'title' => $validated['title'],
             'description' => $validated['description'] ?? null,
@@ -349,8 +367,7 @@ class OfferController extends Controller
             $lockedOffer->update([
                 'status' => 'rejected',
                 'responded_at' => now(),
-                'rejection_reason' =>
-                    $validated['rejection_reason'] ?? null,
+                'rejection_reason' => $validated['rejection_reason'] ?? null,
             ]);
         });
 
@@ -396,6 +413,64 @@ class OfferController extends Controller
                 'creator',
             ]),
         ]);
+    }
+
+    private function packageSnapshot(TreatmentPackage $package, Conversation $conversation, ?int $branchId): array
+    {
+        $today = today();
+        if ($package->business_id !== $conversation->business_id
+            || ($package->branch_id !== null && $package->branch_id !== $branchId)
+            || ! $package->is_active
+            || ! $package->is_offer_enabled
+            || ($package->valid_from && $package->valid_from->gt($today))
+            || ($package->valid_until && $package->valid_until->lt($today))) {
+            throw ValidationException::withMessages([
+                'treatment_package_id' => 'Bu paket görüşmede teklif olarak kullanılamaz.',
+            ]);
+        }
+
+        $treatments = $package->treatments()->orderByPivot('sort_order')->orderBy('treatments.id')->get();
+        $eligibleCount = Treatment::query()->eligibleForPackage($branchId)->whereKey($treatments->modelKeys())->count();
+
+        if ($treatments->isEmpty() || $eligibleCount !== $treatments->count()) {
+            throw ValidationException::withMessages([
+                'treatment_package_id' => 'Paketin en az bir tedavisi olmalı ve tüm tedavileri seçilen kapsamda aktif olmalıdır.',
+            ]);
+        }
+
+        $services = $package->services()->orderByPivot('sort_order')->orderBy('package_services.id')->get();
+
+        if ($services->contains(fn ($service) => ! $service->is_active
+            || ($service->business_id !== null && $service->business_id !== $package->business_id))) {
+            throw ValidationException::withMessages([
+                'treatment_package_id' => 'Paket geçersiz veya başka işletmeye ait bir hizmet içeriyor.',
+            ]);
+        }
+
+        return [
+            'treatment_package_id' => $package->id,
+            'branch_id' => $branchId,
+            'name' => $package->name,
+            'description' => $package->description,
+            'included_services' => $package->included_services,
+            'excluded_services' => $package->excluded_services,
+            'duration_days' => $package->duration_days,
+            'includes_hotel' => $package->includes_hotel,
+            'includes_transfer' => $package->includes_transfer,
+            'treatments' => $treatments->map(fn ($treatment) => [
+                'treatment_id' => $treatment->id,
+                'name' => $treatment->name,
+                'quantity' => (int) $treatment->pivot->quantity,
+                'notes' => $treatment->pivot->notes,
+            ])->all(),
+            'services' => $services->map(fn ($service) => [
+                'package_service_id' => $service->id,
+                'name' => $service->name,
+                'unit' => $service->unit,
+                'quantity' => (int) $service->pivot->quantity,
+                'notes' => $service->pivot->notes,
+            ])->all(),
+        ];
     }
 
     /**

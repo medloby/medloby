@@ -14,8 +14,7 @@ class AppointmentBookingController extends Controller
 {
     public function __construct(
         protected AppointmentBookingService $bookingService
-    ) {
-    }
+    ) {}
 
     public function store(
         Request $request,
@@ -49,6 +48,10 @@ class AppointmentBookingController extends Controller
                 422,
                 'Bu teklifin geçerlilik süresi dolmuştur.'
             );
+        }
+
+        if ($offer->package_snapshot !== null) {
+            return $this->storePackage($request, $offer);
         }
 
         if (! $offer->treatment_id) {
@@ -146,5 +149,40 @@ class AppointmentBookingController extends Controller
                 'message' => $exception->getMessage(),
             ], 422);
         }
+    }
+
+    private function storePackage(Request $request, Offer $offer): JsonResponse
+    {
+        $validated = $request->validate([
+            'branch_id' => ['required', 'integer', 'exists:branches,id'],
+            'sessions' => ['required', 'array', 'list', 'min:1'],
+            'sessions.*' => ['required', 'array:treatment_id,doctor_id,starts_at,notes'],
+            'sessions.*.treatment_id' => ['required', 'integer', 'exists:treatments,id'],
+            'sessions.*.doctor_id' => ['required', 'integer', 'exists:doctors,id'],
+            'sessions.*.starts_at' => ['required', 'date', 'after:now'],
+            'sessions.*.notes' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        try {
+            $appointments = $this->bookingService->bookPackage(
+                $offer,
+                (int) $validated['branch_id'],
+                $validated['sessions']
+            );
+        } catch (RuntimeException $exception) {
+            return response()->json([
+                'success' => false,
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Paket randevuları başarıyla oluşturuldu.',
+            'data' => [
+                'appointments' => $appointments,
+                'offer' => $offer->fresh(['appointments']),
+            ],
+        ], 201);
     }
 }
