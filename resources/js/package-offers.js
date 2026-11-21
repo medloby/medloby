@@ -5,6 +5,29 @@ const statusLabels = {
     expired: 'Süresi doldu',
 };
 
+const appointmentStatusLabels = {
+    pending: 'Onay bekliyor',
+    confirmed: 'Onaylandı',
+    cancelled: 'İptal edildi',
+    completed: 'Tamamlandı',
+    no_show: 'Hasta gelmedi',
+    rescheduled: 'Tarihi değiştirildi',
+};
+
+const appointmentDate = new Intl.DateTimeFormat('tr-TR', {
+    dateStyle: 'long',
+    timeZone: 'UTC',
+});
+
+function appointmentDateLabel(start, end) {
+    const day = appointmentDate.format(new Date(start.replace(' ', 'T') + 'Z'));
+    const endDay = start.slice(0, 10) === end.slice(0, 10)
+        ? ''
+        : appointmentDate.format(new Date(end.replace(' ', 'T') + 'Z')) + ' ';
+
+    return day + ' · ' + start.slice(11, 16) + ' – ' + endDay + end.slice(11, 16);
+}
+
 function element(tag, value, className = '') {
     const node = document.createElement(tag);
     node.textContent = value;
@@ -251,7 +274,51 @@ export function mountPackageOffers(root) {
         }
         actions.hidden = !actions.childElementCount;
 
+        if (booked && isPatient(item)) {
+            connectSchedule(card.querySelector('[data-schedule]'), offer);
+        }
+
         return card;
+    }
+
+    function connectSchedule(details, offer) {
+        details.hidden = false;
+        const list = details.querySelector('[data-schedule-entries]');
+        const status = details.querySelector('[data-schedule-status]');
+        let loading = false;
+
+        details.addEventListener('toggle', async () => {
+            if (!details.open || loading) {
+                return;
+            }
+
+            loading = true;
+            list.replaceChildren();
+            showStatus(status, 'Randevular yükleniyor…');
+
+            try {
+                const appointments = await api('/offers/' + offer.id + '/appointments');
+                list.replaceChildren(...appointments.map((appointment) => {
+                    const row = element('li', '', 'grid gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-900');
+                    const date = element('time', appointmentDateLabel(appointment.starts_at, appointment.ends_at));
+                    date.dateTime = appointment.starts_at.replace(' ', 'T');
+                    const context = [appointment.doctor_name, appointment.branch_name].filter(Boolean).join(' · ');
+                    row.append(
+                        element('strong', appointment.treatment_name ?? 'Tedavi seansı'),
+                        date,
+                        element('span', context, 'text-slate-600 dark:text-slate-300'),
+                        element('span', appointmentStatusLabels[appointment.status] ?? appointment.status, 'text-xs font-semibold text-slate-600 dark:text-slate-300'),
+                    );
+
+                    return row;
+                }));
+                showStatus(status, appointments.length ? '' : 'Bu teklife ait randevu bulunamadı.');
+            } catch (error) {
+                showStatus(status, error.message);
+            } finally {
+                loading = false;
+            }
+        });
     }
 
     async function openOfferDialog(item) {

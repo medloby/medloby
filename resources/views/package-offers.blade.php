@@ -136,6 +136,12 @@
                     <p class="whitespace-pre-wrap break-words text-sm text-slate-600 dark:text-slate-300" data-description hidden></p>
                     <div class="grid gap-3 text-sm sm:grid-cols-2" data-contents></div>
                     <div class="flex flex-wrap gap-2" data-actions></div>
+                    <details class="border-t border-slate-200 pt-3 dark:border-slate-700" data-schedule hidden>
+                        <summary class="cursor-pointer rounded-sm text-sm font-semibold text-teal-800 focus-visible:outline-2
+                            focus-visible:outline-offset-4 dark:text-teal-300">Randevuları görüntüle</summary>
+                        <p class="mt-3 text-sm text-slate-600 dark:text-slate-300" data-schedule-status role="status" hidden></p>
+                        <ul class="mt-3 grid gap-2" data-schedule-entries></ul>
+                    </details>
                 </article>
             </template>
 

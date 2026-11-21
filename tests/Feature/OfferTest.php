@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Appointment;
 use App\Models\Business;
 use App\Models\BusinessUser;
 use App\Models\Conversation;
@@ -770,8 +771,10 @@ test('a patient can accept a package offer and book all sessions only once', fun
 
     $this->actingAs(User::factory()->create())->postJson($url, $payload)->assertForbidden();
     $this->getJson($optionsUrl)->assertForbidden();
+    $this->getJson($url)->assertForbidden();
 
     $this->actingAs($data['patientUser']);
+    $this->getJson($url)->assertOk()->assertJsonPath('data', []);
     $this->postJson($url, $payload)->assertUnprocessable();
     $this->getJson($optionsUrl)->assertUnprocessable();
     $this->postJson("/api/offers/$offerId/accept")->assertOk();
@@ -816,4 +819,36 @@ test('a patient can accept a package offer and book all sessions only once', fun
         ->assertOk()
         ->assertJsonPath('data.0.id', $offerId)
         ->assertJsonPath('data.0.appointments_exists', true);
+
+    $booked = Appointment::query()->where('offer_id', $offerId)->orderBy('starts_at')->get();
+    $this->getJson($url)->assertOk()->assertExactJson([
+        'success' => true,
+        'data' => $booked->map(fn (Appointment $appointment) => [
+            'id' => $appointment->id,
+            'status' => 'pending',
+            'starts_at' => $appointment->starts_at->toDateTimeString(),
+            'ends_at' => $appointment->ends_at->toDateTimeString(),
+            'branch_name' => $data['branch']->name,
+            'treatment_name' => $data['treatment']->name,
+            'doctor_name' => 'Test Doktor',
+        ])->all(),
+    ]);
+
+    $original = $booked->first();
+    $replacement = $original->replicate();
+    $replacement->fill([
+        'rescheduled_from_appointment_id' => $original->id,
+        'starts_at' => $data['startsAt']->copy()->addHours(2),
+        'ends_at' => $data['startsAt']->copy()->addHours(3),
+    ])->save();
+    $original->update(['status' => 'rescheduled']);
+    Offer::findOrFail($offerId)->update(['valid_until' => now()->subDay()]);
+
+    $this->getJson($url)->assertOk()
+        ->assertJsonCount(2, 'data')
+        ->assertJsonPath('data.0.id', $booked->last()->id)
+        ->assertJsonPath('data.1.id', $replacement->id)
+        ->assertJsonPath('data.1.starts_at', $replacement->starts_at->toDateTimeString());
+
+    $this->actingAs($data['businessUser'])->getJson($url)->assertForbidden();
 });

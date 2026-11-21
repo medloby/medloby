@@ -553,6 +553,11 @@ Route::prefix('notifications')->group(function () {
             'options',
         ]);
 
+        Route::get('/offers/{offer}/appointments', [
+            AppointmentBookingController::class,
+            'index',
+        ]);
+
         Route::post('/offers/{offer}/appointments', [
 
             AppointmentBookingController::class,

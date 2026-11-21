@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Appointment;
 use App\Models\Branch;
 use App\Models\Doctor;
 use App\Models\Offer;
@@ -19,6 +20,36 @@ class AppointmentBookingController extends Controller
     public function __construct(
         protected AppointmentBookingService $bookingService
     ) {}
+
+    public function index(Request $request, Offer $offer): JsonResponse
+    {
+        abort_unless($this->isOfferPatient($request, $offer), 403, 'Bu teklifin randevularını görme yetkiniz yok.');
+
+        $appointments = $offer->appointments()
+            ->where('patient_profile_id', $offer->patient_profile_id)
+            ->whereDoesntHave('rescheduledAppointments', fn ($query) => $query
+                ->where('offer_id', $offer->id)
+                ->where('patient_profile_id', $offer->patient_profile_id))
+            ->with(['branch:id,name', 'doctor.person:id,first_name,last_name', 'treatment:id,name'])
+            ->orderBy('starts_at')
+            ->orderBy('id')
+            ->get()
+            ->map(function (Appointment $appointment) {
+                $person = $appointment->doctor?->person;
+
+                return [
+                    'id' => $appointment->id,
+                    'status' => $appointment->status,
+                    'starts_at' => $appointment->starts_at->toDateTimeString(),
+                    'ends_at' => $appointment->ends_at->toDateTimeString(),
+                    'branch_name' => $appointment->branch?->name,
+                    'treatment_name' => $appointment->treatment?->name,
+                    'doctor_name' => $person ? trim($person->first_name.' '.$person->last_name) : null,
+                ];
+            });
+
+        return response()->json(['success' => true, 'data' => $appointments]);
+    }
 
     public function store(
         Request $request,
@@ -210,15 +241,16 @@ class AppointmentBookingController extends Controller
         return response()->json(['success' => true, 'data' => $data]);
     }
 
+    private function isOfferPatient(Request $request, Offer $offer): bool
+    {
+        return $offer->patientProfile()
+            ->where('user_id', $request->user()->id)
+            ->exists();
+    }
+
     private function ensureBookableOffer(Request $request, Offer $offer): void
     {
-        $user = $request->user();
-
-        $isPatient = $offer->patientProfile()
-            ->where('user_id', $user->id)
-            ->exists();
-
-        if (! $isPatient) {
+        if (! $this->isOfferPatient($request, $offer)) {
             abort(
                 403,
                 'Bu teklif üzerinden randevu oluşturma yetkiniz yok.'
