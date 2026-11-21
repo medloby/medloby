@@ -2,7 +2,7 @@
 
 **İnceleme tarihi** 22 Kasım 2026 · **İncelenen sürüm** `main / 668980d`
 
-**Sıradaki iş 1.1** Katalog yönetimi için sunucu tarafında rol ve işletme/şube yetkilerini tutarlı hale getirmek. Sonraki adıma ilgili erişim testleri geçince başlanır.
+**Sıradaki iş 1.2** Katalog okuma verilerini ve klinik içi fiyatları ayırmak. Ardından CRM, görüşme ve eklerde işletme/şube kapsamını doğrulamak.
 
 ## Kapsam ve doğrulama
 
@@ -70,8 +70,8 @@ Sunucu tarafında CRM, takvim, yönetim ve başvurunun temel kavramları mevcut.
 
 ### 1. Erişim ve veri tutarlılığı
 
-- [ ] **1.1 Sıradaki iş.** Katalog yönetiminin yazma uç noktalarında kimlik, e-posta doğrulaması, rol ve işletme/şube kapsamını tutarlı hale getir. Geçerli yetkili kullanıcı senaryosunu ve misafir, yanlış rol, başka klinik ile başka şube senaryolarını test et.
-- [ ] **1.2** Katalog okuma verilerini, klinik içi fiyatları, CRM ilişkilerini ve görüşme/ek erişimini işletme ve şube sınırlarıyla uyumlu hale getir. Aday atamasında ve hasta ilişkilendirmesinde mevcut yetkileri yeniden kullan. Klinik askıya alındığında yeni işlemler ve hastanın kendi geçmişini görmesi için ayrı kurallar belirle.
+- [x] **1.1** Katalog yönetiminde 27 yazma rotasına doğrulanmış hesap ve ilgili rol/işletme/şube kontrolleri uygulandı. 157 ilgili test ve 787 testlik tam süit geçti. [Yetki değişiklikleri](https://github.com/medloby/medloby/commit/47195478eea381f9385883aa52ae405ee0f65d84)
+- [ ] **1.2 Sıradaki iş.** Katalog okuma verilerini, klinik içi fiyatları, CRM ilişkilerini ve görüşme/ek erişimini işletme ve şube sınırlarıyla uyumlu hale getir. Aday atamasında ve hasta ilişkilendirmesinde mevcut yetkileri yeniden kullan. Klinik askıya alındığında yeni işlemler ve hastanın kendi geçmişini görmesi için ayrı kurallar belirle.
 - [ ] **1.3** PHP ve JavaScript kilitli bağımlılıklarını doğrula, bildirilen geliştirme bağımlılığı güncellemelerini kontrollü uygula ve test/derlemeyi tekrarla.
 
 Aşama, olumsuz yetki testleri ve kendi kliniğinde çalışan olumlu akışlarla tamamlanır. Bundan sonra CRM düzenleme ekranına geçilir.
