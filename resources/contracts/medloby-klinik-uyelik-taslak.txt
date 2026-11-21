@@ -1,0 +1,78 @@
+MEDLOBY KLİNİK ÜYELİK VE PLATFORM KULLANIM SÖZLEŞMESİ
+İnceleme taslağı v0.1 · 22 Kasım 2026
+
+1. Taraflar ve kapsam
+
+Platform işletmecisi
+[Ticaret unvanı, MERSİS numarası, vergi bilgileri ve tebligat adresi]
+[Destek e-postası, sözleşme bildirim adresi ve KVKK başvuru kanalı]
+
+Klinik
+[Başvuruda beyan edilen sağlık kuruluşu unvanı, ruhsat bilgileri ve adresi]
+[Temsile yetkili kişinin adı ve iletişim bilgileri]
+
+Sözleşme, Kliniğin Medloby başvurusunu, işletme ve şube hesaplarını, izinli katalog içeriğini, hasta ile platform içi iletişimini, kişiye özel teklifleri ve randevu yönetimini düzenler.
+
+2. Başvuru, onay ve hesaplar
+
+Klinik güncel ve doğru işletme, şube, temsil ve ruhsat bilgilerini sunar. Başvuru sahibi Kliniği bu sözleşme için temsil etmeye yetkili olduğunu beyan eder. İstendiğinde ilgili belgeler Medloby’ye iletilir. Ruhsat, temsil veya iletişim bilgilerindeki değişiklikler gecikmeden güncellenir.
+
+Medloby, başvuru sahibinin adresine e-posta doğrulama bağlantısı gönderir. Başvuru sahibi doğrulama gerektiren hesap işlemlerini adresini doğruladıktan sonra kullanabilir. Klinik başvurusu inceleme sırasında beklemede kalır ve Medloby tarafından onaylanırsa klinik hesabı etkinleştirilir. Sağlık hizmeti verme, reklam yapma veya sağlık turizmi faaliyeti yürütme yetkisi ilgili mevzuat ve yetkili makamların belgeleriyle belirlenir.
+
+Klinik personel hesaplarını görevi ve şubesiyle uyumlu yetkilerle açar. Ortak parola kullanımı ve yetkisiz erişim yasaktır. Görev veya şube değişikliğinde erişimler güncellenir, ayrılan personelin yetkileri kaldırılır. Şüpheli erişim ve hesap güvenliği olayları Medloby’ye gecikmeden bildirilir.
+
+3. Sağlık hizmeti ve Medloby’nin rolü
+
+Medloby, klinik ile hasta arasında iletişim, teklif ve randevu planlaması için yazılım sağlar. Sağlık hizmetini Klinik ve ilgili yetkili sağlık meslek mensupları yürütür. Hastanın değerlendirilmesi, tedavinin tıbbi uygunluğu, hasta aydınlatması ve onamı, tıbbi kayıt, uygulama ve takip Kliniğin sorumluluğundadır.
+
+Klinik sadece ruhsatı, uzmanlık dalları ve personel yetkileri kapsamında içerik yayımlar ve hizmet sunar. Her şube ve seans için doğru çalışma bilgileri girilir. Sağlık hizmetine ilişkin kamuya açık bilgilendirmeyi mevzuatın yetki verdiği kişiler hazırlamalı veya doğrulamalıdır.
+
+4. Katalog, tanıtım ve hasta mahremiyeti
+
+Taraflar Sağlık Hizmetlerinde Tanıtım ve Bilgilendirme Faaliyetleri Hakkında Yönetmelik ve ilgili sağlık mevzuatına uyar. Türkiye’deki genel kitleye açık sağlık hizmeti tanıtımı ve bilgilendirmesinde ücret, indirim, kampanya veya promosyon bilgileri yayımlanamaz. Yanıltıcı veya karşılaştırmalı ifadeler, üstünlük ve sonuç garantisi iddiaları, reklam mahiyetinde hasta yorumları ve hastayı mevzuata aykırı biçimde belirli bir kuruluşa yönlendiren içerikler yasaktır.
+
+Yayımlanabilir katalog bilgileri, Kliniğin yetkili olduğu hizmetlere ilişkin mevzuata uygun nesnel bilgilerle sınırlıdır. Klinik, halka açık içerikleri güncel tutar ve içerik editörüne ulaşılabilecek iletişim bilgilerini sağlar. Kamuya açık alana hasta adı, görüntüsü, tıbbi kayıt, kimlik belgesi veya özel görüşme içeriği yüklenemez. Sağlık turizmine ilişkin farklı kurallar ancak yetki belgesi, hedef kitle, kanal ve diğer yasal şartlar ayrıca doğrulanarak uygulanabilir.
+
+Medloby mevzuata aykırı veya yetki kapsamı şüpheli içeriği inceleyebilir, görünürlüğünü sınırlandırabilir veya kaldırabilir. Klinik içeriğin doğruluğu ve hak sahipliği konusunda Medloby ile iş birliği yapar. Tarafların kanundan doğan sorumlulukları kendi yükümlülükleri çerçevesinde devam eder.
+
+5. Hasta görüşmesi, teklif ve randevu
+
+Klinik hasta ile yalnızca izinli görüşme kapsamında iletişim kurar. Yasal şartların elverdiği kişiye özel fiyat ve koşullar ilgili hastanın erişebildiği özel görüşmede paylaşılır. Klinik teklifin kapsamını, seans sayısını, fiyatı ve para birimini, dahil ve hariç hizmetleri, geçerlilik süresini ve varsa iptal koşullarını açıkça belirtir.
+
+Teklif anındaki paket içeriği kaydedilir. Katalogdaki sonraki değişiklikler gönderilmiş teklifin içeriğini değiştirmez. Yeni koşullar hastaya yeni teklif olarak iletilir. Hastanın teklifi platformda kabul etmesi randevu planlamasına dayanak oluşturabilir. Tıbbi değerlendirme ve onam süreçleri ayrıca yürütülür.
+
+Randevunun durumu platformda gösterilir. Klinik ve hasta mevcut bildirim kanallarıyla değişikliklerden haberdar edilir. Otel, transfer ve benzeri kalemlerin koşulları teklifte açıklanır. Bu hizmetlerin ifasından teklifte belirtilen hizmeti üstlenen taraf sorumludur. Hastanın mevzuattan kaynaklanan başvuru, iptal ve iade hakları saklıdır.
+
+6. Ödeme ve ücretler
+
+Bu sürümde Medloby paket bedelini platform üzerinden tahsil etmez. Klinik, hastaya bildirilen ücretin doğruluğu, kendi tahsilatları, mevzuata uygun belge veya fatura düzenlenmesi ve uygulanabilir iade yükümlülüklerinden sorumludur. Bu sözleşme kendi başına bir platform üyelik bedeli veya komisyon doğurmaz. Böyle bir mali koşul uygulanacaksa önceden açıkça bildirilir ve ayrıca kabul edilir.
+
+7. Kişisel veriler ve dosya paylaşımı
+
+Taraflar her işleme amacı için 6698 sayılı Kanun kapsamındaki rollerini fiilen yürüttükleri faaliyete göre belirler. Klinik kendi sağlık hizmeti ve hasta kayıtları bakımından tabi olduğu yükümlülükleri yerine getirir. Medloby kendi amaç ve vasıtalarını belirlediği üyelik, hesap güvenliği ve platform işletimine ilişkin işlemler için aydınlatma, güvenlik ve başvuru yükümlülüklerini yerine getirir. Taraflardan biri diğerinin talimatıyla veri işleyecekse amaç, kapsam, erişimler, güvenlik, alt hizmet sağlayıcılar, silme ve iade şartları yazılı olarak belirlenir.
+
+Klinik yalnızca belirli bir amaç için gerekli verileri, uygun işleme şartına dayanarak ve erişim yetkisi bulunan kişilerle paylaşır. Sağlık verileri dahil özel nitelikli verilerin işlenmesinde 6698 sayılı Kanunun 6. maddesi ve Kurulca belirlenen tedbirler uygulanır. Üyelik sözleşmesinin elektronik kabulü hasta aydınlatması, gerekli açık rıza beyanı veya sağlık hizmetine ilişkin onam yerine kullanılamaz.
+
+Dosyalar yalnızca ilgili hasta ve yetkili klinik hesaplarıyla paylaşılır. Zorunlu olmayan sağlık kayıtları, kimlik belgeleri ve üçüncü kişilerin verileri sohbet veya paket alanlarına yüklenmez. E-posta bildirimlerinde sağlık raporu, tıbbi kayıt eki ve gereksiz sağlık bilgisi paylaşımı yasaktır. Hesap doğrulamasında süreli bağlantı, ayrıntılı bilgiler için yetkili oturum veya uygulama içi bildirim kullanılır.
+
+Veriler bildirilen amaç ve hukuki saklama yükümlülükleri için gereken süre boyunca tutulur. Süre sonunda ilgili imha politikası uygulanır. Yurt dışına aktarım planlandığında Kanunun 9. maddesine uygun aktarım şartı ve gerekli güvenceler önceden belirlenir. Taraflar, ilgili kişi başvuruları, yetkili makam talepleri ve güvenlik olaylarında sorumlulukları kapsamında iş birliği yapar. Başvuru kanalları ve veri işleme ayrıntıları ayrı aydınlatma metninde belirtilir.
+
+8. Elektronik bildirimler ve sözleşme kayıtları
+
+Klinik doğrulanabilir bir iletişim adresi sağlar ve değişiklikleri günceller. E-posta doğrulaması, başvuru durumu, güvenlik, teklif ve randevu gibi işlemsel bildirimler yalnızca ilgili işlemin yürütülmesi için kullanılır. Ticari elektronik ileti veya tanıtım için uygulanabilir onay ve ret kuralları ayrıca işletilir. Yasal tebligatlar için mevzuatın öngördüğü şekil ve kanallar kullanılır.
+
+Onay kutusuyla verilen kabul gösterilen sözleşme sürümüne ilişkindir. Medloby kabul kaydında sürümü, zamanı, kabul yöntemini ve sistemde tutulan IP adresi ile tarayıcı bilgilerini ilgili amaç ve aydınlatma kapsamında saklar. Yayımlanan sürüm Klinik tarafından incelenebilir ve kopyalanabilir biçimde sunulur.
+
+9. Fikrî haklar
+
+Medloby yazılımı, marka ve arayüzü üzerindeki haklar hak sahiplerine aittir. Üyelik platformu bu sözleşme kapsamında kullanma imkânı verir. Klinik yüklediği içerik üzerinde gerekli hak ve izinlere sahip olmalıdır. Klinik, kamuya açık olarak yayımlanmasına yetki verdiği içerik için Medloby’ye sadece platformun işletilmesi ve izinli gösterim amacıyla sınırlı kullanım izni verir. Hasta verisi ve klinik kayıtları bu iznin kapsamı dışındadır. Üçüncü taraf bileşenler kendi lisans koşullarına tabidir.
+
+10. Askıya alma, sona erme ve değişiklik
+
+Güvenlik olayı, ruhsat veya temsil yetkisinin kaybı, hasta mahremiyeti ihlali veya mevzuata aykırı içerikte Medloby gerekli ve ölçülü erişim kısıtlamalarını uygulayabilir. Acil haller dışında Klinik bilgilendirilir ve mümkünse düzeltme olanağı tanınır. Üyelik sonlandığında devam eden hasta işlemlerine ilişkin iletişim ve kanuni kayıt yükümlülükleri taraflarca kendi sorumluluklarına göre yerine getirilir.
+
+Sözleşmenin esaslı değişiklikleri yeni sürümle ve yürürlük tarihiyle bildirilir. Hukuken gerektiğinde yeni sürüm için yeniden elektronik kabul alınır. Daha önce kabul edilen sürümlerin kaydı saklanır. Emredici mevzuat hükümleri ve kanuni başvuru hakları korunur.
+
+11. Uygulanacak hukuk
+
+Türkiye Cumhuriyeti hukuku uygulanır. Taraflar uyuşmazlıkları önce yazılı bildirimle çözmeye çalışır. İlgili başvuru yolları ve yetkili makamlar kanuni görev ve yetki kurallarına göre belirlenir.

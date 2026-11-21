@@ -2,6 +2,7 @@
 
 use App\Models\User;
 use Illuminate\Auth\Events\Verified;
+use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Notification;
@@ -50,8 +51,7 @@ test('user can verify email with valid verification link', function () {
 
     Event::assertDispatched(
         Verified::class,
-        fn (Verified $event) =>
-            $event->user->is($user)
+        fn (Verified $event) => $event->user->is($user)
     );
 });
 
@@ -127,7 +127,7 @@ test('unverified user can request verification email again', function () {
 
     Notification::assertSentTo(
         $user,
-        \Illuminate\Auth\Notifications\VerifyEmail::class
+        VerifyEmail::class
     );
 });
 
@@ -188,5 +188,16 @@ test('a browser verification link returns to the workspace after verifying the a
     $this->get($url, ['Accept' => 'text/html,application/xhtml+xml,*/*;q=0.8'])
         ->assertRedirect(route('package-offers', ['email_verified' => 1]));
 
+    expect($user->fresh()->hasVerifiedEmail())->toBeTrue();
+});
+
+test('medloby verification email includes a working signed link', function () {
+    $user = User::factory()->unverified()->create();
+
+    $mail = (new VerifyEmail)->toMail($user);
+
+    expect($mail->subject)->toBe('Medloby e-posta doğrulama');
+    expect($mail->actionText)->toBe('E-posta adresimi doğrula');
+    $this->getJson($mail->actionUrl)->assertSuccessful();
     expect($user->fresh()->hasVerifiedEmail())->toBeTrue();
 });

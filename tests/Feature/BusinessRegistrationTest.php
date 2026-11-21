@@ -1,14 +1,12 @@
 <?php
 
-use App\Models\Branch;
 use App\Models\Business;
-use App\Models\BusinessUser;
-use App\Models\ClinicContractAcceptance;
 use App\Models\PlatformContract;
 use App\Models\User;
+use Database\Seeders\ClinicMembershipContractDraftSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Laravel\Sanctum\PersonalAccessToken;
 use Illuminate\Support\Facades\Hash;
+use Laravel\Sanctum\PersonalAccessToken;
 
 uses(RefreshDatabase::class);
 
@@ -486,4 +484,19 @@ test('clinic applications can read and accept only the currently published membe
         'platform_contract_id' => $latest->id,
         'contract_version' => $latest->version,
     ]);
+});
+
+test('clinic membership draft stays private and reseeding preserves edits', function () {
+    $this->seed(ClinicMembershipContractDraftSeeder::class);
+
+    $draft = PlatformContract::sole();
+    expect($draft->status)->toBe('draft');
+    expect($draft->content)->toContain('MEDLOBY KLİNİK ÜYELİK VE PLATFORM KULLANIM SÖZLEŞMESİ');
+    $this->getJson('/api/register/business/contract')->assertNotFound();
+
+    $draft->update(['content' => 'İnceleme sırasında güncellenen içerik.']);
+    $this->seed(ClinicMembershipContractDraftSeeder::class);
+
+    $this->assertDatabaseCount('platform_contracts', 1);
+    expect($draft->fresh()->content)->toBe('İnceleme sırasında güncellenen içerik.');
 });
