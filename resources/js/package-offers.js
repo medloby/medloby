@@ -274,7 +274,7 @@ export function mountPackageOffers(root) {
         }
         actions.hidden = !actions.childElementCount;
 
-        if (booked && isPatient(item)) {
+        if (booked) {
             connectSchedule(card.querySelector('[data-schedule]'), offer);
         }
 

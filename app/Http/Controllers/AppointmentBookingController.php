@@ -23,10 +23,22 @@ class AppointmentBookingController extends Controller
 
     public function index(Request $request, Offer $offer): JsonResponse
     {
-        abort_unless($this->isOfferPatient($request, $offer), 403, 'Bu teklifin randevularını görme yetkiniz yok.');
+        $branchIds = null;
+
+        if (! $this->isOfferPatient($request, $offer)) {
+            $branchIds = $request->user()->accessibleBranchIds($offer->business_id);
+            $offerBranchId = $offer->package_snapshot['branch_id'] ?? $offer->branch_id;
+            abort_if(
+                $branchIds === [] || ($offerBranchId !== null && ! in_array($offerBranchId, $branchIds, true)),
+                403,
+                'Bu teklifin randevularını görme yetkiniz yok.'
+            );
+        }
 
         $appointments = $offer->appointments()
+            ->where('business_id', $offer->business_id)
             ->where('patient_profile_id', $offer->patient_profile_id)
+            ->when($branchIds !== null, fn ($query) => $query->whereIn('branch_id', $branchIds))
             ->whereDoesntHave('rescheduledAppointments', fn ($query) => $query
                 ->where('offer_id', $offer->id)
                 ->where('patient_profile_id', $offer->patient_profile_id))

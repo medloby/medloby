@@ -44,6 +44,8 @@ class OfferController extends Controller
             );
         }
 
+        $branchIds = $isPatient ? null : $user->accessibleBranchIds($conversation->business_id);
+
         $offers = $conversation->offers()
             ->with([
                 'business',
@@ -52,7 +54,10 @@ class OfferController extends Controller
                 'treatment',
                 'creator',
             ])
-            ->withExists('appointments')
+            ->withExists(['appointments' => fn ($query) => $query
+                ->whereColumn('appointments.business_id', 'offers.business_id')
+                ->whereColumn('appointments.patient_profile_id', 'offers.patient_profile_id')
+                ->when($branchIds !== null, fn ($query) => $query->whereIn('appointments.branch_id', $branchIds))])
             ->latest('id')
             ->get();
 

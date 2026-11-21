@@ -851,4 +851,26 @@ test('a patient can accept a package offer and book all sessions only once', fun
         ->assertJsonPath('data.1.starts_at', $replacement->starts_at->toDateTimeString());
 
     $this->actingAs($data['businessUser'])->getJson($url)->assertForbidden();
+    $offersUrl = "/api/conversations/{$data['conversation']->id}/offers";
+    $this->getJson($offersUrl)->assertOk()->assertJsonPath('data.0.appointments_exists', false);
+
+    $membership = $data['businessUser']->businessMemberships()->sole();
+    $membership->update(['role' => 'staff']);
+    $otherBranch = $data['business']->branches()->create([
+        'name' => 'Diğer Şube',
+        'slug' => 'diger-teklif-subesi',
+        'status' => 'active',
+    ]);
+    $membership->branches()->attach($otherBranch->id, ['is_active' => true]);
+    $this->getJson($url)->assertForbidden();
+    $this->getJson($offersUrl)->assertOk()->assertJsonPath('data.0.appointments_exists', false);
+
+    $membership->branches()->attach($data['branch']->id, ['is_active' => true]);
+    $this->getJson($offersUrl)->assertOk()->assertJsonPath('data.0.appointments_exists', true);
+    $this->getJson($url)->assertOk()
+        ->assertJsonCount(2, 'data')
+        ->assertJsonPath('data.1.id', $replacement->id);
+
+    $membership->update(['is_active' => false]);
+    $this->getJson($url)->assertForbidden();
 });
