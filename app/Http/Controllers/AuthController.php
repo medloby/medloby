@@ -47,6 +47,7 @@ class AuthController extends Controller
         $user->load([
             'businessMemberships.business',
         ]);
+        $user->loadExists('patientProfile');
 
         return response()->json([
             'success' => true,

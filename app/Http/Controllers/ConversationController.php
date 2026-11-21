@@ -6,10 +6,12 @@ use App\Models\Business;
 use App\Models\Conversation;
 use App\Models\MessageAttachment;
 use App\Models\PatientProfile;
+use App\Models\TreatmentPackage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 class ConversationController extends Controller
 {
@@ -66,6 +68,7 @@ class ConversationController extends Controller
                 'business',
                 'branch',
                 'patientProfile',
+                'treatmentPackage:id,name',
             ])
             ->orderByDesc('last_message_at')
             ->orderByDesc('id')
@@ -81,10 +84,12 @@ class ConversationController extends Controller
     {
         $validated = $request->validate([
             'business_id' => [
-                'required',
+                'required_without:treatment_package_id',
+                'nullable',
                 'integer',
                 'exists:businesses,id',
             ],
+            'treatment_package_id' => ['nullable', 'integer'],
             'branch_id' => [
                 'nullable',
                 'integer',
@@ -107,6 +112,10 @@ class ConversationController extends Controller
                 403,
                 'Bu işlem yalnızca hasta hesabı ile yapılabilir.'
             );
+        }
+
+        if (isset($validated['treatment_package_id'])) {
+            return $this->startPackageConversation($patientProfile, $validated);
         }
 
         $business = Business::findOrFail(
@@ -153,6 +162,51 @@ class ConversationController extends Controller
         ], 201);
     }
 
+    private function startPackageConversation(PatientProfile $patient, array $input): JsonResponse
+    {
+        $conversation = DB::transaction(function () use ($patient, $input) {
+            PatientProfile::query()->lockForUpdate()->findOrFail($patient->id);
+
+            $package = TreatmentPackage::query()
+                ->availableForEnquiries()
+                ->find($input['treatment_package_id']);
+
+            if (! $package || (isset($input['business_id']) && (int) $input['business_id'] !== $package->business_id)
+                || (isset($input['branch_id']) && (int) $input['branch_id'] !== $package->branch_id)) {
+                throw ValidationException::withMessages([
+                    'treatment_package_id' => 'Bu paket için şu anda görüşme başlatılamıyor.',
+                ]);
+            }
+
+            $conversation = Conversation::firstOrCreate([
+                'business_id' => $package->business_id,
+                'branch_id' => $package->branch_id,
+                'patient_profile_id' => $patient->id,
+                'treatment_package_id' => $package->id,
+                'status' => 'open',
+            ], [
+                'subject' => $package->name,
+            ]);
+
+            if ($conversation->wasRecentlyCreated) {
+                $message = $conversation->messages()->create([
+                    'sender_user_id' => $patient->user_id,
+                    'body' => 'Bu tedavi paketi için teklif almak istiyorum.',
+                    'message_type' => 'text',
+                ]);
+                $conversation->update(['last_message_at' => $message->created_at]);
+            }
+
+            return $conversation;
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Paket görüşmesi açıldı.',
+            'data' => $conversation->load(['business', 'branch', 'patientProfile', 'treatmentPackage:id,name']),
+        ], $conversation->wasRecentlyCreated ? 201 : 200);
+    }
+
     public function show(
         Request $request,
         Conversation $conversation
@@ -173,7 +227,7 @@ class ConversationController extends Controller
         return response()->json([
             'success' => true,
             'data' => [
-                'conversation' => $conversation,
+                'conversation' => $conversation->load('treatmentPackage:id,name'),
                 'messages' => $messages,
             ],
         ]);

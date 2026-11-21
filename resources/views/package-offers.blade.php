@@ -15,6 +15,10 @@
                         <span class="grid size-9 place-items-center rounded-lg bg-teal-300 text-sm font-bold text-slate-950" aria-hidden="true">M</span>
                         Medloby
                     </a>
+                    <nav class="flex flex-wrap items-center gap-2 text-sm" aria-label="Medloby">
+                        <a href="#gorusmeler" id="offers-link" class="rounded-lg px-3 py-2 hover:bg-slate-800 aria-[current=page]:bg-slate-800">Paket teklifleri</a>
+                        <a href="#katalog" id="discovery-link" class="rounded-lg px-3 py-2 hover:bg-slate-800 aria-[current=page]:bg-slate-800">Tedavi paketleri</a>
+                    </nav>
                     <div id="account" class="flex flex-wrap items-center gap-3" hidden>
                         <span id="account-name" class="text-sm text-slate-200"></span>
                         <button id="catalog-button" type="button" class="rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800" hidden>Paketleri yönet</button>
@@ -24,8 +28,10 @@
             </header>
 
             <main class="mx-auto max-w-7xl px-4 py-8 sm:px-8 sm:py-12">
-                <h1 class="text-3xl font-semibold tracking-tight sm:text-4xl">Paket teklifleri</h1>
+                <h1 id="page-title" class="text-3xl font-semibold tracking-tight sm:text-4xl">Paket teklifleri</h1>
                 <p id="page-message" class="mt-4 max-w-2xl text-sm text-slate-700 dark:text-slate-200" role="status" hidden></p>
+
+                @include('package-discovery')
 
                 <section id="sign-in" class="mt-6 max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 dark:border-slate-800 dark:bg-slate-900" aria-labelledby="sign-in-title">
                     <h2 id="sign-in-title" class="text-xl font-semibold">Hesabınıza giriş yapın</h2>
@@ -62,6 +68,7 @@
                             <button id="new-offer" type="button" class="offer-button" hidden>Paket teklifi oluştur</button>
                         </div>
                         <div id="offer-list" class="mt-5 grid gap-4"></div>
+                        @include('package-conversation')
                     </section>
                 </div>
             </main>

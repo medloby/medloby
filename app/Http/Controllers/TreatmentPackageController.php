@@ -75,6 +75,42 @@ class TreatmentPackageController extends Controller
         ]);
     }
 
+    public function discover(): JsonResponse
+    {
+        $packages = TreatmentPackage::query()
+            ->availableForEnquiries()
+            ->with([
+                'business:id,name',
+                'branch:id,name',
+                'treatments' => fn ($relation) => $relation->select('treatments.id', 'treatments.name')
+                    ->orderByPivot('sort_order'),
+                'services' => fn ($relation) => $relation->select('package_services.id', 'package_services.name')
+                    ->orderByPivot('sort_order'),
+            ])
+            ->orderBy('name')
+            ->orderBy('id')
+            ->paginate(12, ['id', 'business_id', 'branch_id', 'name', 'description', 'price', 'currency'])
+            ->through(fn (TreatmentPackage $package) => [
+                'id' => $package->id,
+                'name' => $package->name,
+                'description' => $package->description,
+                'price' => $package->price,
+                'currency' => $package->currency,
+                'business' => $package->business,
+                'branch' => $package->branch,
+                'treatments' => $package->treatments->map(fn (Treatment $treatment) => [
+                    'name' => $treatment->name,
+                    'quantity' => (int) $treatment->pivot->quantity,
+                ]),
+                'services' => $package->services->map(fn (PackageService $service) => [
+                    'name' => $service->name,
+                    'quantity' => (int) $service->pivot->quantity,
+                ]),
+            ]);
+
+        return response()->json(['success' => true, 'data' => $packages]);
+    }
+
     public function manage(Request $request, Business $business): JsonResponse
     {
         $this->catalogAccess->authorizeManagement($request->user(), $business->id);

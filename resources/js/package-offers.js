@@ -1,4 +1,6 @@
 import { mountPackageCatalog } from './package-catalog';
+import { mountPackageDiscovery } from './package-discovery';
+import { mountPackageConversation } from './package-conversation';
 
 const statusLabels = {
     pending: 'Yanıt bekliyor',
@@ -91,10 +93,18 @@ export function mountPackageOffers(root) {
     const branchField = bookingForm.elements.namedItem('branch');
     const catalogButton = get('catalog-button');
     const packageCatalog = mountPackageCatalog(get('catalog-dialog'), api);
+    const discoverySection = get('package-discovery');
+    const discovery = mountPackageDiscovery(discoverySection, { api, priceLabel, startConversation });
+    const thread = mountPackageConversation(get('package-conversation'), {
+        api,
+        downloadAttachment,
+        timeLabel: (value) => offerDeadline.format(new Date(value)),
+    });
 
     let token;
     let user;
     let conversation;
+    let pendingPackage;
     let currentPage = 1;
     let selectedPackageById = new Map();
     let bookingOffer;
@@ -105,21 +115,26 @@ export function mountPackageOffers(root) {
     let pageRequest = 0;
     let dialogRequest = 0;
 
-    async function api(path, body, method = body === undefined ? 'GET' : 'POST') {
+    async function api(path, body, method = body === undefined ? 'GET' : 'POST', download = false) {
         const headers = { Accept: 'application/json' };
         if (token) {
             headers.Authorization = 'Bearer ' + token;
         }
-        if (body !== undefined) {
+        const multipart = body instanceof FormData;
+        if (body !== undefined && !multipart) {
             headers['Content-Type'] = 'application/json';
         }
 
         const response = await fetch('/api' + path, {
             method,
             headers,
-            body: body === undefined ? undefined : JSON.stringify(body),
+            body: multipart || body === undefined ? body : JSON.stringify(body),
             cache: 'no-store',
         });
+        if (download && response.ok) {
+            return response.blob();
+        }
+
         const result = await response.json().catch(() => null);
 
         if (!response.ok || !result?.success) {
@@ -137,10 +152,60 @@ export function mountPackageOffers(root) {
         return result.data;
     }
 
+    async function downloadAttachment(attachment) {
+        const blob = await api('/attachments/' + attachment.id + '/view', undefined, 'GET', true);
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = attachment.original_name;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    function syncPage() {
+        const browsing = window.location.hash === '#katalog';
+        const openingCatalogue = browsing && discoverySection.hidden;
+
+        discoverySection.hidden = !browsing;
+        get('page-title').textContent = browsing ? 'Tedavi paketleri' : 'Paket teklifleri';
+        document.title = get('page-title').textContent + ' | Medloby';
+        get('discovery-link').setAttribute('aria-current', browsing ? 'page' : 'false');
+        get('offers-link').setAttribute('aria-current', browsing ? 'false' : 'page');
+        get('sign-in').hidden = browsing || Boolean(user);
+        get('workspace').hidden = browsing || !user;
+
+        if (openingCatalogue) {
+            discovery.open();
+        }
+    }
+
+    window.addEventListener('hashchange', syncPage);
+
+    async function startConversation(pkg) {
+        if (!user) {
+            pendingPackage = pkg;
+            window.location.hash = 'gorusmeler';
+            syncPage();
+            showStatus(notice, pkg.name + ' için görüşme başlatmak üzere hasta hesabınızla giriş yapın.');
+            signIn.elements.namedItem('email').focus();
+            return;
+        }
+        if (!user.patient_profile_exists) {
+            throw new Error('Görüşme başlatmak için hasta hesabınızla giriş yapın.');
+        }
+
+        const item = await api('/conversations', { treatment_package_id: pkg.id });
+        window.location.hash = 'gorusmeler';
+        syncPage();
+        await loadConversations(1, item);
+        showStatus(notice, 'Paket görüşmesi açıldı.');
+    }
+
     function endSession() {
         token = undefined;
         user = undefined;
         conversation = undefined;
+        pendingPackage = undefined;
         bookingOffer = undefined;
         rejection = undefined;
         appointmentAction = undefined;
@@ -162,12 +227,12 @@ export function mountPackageOffers(root) {
         sessionList.replaceChildren();
         offerList.replaceChildren();
         conversationList.replaceChildren();
+        thread.select(undefined);
         get('account-name').textContent = '';
         get('conversation-title').textContent = 'Görüşme seçin';
         get('conversation-context').textContent = '';
         get('account').hidden = true;
-        get('workspace').hidden = true;
-        get('sign-in').hidden = false;
+        syncPage();
         signIn.reset();
     }
 
@@ -194,11 +259,12 @@ export function mountPackageOffers(root) {
         return [
             item.business?.name,
             item.branch?.name,
+            item.treatment_package ? 'İstenen paket: ' + item.treatment_package.name : null,
             !isPatient(item) && patient ? patient.first_name + ' ' + patient.last_name : null,
         ].filter(Boolean).join(' · ');
     }
 
-    async function loadConversations(page) {
+    async function loadConversations(page, preferred) {
         const request = ++pageRequest;
         showStatus(notice, 'Görüşmeler yükleniyor…');
         const result = await api('/conversations?page=' + page);
@@ -210,7 +276,10 @@ export function mountPackageOffers(root) {
         get('conversation-pages').hidden = result.last_page <= 1;
         get('previous-page').disabled = currentPage <= 1;
         get('next-page').disabled = currentPage >= result.last_page;
-        conversationList.replaceChildren(...result.data.map((item) => {
+        const items = preferred && !result.data.some((item) => item.id === preferred.id)
+            ? [preferred, ...result.data]
+            : result.data;
+        conversationList.replaceChildren(...items.map((item) => {
             const button = get('conversation-template').content.firstElementChild.cloneNode(true);
             button.dataset.conversation = item.id;
             button.querySelector('[data-subject]').textContent = item.subject || 'Görüşme #' + item.id;
@@ -223,10 +292,11 @@ export function mountPackageOffers(root) {
         }));
 
         showStatus(notice);
-        if (result.data.length) {
-            await showConversation(result.data[0]);
+        if (items.length) {
+            await showConversation(items.find((item) => item.id === preferred?.id) ?? items[0]);
         } else {
             conversation = undefined;
+            thread.select(undefined);
             offerRequest++;
             newOfferButton.hidden = true;
             get('conversation-title').textContent = 'Görüşme bulunamadı';
@@ -237,6 +307,7 @@ export function mountPackageOffers(root) {
 
     async function showConversation(item) {
         conversation = item;
+        thread.select(item);
         for (const button of conversationList.children) {
             button.setAttribute('aria-current', String(Number(button.dataset.conversation) === item.id));
         }
@@ -438,6 +509,11 @@ export function mountPackageOffers(root) {
             ));
             selectedPackageById = new Map(packages.map((pkg) => [String(pkg.id), pkg]));
             setOptions(offerForm.elements.namedItem('package'), 'Paket seçin', packages.map((pkg) => [pkg.id, pkg.name]));
+            const requested = packages.find((pkg) => pkg.id === item.treatment_package_id);
+            if (requested) {
+                offerForm.elements.namedItem('package').value = requested.id;
+                fillOfferPackage(requested);
+            }
             offerForm.hidden = !packages.length;
             showStatus(status, packages.length ? '' : 'Bu görüşme için teklif gönderilebilecek aktif paket yok.');
         } catch (error) {
@@ -590,9 +666,22 @@ export function mountPackageOffers(root) {
         get('account-name').textContent = user.name;
         catalogButton.hidden = ownedBusinesses().length === 0;
         get('account').hidden = false;
-        get('sign-in').hidden = true;
-        get('workspace').hidden = false;
-        await loadConversations(1);
+        syncPage();
+
+        const requested = pendingPackage;
+        pendingPackage = undefined;
+        if (requested) {
+            try {
+                await startConversation(requested);
+            } catch (error) {
+                if (user) {
+                    await loadConversations(1);
+                }
+                throw error;
+            }
+        } else {
+            await loadConversations(1);
+        }
     });
 
     get('logout').addEventListener('click', async (event) => {
@@ -617,12 +706,16 @@ export function mountPackageOffers(root) {
     });
     newOfferButton.addEventListener('click', () => openOfferDialog(conversation));
 
+    function fillOfferPackage(pkg) {
+        offerForm.elements.namedItem('title').value = pkg.name;
+        offerForm.elements.namedItem('amount').value = pkg.price ?? '';
+        offerForm.elements.namedItem('currency').value = pkg.currency;
+    }
+
     offerForm.elements.namedItem('package').addEventListener('change', (event) => {
         const pkg = selectedPackageById.get(event.target.value);
         if (pkg) {
-            offerForm.elements.namedItem('title').value = pkg.name;
-            offerForm.elements.namedItem('amount').value = pkg.price ?? '';
-            offerForm.elements.namedItem('currency').value = pkg.currency;
+            fillOfferPackage(pkg);
         }
     });
 
@@ -713,4 +806,6 @@ export function mountPackageOffers(root) {
             }
         });
     }
+
+    syncPage();
 }

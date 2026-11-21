@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -41,6 +43,36 @@ class TreatmentPackage extends Model
             'valid_from' => 'date',
             'valid_until' => 'date',
         ];
+    }
+
+    #[Scope]
+    protected function availableForEnquiries(Builder $query): Builder
+    {
+        $today = today()->toDateString();
+
+        return $query->where('treatment_packages.is_active', true)
+            ->where('treatment_packages.is_offer_enabled', true)
+            ->where(fn (Builder $packages) => $packages
+                ->whereNull('valid_from')->orWhereDate('valid_from', '<=', $today))
+            ->where(fn (Builder $packages) => $packages
+                ->whereNull('valid_until')->orWhereDate('valid_until', '>=', $today))
+            ->whereHas('business', fn (Builder $businesses) => $businesses
+                ->where('status', 'active')->where('is_verified', true))
+            ->where(fn (Builder $packages) => $packages->whereNull('branch_id')
+                ->orWhereHas('branch', fn (Builder $branches) => $branches->where('status', 'active')
+                    ->whereColumn('branches.business_id', 'treatment_packages.business_id')))
+            ->whereHas('treatments')
+            ->whereDoesntHave('treatments', fn (Builder $treatments) => $treatments
+                ->where(fn (Builder $invalid) => $invalid->where('treatments.is_active', false)
+                    ->orWhere(fn (Builder $notOffered) => $notOffered
+                        ->whereNotNull('treatment_packages.branch_id')
+                        ->whereNotExists(fn ($offering) => $offering->selectRaw('1')->from('branch_treatment')
+                            ->whereColumn('branch_treatment.branch_id', 'treatment_packages.branch_id')
+                            ->whereColumn('branch_treatment.treatment_id', 'treatments.id')
+                            ->where('branch_treatment.is_active', true)))))
+            ->whereDoesntHave('services', fn (Builder $services) => $services
+                ->where(fn (Builder $invalid) => $invalid->where('package_services.is_active', false)
+                    ->orWhereColumn('package_services.business_id', '!=', 'treatment_packages.business_id')));
     }
 
     public function business(): BelongsTo

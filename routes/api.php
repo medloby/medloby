@@ -976,6 +976,8 @@ Route::prefix('treatment-prices')->group(function () {
     ]);
 });
 
+Route::get('/package-catalog', [TreatmentPackageController::class, 'discover']);
+
 Route::get('/treatment-packages/manage/{business}', [TreatmentPackageController::class, 'manage'])
     ->middleware(['auth:sanctum', 'verified']);
 

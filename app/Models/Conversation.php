@@ -12,6 +12,7 @@ class Conversation extends Model
         'business_id',
         'branch_id',
         'patient_profile_id',
+        'treatment_package_id',
         'crm_lead_id',
         'subject',
         'status',
@@ -38,6 +39,11 @@ class Conversation extends Model
     public function patientProfile(): BelongsTo
     {
         return $this->belongsTo(PatientProfile::class);
+    }
+
+    public function treatmentPackage(): BelongsTo
+    {
+        return $this->belongsTo(TreatmentPackage::class);
     }
 
     public function crmLead(): BelongsTo

@@ -5,6 +5,8 @@ use App\Models\Business;
 use App\Models\BusinessUser;
 use App\Models\Conversation;
 use App\Models\PatientProfile;
+use App\Models\Treatment;
+use App\Models\TreatmentCategory;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -679,4 +681,79 @@ test('message attachment is stored under the conversation directory', function (
         ->toStartWith('conversations/' . $conversation->id . '/');
 
     Storage::disk('private')->assertExists($attachment->path);
+});
+
+test('guests can discover eligible packages and patients can open one conversation for a package', function () {
+    $data = createConversationTestData();
+    $category = TreatmentCategory::create(['name' => 'Tedaviler', 'slug' => 'paket-tedavileri']);
+    $treatment = Treatment::create([
+        'treatment_category_id' => $category->id,
+        'name' => 'Paket tedavisi',
+        'slug' => 'paket-tedavisi',
+        'is_active' => true,
+    ]);
+    $data['businessBranch']->treatments()->attach($treatment->id, ['is_active' => true]);
+    $package = $data['business']->treatmentPackages()->create([
+        'branch_id' => $data['businessBranch']->id,
+        'name' => 'Tedavi paketi',
+        'slug' => 'tedavi-paketi',
+        'valid_from' => today(),
+        'valid_until' => today(),
+    ]);
+    $package->treatments()->attach($treatment->id, ['quantity' => 2, 'notes' => 'İç not']);
+
+    $draft = $data['business']->treatmentPackages()->create([
+        'name' => 'Taslak',
+        'slug' => 'taslak',
+        'is_active' => false,
+    ]);
+    $draft->treatments()->attach($treatment->id);
+
+    $unavailable = $data['otherBusiness']->treatmentPackages()->create([
+        'branch_id' => $data['otherBusinessBranch']->id,
+        'name' => 'Şubede sunulmayan paket',
+        'slug' => 'sunulmayan-paket',
+    ]);
+    $unavailable->treatments()->attach($treatment->id);
+
+    $this->getJson('/api/package-catalog')->assertOk()
+        ->assertJsonCount(1, 'data.data')
+        ->assertJsonPath('data.data.0.id', $package->id)
+        ->assertJsonPath('data.data.0.treatments', [['name' => $treatment->name, 'quantity' => 2]]);
+
+    $payload = ['treatment_package_id' => $package->id];
+    $this->postJson('/api/conversations', $payload)->assertUnauthorized();
+
+    $this->actingAs($data['patientUser']);
+    $this->getJson('/api/me')->assertOk()->assertJsonPath('data.user.patient_profile_exists', true);
+    $this->postJson('/api/conversations', ['treatment_package_id' => $draft->id])
+        ->assertUnprocessable()->assertJsonValidationErrors('treatment_package_id');
+    $this->postJson('/api/conversations', ['treatment_package_id' => $unavailable->id])
+        ->assertUnprocessable()->assertJsonValidationErrors('treatment_package_id');
+    $this->postJson('/api/conversations', $payload + ['branch_id' => $data['otherBusinessBranch']->id])
+        ->assertUnprocessable()->assertJsonValidationErrors('treatment_package_id');
+
+    $id = $this->postJson('/api/conversations', $payload)->assertCreated()
+        ->assertJsonPath('data.branch_id', $data['businessBranch']->id)
+        ->assertJsonPath('data.business_id', $data['business']->id)
+        ->assertJsonPath('data.treatment_package.id', $package->id)
+        ->assertJsonPath('data.subject', $package->name)
+        ->json('data.id');
+    $this->postJson('/api/conversations', $payload)->assertOk()->assertJsonPath('data.id', $id);
+    $this->assertDatabaseCount('conversations', 1);
+    $this->assertDatabaseCount('messages', 1);
+    $this->assertDatabaseHas('messages', [
+        'conversation_id' => $id,
+        'sender_user_id' => $data['patientUser']->id,
+        'body' => 'Bu tedavi paketi için teklif almak istiyorum.',
+    ]);
+
+    $this->actingAs($data['businessUser'])->getJson('/api/conversations')->assertOk()
+        ->assertJsonPath('data.data.0.treatment_package.name', $package->name);
+    $this->postJson('/api/conversations', $payload)->assertForbidden();
+
+    $package->update(['valid_until' => today()->subDay()]);
+    $this->getJson('/api/package-catalog')->assertOk()->assertJsonPath('data.data', []);
+    $this->actingAs($data['patientUser'])->postJson('/api/conversations', $payload)
+        ->assertUnprocessable()->assertJsonValidationErrors('treatment_package_id');
 });
