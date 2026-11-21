@@ -20,53 +20,8 @@ class ConversationController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $user = $request->user();
-
-        $patientProfile = PatientProfile::where(
-            'user_id',
-            $user->id
-        )->first();
-
-        $businessIds = $user->businessMemberships()
-            ->where('is_active', true)
-            ->pluck('business_id');
-
         $conversations = Conversation::query()
-            ->where(function ($query) use (
-                $patientProfile,
-                $businessIds
-            ) {
-                $hasAccessCondition = false;
-
-                if ($patientProfile) {
-                    $query->where(
-                        'patient_profile_id',
-                        $patientProfile->id
-                    );
-
-                    $hasAccessCondition = true;
-                }
-
-                if ($businessIds->isNotEmpty()) {
-                    if ($hasAccessCondition) {
-                        $query->orWhereIn(
-                            'business_id',
-                            $businessIds
-                        );
-                    } else {
-                        $query->whereIn(
-                            'business_id',
-                            $businessIds
-                        );
-                    }
-
-                    $hasAccessCondition = true;
-                }
-
-                if (! $hasAccessCondition) {
-                    $query->whereRaw('1 = 0');
-                }
-            })
+            ->visibleTo($request->user())
             ->with([
                 'business',
                 'branch',
@@ -80,7 +35,7 @@ class ConversationController extends Controller
         return response()->json([
             'success' => true,
             'data' => $conversations,
-        ]);
+        ])->header('Cache-Control', 'private, no-store');
     }
 
     public function store(Request $request): JsonResponse
@@ -126,24 +81,16 @@ class ConversationController extends Controller
         );
 
         $branchId = $validated['branch_id'] ?? null;
+        $branch = $branchId === null ? null : $business->branches()->find($branchId);
 
-        if (
-            $branchId !== null &&
-            ! DB::table('branches')
-                ->where('id', $branchId)
-                ->where('business_id', $business->id)
-                ->exists()
-        ) {
+        if ($branchId !== null && $branch === null) {
             abort(
                 422,
                 'Seçilen şube bu işletmeye ait değil.'
             );
         }
 
-        if (
-            $business->status !== 'active' ||
-            ! $business->is_verified
-        ) {
+        if (! $business->allowsCrmAccess() || ($branch !== null && $branch->status !== 'active')) {
             abort(
                 422,
                 'Bu sağlık merkezi şu anda iletişime açık değil.'
@@ -234,7 +181,7 @@ class ConversationController extends Controller
                 'conversation' => $conversation->load(['business', 'branch', 'patientProfile', 'treatmentPackage:id,name']),
                 'messages' => $messages,
             ],
-        ]);
+        ])->header('Cache-Control', 'private, no-store');
     }
 
     public function sendMessage(
@@ -244,6 +191,12 @@ class ConversationController extends Controller
         $this->ensureCanAccess(
             $request,
             $conversation
+        );
+
+        abort_unless(
+            Conversation::query()->withActiveClinic()->whereKey($conversation->id)->exists(),
+            422,
+            'Bu sağlık merkezi şu anda iletişime açık değil.'
         );
 
         if ($conversation->status !== 'open') {
@@ -332,25 +285,10 @@ class ConversationController extends Controller
         Request $request,
         Conversation $conversation
     ): void {
-        $user = $request->user();
-
-        $isPatient = PatientProfile::where(
-            'user_id',
-            $user->id
-        )
-            ->whereKey($conversation->patient_profile_id)
-            ->exists();
-
-        $isBusinessUser = $user->businessMemberships()
-            ->where('business_id', $conversation->business_id)
-            ->where('is_active', true)
-            ->exists();
-
-        if (! $isPatient && ! $isBusinessUser) {
-            abort(
-                403,
-                'Bu görüşmeye erişim yetkiniz yok.'
-            );
-        }
+        abort_unless(
+            Conversation::query()->visibleTo($request->user())->whereKey($conversation->id)->exists(),
+            403,
+            'Bu görüşmeye erişim yetkiniz yok.'
+        );
     }
 }

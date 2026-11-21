@@ -278,15 +278,19 @@ class AppointmentBookingService
         Treatment $treatment,
         bool $requireOnlineBookable
     ): void {
-        $branchBelongsToBusiness = DB::table('branches')
+        $branch = DB::table('branches')
             ->where('id', $branchId)
             ->where('business_id', $businessId)
-            ->exists();
+            ->first(['status']);
 
-        if (! $branchBelongsToBusiness) {
+        if (! $branch) {
             throw new RuntimeException(
                 'Seçilen şube bu işletmeye ait değil.'
             );
+        }
+
+        if ($requireOnlineBookable && $branch->status !== 'active') {
+            throw new RuntimeException('Seçilen şube şu anda çevrimiçi randevuya açık değil.');
         }
 
         $doctorBelongsToBusiness = DB::table('doctors')

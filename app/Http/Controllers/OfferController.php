@@ -33,12 +33,7 @@ class OfferController extends Controller
             ->where('user_id', $user->id)
             ->exists();
 
-        $isBusinessUser = $user->businessMemberships()
-            ->where('business_id', $conversation->business_id)
-            ->where('is_active', true)
-            ->exists();
-
-        if (! $isPatient && ! $isBusinessUser) {
+        if (! $isPatient && ! Conversation::query()->accessibleToClinic($user)->whereKey($conversation->id)->exists()) {
             abort(
                 403,
                 'Bu görüşmedeki tekliflere erişim yetkiniz yok.'
@@ -48,6 +43,12 @@ class OfferController extends Controller
         $branchIds = $isPatient ? null : $user->accessibleBranchIds($conversation->business_id);
 
         $offers = $conversation->offers()
+            ->where('business_id', $conversation->business_id)
+            ->where('patient_profile_id', $conversation->patient_profile_id)
+            ->when($branchIds !== null, fn ($offers) => $offers->where(fn ($scope) => $scope
+                ->whereNull('offers.branch_id')
+                ->orWhereHas('branch', fn ($branches) => $branches->whereKey($branchIds)
+                    ->where('business_id', $conversation->business_id)->where('status', 'active'))))
             ->with([
                 'business',
                 'branch',
@@ -65,7 +66,7 @@ class OfferController extends Controller
         return response()->json([
             'success' => true,
             'data' => $offers,
-        ]);
+        ])->header('Cache-Control', 'private, no-store');
     }
 
     public function packageOptions(Request $request, Conversation $conversation): JsonResponse
@@ -75,7 +76,6 @@ class OfferController extends Controller
 
         $branchId = $conversation->branch_id;
         $branchIds = $user->accessibleBranchIds($conversation->business_id);
-        abort_if($branchId !== null && ! in_array($branchId, $branchIds, true), 403);
 
         $packages = TreatmentPackage::query()
             ->availableForEnquiries()
@@ -98,10 +98,11 @@ class OfferController extends Controller
 
     private function authorizeOfferCreation(User $user, Conversation $conversation): void
     {
-        abort_unless($user->businessMemberships()
-            ->where('business_id', $conversation->business_id)
-            ->where('is_active', true)
-            ->exists(), 403, 'Bu görüşme için teklif oluşturma yetkiniz yok.');
+        abort_unless(
+            Conversation::query()->accessibleToClinic($user)->whereKey($conversation->id)->exists(),
+            403,
+            'Bu görüşme için teklif oluşturma yetkiniz yok.'
+        );
 
         abort_unless($conversation->status === 'open', 422, 'Kapalı bir görüşmeye teklif oluşturulamaz.');
     }
@@ -234,6 +235,8 @@ class OfferController extends Controller
                 ->lockForUpdate()
                 ->firstOrFail();
 
+            abort_unless($lockedOffer->hasActiveClinic(), 422, 'Bu sağlık merkezi şu anda teklif işlemlerine açık değil.');
+
             if ($lockedOffer->status !== 'pending') {
                 abort(
                     422,
@@ -335,6 +338,8 @@ class OfferController extends Controller
                 ->whereKey($offer->id)
                 ->lockForUpdate()
                 ->firstOrFail();
+
+            abort_unless($lockedOffer->hasActiveClinic(), 422, 'Bu sağlık merkezi şu anda teklif işlemlerine açık değil.');
 
             if ($lockedOffer->status !== 'pending') {
                 abort(

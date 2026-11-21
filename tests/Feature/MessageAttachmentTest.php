@@ -45,7 +45,7 @@ function createMessageAttachmentTestData(): array
     BusinessUser::create([
         'business_id' => $business->id,
         'user_id' => $businessUser->id,
-        'role' => 'owner',
+        'role' => 'business_owner',
         'is_active' => true,
     ]);
 
@@ -89,6 +89,91 @@ function createTestAttachment(
         'size' => 12,
     ]);
 }
+
+test('branch assignment controls conversation listing, messages, offer access and attachments together', function () {
+    Storage::fake('local');
+    $data = createMessageAttachmentTestData();
+    $attachment = createTestAttachment($data['message']);
+    Storage::disk('local')->put($attachment->path, 'Test document');
+    $staff = User::factory()->create();
+    $otherBranch = Branch::factory()->for($data['business'])->create();
+    $membership = $data['business']->memberships()->create([
+        'user_id' => $staff->id, 'role' => 'staff', 'is_active' => true,
+    ]);
+    $membership->branches()->attach($otherBranch->id, ['is_active' => true]);
+    $membership->branches()->attach($data['branch']->id, ['is_active' => false]);
+    $conversationUrl = "/api/conversations/{$data['conversation']->id}";
+    $fileUrl = "/api/attachments/{$attachment->id}/view";
+    $message = ['body' => 'Şube takip mesajı'];
+
+    $this->actingAs($staff)->getJson('/api/conversations')->assertOk()->assertJsonCount(0, 'data.data');
+    $this->getJson($conversationUrl)->assertForbidden();
+    $this->getJson($conversationUrl.'/offers')->assertForbidden();
+    $this->getJson($conversationUrl.'/offers/package-options')->assertForbidden();
+    $this->postJson($conversationUrl.'/messages', $message)->assertForbidden();
+    $this->getJson($fileUrl)->assertForbidden();
+
+    $membership->branches()->updateExistingPivot($data['branch']->id, ['is_active' => true]);
+    $this->getJson('/api/conversations')->assertOk()->assertJsonPath('data.data.0.id', $data['conversation']->id);
+    $this->getJson($conversationUrl)->assertOk()->assertJsonPath('data.messages.data.0.id', $data['message']->id);
+    $this->getJson($conversationUrl.'/offers')->assertOk();
+    $this->getJson($conversationUrl.'/offers/package-options')->assertOk();
+    $this->postJson($conversationUrl.'/messages', $message)->assertCreated();
+    $this->get($fileUrl)->assertOk()->assertHeader('Cache-Control', 'no-store, private');
+});
+
+test('patients retain their history when a clinic is suspended while new exchanges are blocked', function () {
+    Storage::fake('local');
+    $data = createMessageAttachmentTestData();
+    $attachment = createTestAttachment($data['message']);
+    Storage::disk('local')->put($attachment->path, 'Test document');
+    $conversation = $data['conversation'];
+    $offer = $conversation->offers()->create([
+        'business_id' => $data['business']->id,
+        'branch_id' => $data['branch']->id,
+        'patient_profile_id' => $data['patientProfile']->id,
+        'created_by' => $data['businessUser']->id,
+        'title' => 'Paket teklifi',
+        'amount' => 5000,
+        'currency' => 'TRY',
+        'status' => 'pending',
+    ]);
+    $admin = User::factory()->create(['is_admin' => true]);
+    $this->actingAs($admin)->postJson("/api/admin/businesses/{$data['business']->id}/suspend", [
+        'reason' => 'Klinik inceleme için askıya alındı.',
+    ])->assertOk();
+    $conversationUrl = "/api/conversations/{$conversation->id}";
+    $fileUrl = "/api/attachments/{$attachment->id}/view";
+    $offerUrl = "/api/offers/{$offer->id}";
+
+    $this->actingAs($data['businessUser'])->getJson('/api/conversations')->assertOk()->assertJsonCount(0, 'data.data');
+    $this->getJson($conversationUrl.'/offers')->assertForbidden();
+    $this->postJson($conversationUrl.'/offers', [])->assertForbidden();
+    $this->getJson($fileUrl)->assertForbidden();
+
+    $this->actingAs($data['patientUser'])->getJson('/api/conversations')
+        ->assertOk()->assertJsonPath('data.data.0.id', $conversation->id);
+    $this->getJson($conversationUrl)->assertOk()->assertJsonPath('data.messages.data.0.id', $data['message']->id);
+    $this->get($fileUrl)->assertOk();
+    $this->getJson($conversationUrl.'/offers')->assertOk()->assertJsonPath('data.0.id', $offer->id);
+    $this->postJson($conversationUrl.'/messages', ['body' => 'Yeni mesaj'])->assertUnprocessable();
+    $this->postJson('/api/conversations', ['business_id' => $data['business']->id])->assertUnprocessable();
+    $this->postJson($offerUrl.'/accept')->assertUnprocessable();
+    $this->postJson($offerUrl.'/reject')->assertUnprocessable();
+    expect($offer->refresh()->status)->toBe('pending');
+
+    $offer->update(['status' => 'accepted']);
+    $this->getJson($offerUrl.'/appointments')->assertOk();
+    $this->getJson($offerUrl.'/appointments/options')->assertUnprocessable();
+    $this->postJson($offerUrl.'/appointments', [])->assertUnprocessable();
+
+    $this->actingAs($admin)->postJson("/api/admin/businesses/{$data['business']->id}/reactivate", [
+        'reason' => 'Klinik incelemesi tamamlandı.',
+    ])->assertOk();
+    $this->actingAs($data['patientUser'])->postJson($conversationUrl.'/messages', [
+        'body' => 'Klinik açıldıktan sonra yeni mesaj.',
+    ])->assertCreated();
+});
 
 test('patient can view attachment from their conversation', function () {
     Storage::fake('local');

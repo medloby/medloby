@@ -2,15 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\CrmLeadResource;
 use App\Models\Branch;
 use App\Models\BusinessUser;
 use App\Models\CrmLead;
 use App\Models\CrmPipelineStage;
 use App\Models\CrmPipelineStageHistory;
+use App\Models\PatientProfile;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class CrmLeadController extends Controller
 {
@@ -50,10 +52,10 @@ class CrmLeadController extends Controller
         }
 
         if ($request->filled('assigned_business_user_id')) {
-            $query->where(
-                'assigned_business_user_id',
-                $request->integer('assigned_business_user_id')
-            );
+            $query->whereIn('assigned_business_user_id', BusinessUser::query()
+                ->activeForBranch($branch)
+                ->whereKey($request->integer('assigned_business_user_id'))
+                ->select('business_user.id'));
         }
 
         if ($request->filled('pipeline_stage_id')) {
@@ -68,7 +70,7 @@ class CrmLeadController extends Controller
                 ->where('business_id', $branch->business_id)])
                 ->paginate((int) $filters['per_page'], ['id', 'first_name', 'last_name', 'phone', 'email', 'status', 'pipeline_stage_id'])
                 ->withQueryString()
-            : $query->with(['patientProfile', 'assignedBusinessUser', 'pipelineStage'])->get();
+            : CrmLeadResource::collection($query->with($this->leadRelations($branch))->get());
 
         return response()->json([
             'success' => true,
@@ -84,12 +86,10 @@ class CrmLeadController extends Controller
             'patient_profile_id' => [
                 'nullable',
                 'integer',
-                'exists:patient_profiles,id',
             ],
             'assigned_business_user_id' => [
                 'nullable',
                 'integer',
-                'exists:business_user,id',
             ],
             'pipeline_stage_id' => [
                 'nullable',
@@ -175,6 +175,8 @@ class CrmLeadController extends Controller
             $branch,
             $pipelineStage
         ) {
+            $this->validateLeadRelations($validated, $branch);
+
             $lead = CrmLead::create([
                 'business_id' => $branch->business_id,
                 'branch_id' => $branch->id,
@@ -227,20 +229,15 @@ class CrmLeadController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $lead->fresh([
-                'patientProfile',
-                'assignedBusinessUser',
-                'branch',
-                'pipelineStage',
-            ]),
-        ], 201);
+            'data' => new CrmLeadResource($lead->load($this->leadRelations($branch))),
+        ], 201)->header('Cache-Control', 'private, no-store');
     }
 
     public function show(
         Branch $branch,
         CrmLead $crmLead
     ): JsonResponse {
-        if ($crmLead->branch_id !== $branch->id) {
+        if ($crmLead->business_id !== $branch->business_id || $crmLead->branch_id !== $branch->id) {
             return response()->json([
                 'success' => false,
                 'message' => 'Bu lead belirtilen merkeze ait değil.',
@@ -249,16 +246,13 @@ class CrmLeadController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $crmLead->load([
-                'patientProfile',
-                'assignedBusinessUser',
-                'branch',
-                'pipelineStage',
-                'pipelineStageHistories.fromStage',
-                'pipelineStageHistories.toStage',
-                'pipelineStageHistories.changedByBusinessUser',
-            ]),
-        ]);
+            'data' => new CrmLeadResource($crmLead->load([
+                ...$this->leadRelations($branch),
+                'pipelineStageHistories.fromStage' => fn ($stage) => $stage->where('business_id', $branch->business_id),
+                'pipelineStageHistories.toStage' => fn ($stage) => $stage->where('business_id', $branch->business_id),
+                'pipelineStageHistories.changedByBusinessUser' => fn ($member) => $member->where('business_id', $branch->business_id),
+            ])),
+        ])->header('Cache-Control', 'private, no-store');
     }
 
     public function update(
@@ -266,7 +260,7 @@ class CrmLeadController extends Controller
         Branch $branch,
         CrmLead $crmLead
     ): JsonResponse {
-        if ($crmLead->branch_id !== $branch->id) {
+        if ($crmLead->business_id !== $branch->business_id || $crmLead->branch_id !== $branch->id) {
             return response()->json([
                 'success' => false,
                 'message' => 'Bu lead belirtilen merkeze ait değil.',
@@ -277,12 +271,10 @@ class CrmLeadController extends Controller
             'patient_profile_id' => [
                 'nullable',
                 'integer',
-                'exists:patient_profiles,id',
             ],
             'assigned_business_user_id' => [
                 'nullable',
                 'integer',
-                'exists:business_user,id',
             ],
             'pipeline_stage_id' => [
                 'sometimes',
@@ -373,96 +365,62 @@ class CrmLeadController extends Controller
             ],
         ]);
 
-        $pipelineStageChanged = false;
-        $oldPipelineStageId = $crmLead->pipeline_stage_id;
-        $newPipelineStageId = $oldPipelineStageId;
-
-        if (
-            array_key_exists(
-                'pipeline_stage_id',
-                $validated
-            )
-        ) {
-            $newPipelineStageId =
-                $validated['pipeline_stage_id'];
-
-            if (
-                $newPipelineStageId !== null
-                && (int) $newPipelineStageId
-                    !== (int) $oldPipelineStageId
-            ) {
-                $pipelineStage = CrmPipelineStage::query()
-                    ->where(
-                        'id',
-                        $newPipelineStageId
-                    )
-                    ->where(
-                        'business_id',
-                        $branch->business_id
-                    )
-                    ->where('is_active', true)
-                    ->first();
-
-                if (! $pipelineStage) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Seçilen pipeline aşaması bu işletmeye ait değil veya aktif değil.',
-                    ], 422);
-                }
-
-                $pipelineStageChanged = true;
-            }
-        }
-
+        $pipelineStageNote = $validated['pipeline_stage_note'] ?? null;
         unset($validated['pipeline_stage_note']);
 
-        DB::transaction(function () use (
-            $crmLead,
-            $validated,
-            $pipelineStageChanged,
-            $oldPipelineStageId,
-            $newPipelineStageId,
-            $request,
-            $branch
-        ) {
-            $crmLead->update($validated);
+        return DB::transaction(function () use ($crmLead, $validated, $pipelineStageNote, $branch): JsonResponse {
+            $lead = CrmLead::query()->where('business_id', $branch->business_id)
+                ->where('branch_id', $branch->id)->lockForUpdate()->findOrFail($crmLead->id);
+            $this->validateLeadRelations($validated, $branch);
 
-            if ($pipelineStageChanged) {
+            if (array_key_exists('patient_profile_id', $validated)
+                && (int) $validated['patient_profile_id'] !== (int) $lead->patient_profile_id
+                && $lead->conversations()->where('business_id', $branch->business_id)
+                    ->where('branch_id', $branch->id)->where('patient_profile_id', $lead->patient_profile_id)->exists()) {
+                throw ValidationException::withMessages([
+                    'patient_profile_id' => 'Bağlı bir görüşmesi olan adayın hastası değiştirilemez.',
+                ]);
+            }
+
+            $oldStageId = $lead->pipeline_stage_id;
+            $newStageId = array_key_exists('pipeline_stage_id', $validated)
+                ? $validated['pipeline_stage_id']
+                : $oldStageId;
+            $stageChanged = $newStageId !== null && (int) $newStageId !== (int) $oldStageId;
+
+            if ($stageChanged && ! CrmPipelineStage::query()->whereKey($newStageId)
+                ->where('business_id', $branch->business_id)->where('is_active', true)->exists()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Seçilen pipeline aşaması bu işletmeye ait değil veya aktif değil.',
+                ], 422);
+            }
+
+            $lead->update($validated);
+
+            if ($stageChanged) {
                 CrmPipelineStageHistory::create([
-                    'crm_lead_id' => $crmLead->id,
-                    'from_stage_id' =>
-                        $oldPipelineStageId,
-                    'to_stage_id' =>
-                        $newPipelineStageId,
-                    'changed_by_business_user_id' =>
-                        $this->resolveBusinessUserId(
-                            $branch->business_id
-                        ),
-                    'notes' =>
-                        $request->input(
-                            'pipeline_stage_note'
-                        ),
+                    'crm_lead_id' => $lead->id,
+                    'from_stage_id' => $oldStageId,
+                    'to_stage_id' => $newStageId,
+                    'changed_by_business_user_id' => $this->resolveBusinessUserId($branch->business_id),
+                    'notes' => $pipelineStageNote,
                     'changed_at' => now(),
                 ]);
             }
-        });
 
-        return response()->json([
-            'success' => true,
-            'data' => $crmLead->fresh([
-                'patientProfile',
-                'assignedBusinessUser',
-                'branch',
-                'pipelineStage',
-            ]),
-        ]);
+            return response()->json([
+                'success' => true,
+                'data' => new CrmLeadResource($lead->load($this->leadRelations($branch))),
+            ])->header('Cache-Control', 'private, no-store');
+        }, attempts: 3);
     }
 
     public function convert(
         Branch $branch,
         CrmLead $crmLead
     ): JsonResponse {
-        if ($crmLead->branch_id !== $branch->id) {
+        if ($crmLead->business_id !== $branch->business_id || $crmLead->branch_id !== $branch->id) {
             return response()->json([
                 'success' => false,
                 'message' => 'Bu lead belirtilen merkeze ait değil.',
@@ -476,13 +434,8 @@ class CrmLeadController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $crmLead->fresh([
-                'patientProfile',
-                'assignedBusinessUser',
-                'branch',
-                'pipelineStage',
-            ]),
-        ]);
+            'data' => new CrmLeadResource($crmLead->load($this->leadRelations($branch))),
+        ])->header('Cache-Control', 'private, no-store');
     }
 
     public function markLost(
@@ -490,7 +443,7 @@ class CrmLeadController extends Controller
         Branch $branch,
         CrmLead $crmLead
     ): JsonResponse {
-        if ($crmLead->branch_id !== $branch->id) {
+        if ($crmLead->business_id !== $branch->business_id || $crmLead->branch_id !== $branch->id) {
             return response()->json([
                 'success' => false,
                 'message' => 'Bu lead belirtilen merkeze ait değil.',
@@ -513,13 +466,37 @@ class CrmLeadController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $crmLead->fresh([
-                'patientProfile',
-                'assignedBusinessUser',
-                'branch',
-                'pipelineStage',
-            ]),
-        ]);
+            'data' => new CrmLeadResource($crmLead->load($this->leadRelations($branch))),
+        ])->header('Cache-Control', 'private, no-store');
+    }
+
+    private function leadRelations(Branch $branch): array
+    {
+        return [
+            'patientProfile' => fn ($patient) => $patient->knownToBranch($branch),
+            'assignedBusinessUser' => fn ($member) => $member->activeForBranch($branch),
+            'branch',
+            'pipelineStage' => fn ($stage) => $stage->where('business_id', $branch->business_id),
+        ];
+    }
+
+    private function validateLeadRelations(array $validated, Branch $branch): void
+    {
+        $errors = [];
+
+        if (isset($validated['patient_profile_id']) && ! PatientProfile::query()
+            ->knownToBranch($branch)->whereKey($validated['patient_profile_id'])->exists()) {
+            $errors['patient_profile_id'] = 'Seçilen hasta bu şubede ilişkilendirilemiyor.';
+        }
+
+        if (isset($validated['assigned_business_user_id']) && ! BusinessUser::query()
+            ->activeForBranch($branch)->whereKey($validated['assigned_business_user_id'])->exists()) {
+            $errors['assigned_business_user_id'] = 'Seçilen personel bu şubede aktif ve yetkili olmalıdır.';
+        }
+
+        if ($errors !== []) {
+            throw ValidationException::withMessages($errors);
+        }
     }
 
     private function resolveBusinessUserId(

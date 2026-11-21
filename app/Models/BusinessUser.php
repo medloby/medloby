@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -22,6 +24,16 @@ class BusinessUser extends Model
         return [
             'is_active' => 'boolean',
         ];
+    }
+
+    #[Scope]
+    protected function activeForBranch(Builder $query, Branch $branch): Builder
+    {
+        return $query->where('business_user.business_id', $branch->business_id)
+            ->where('business_user.is_active', true)
+            ->where(fn (Builder $membership) => $membership->where('business_user.role', 'business_owner')
+                ->orWhereHas('branches', fn (Builder $branches) => $branches->whereKey($branch->id)
+                    ->where('business_user_branch.is_active', true)));
     }
 
     public function business(): BelongsTo

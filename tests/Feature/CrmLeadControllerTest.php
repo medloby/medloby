@@ -1,11 +1,14 @@
 <?php
 
+use App\Models\Appointment;
 use App\Models\Branch;
 use App\Models\Business;
 use App\Models\BusinessUser;
+use App\Models\Conversation;
 use App\Models\CrmLead;
 use App\Models\CrmPipelineStage;
 use App\Models\CrmPipelineStageHistory;
+use App\Models\PatientProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -310,6 +313,7 @@ test('can assign lead to business user', function () {
         'role' => 'staff',
         'is_active' => true,
     ]);
+    $businessUser->branches()->attach($this->branch->id, ['is_active' => true]);
 
     $response = $this->postJson(
         "/api/branches/{$this->branch->id}/crm/leads",
@@ -325,6 +329,74 @@ test('can assign lead to business user', function () {
             'data.assigned_business_user.id',
             $businessUser->id
         );
+});
+
+test('crm links patients and staff only within the lead branch', function () {
+    $patient = PatientProfile::create([
+        'user_id' => User::factory()->create()->id,
+        'first_name' => 'Branch', 'last_name' => 'Patient',
+    ]);
+    Conversation::create([
+        'business_id' => $this->business->id,
+        'branch_id' => $this->otherBranch->id,
+        'patient_profile_id' => $patient->id,
+        'status' => 'open',
+    ]);
+    $staff = $this->business->memberships()->create([
+        'user_id' => User::factory()->create()->id, 'role' => 'staff', 'is_active' => true,
+    ]);
+    $staff->branches()->attach($this->otherBranch->id, ['is_active' => true]);
+    $links = ['patient_profile_id' => $patient->id, 'assigned_business_user_id' => $staff->id];
+    $url = "/api/branches/{$this->branch->id}/crm/leads";
+
+    $this->postJson($url, $links)->assertUnprocessable()->assertJsonValidationErrors(array_keys($links));
+    $this->assertDatabaseCount('crm_leads', 0);
+
+    $lead = CrmLead::create([
+        'business_id' => $this->business->id,
+        'branch_id' => $this->branch->id,
+        ...$links,
+    ]);
+    $leadUrl = $url.'/'.$lead->id;
+    $this->getJson($leadUrl)
+        ->assertOk()
+        ->assertJsonPath('data.patient_profile', null)
+        ->assertJsonPath('data.patient_profile_id', null)
+        ->assertJsonPath('data.assigned_business_user', null)
+        ->assertJsonPath('data.assigned_business_user_id', null);
+    $this->assertDatabaseHas('crm_leads', ['id' => $lead->id, ...$links]);
+
+    $this->putJson($leadUrl, $links)->assertUnprocessable()->assertJsonValidationErrors(array_keys($links));
+    $appointment = Appointment::create([
+        'business_id' => $this->business->id,
+        'branch_id' => $this->branch->id,
+        'patient_profile_id' => $patient->id,
+        'starts_at' => now()->subDay(),
+        'ends_at' => now()->subDay()->addHour(),
+        'status' => 'completed',
+    ]);
+    $staff->branches()->attach($this->branch->id, ['is_active' => true]);
+    $this->putJson($leadUrl, $links)->assertUnprocessable()->assertJsonValidationErrors(['patient_profile_id']);
+    $appointment->statusHistories()->create([
+        'new_status' => 'pending',
+        'changed_by_user_id' => $patient->user_id,
+        'changed_at' => $appointment->created_at,
+    ]);
+    $this->putJson($leadUrl, $links)->assertOk()
+        ->assertJsonPath('data.patient_profile.id', $patient->id)
+        ->assertJsonPath('data.assigned_business_user.id', $staff->id);
+    $conversation = Conversation::create([
+        'business_id' => $this->business->id,
+        'branch_id' => $this->branch->id,
+        'patient_profile_id' => $patient->id,
+        'status' => 'open',
+    ]);
+    $this->postJson($leadUrl."/conversations/{$conversation->id}/attach", [])->assertOk();
+
+    $this->putJson($leadUrl, ['patient_profile_id' => null])
+        ->assertUnprocessable()->assertJsonValidationErrors(['patient_profile_id']);
+    $this->assertDatabaseHas('crm_leads', ['id' => $lead->id, ...$links]);
+    $this->assertDatabaseHas('conversations', ['id' => $conversation->id, 'crm_lead_id' => $lead->id]);
 });
 
 test('can show crm lead', function () {
@@ -544,6 +616,7 @@ test('can filter leads by assigned business user', function () {
         'role' => 'staff',
         'is_active' => true,
     ]);
+    $businessUser->branches()->attach($this->branch->id, ['is_active' => true]);
 
     $assignedLead = CrmLead::create([
         'business_id' => $this->business->id,

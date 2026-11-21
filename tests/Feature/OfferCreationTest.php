@@ -35,7 +35,7 @@ function createOfferCreationData(): array
     BusinessUser::create([
         'business_id' => $business->id,
         'user_id' => $businessUser->id,
-        'role' => 'owner',
+        'role' => 'business_owner',
         'is_active' => true,
     ]);
 

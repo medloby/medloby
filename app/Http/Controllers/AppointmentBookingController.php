@@ -24,7 +24,9 @@ class AppointmentBookingController extends Controller
     public function index(Request $request, Offer $offer): JsonResponse
     {
         $user = $request->user();
-        $clinicBranchIds = $user->accessibleBranchIds($offer->business_id);
+        $clinicBranchIds = $offer->hasActiveClinic() && $offer->conversation()->accessibleToClinic($user)->exists()
+            ? $user->accessibleBranchIds($offer->business_id)
+            : [];
         $branchIds = null;
 
         if (! $this->isOfferPatient($request, $offer)) {
@@ -92,7 +94,8 @@ class AppointmentBookingController extends Controller
                 return $summary;
             });
 
-        return response()->json(['success' => true, 'data' => $appointments]);
+        return response()->json(['success' => true, 'data' => $appointments])
+            ->header('Cache-Control', 'private, no-store');
     }
 
     public function store(
@@ -282,7 +285,8 @@ class AppointmentBookingController extends Controller
                 ->values();
         }
 
-        return response()->json(['success' => true, 'data' => $data]);
+        return response()->json(['success' => true, 'data' => $data])
+            ->header('Cache-Control', 'private, no-store');
     }
 
     private function isOfferPatient(Request $request, Offer $offer): bool
@@ -300,6 +304,8 @@ class AppointmentBookingController extends Controller
                 'Bu teklif üzerinden randevu oluşturma yetkiniz yok.'
             );
         }
+
+        abort_unless($offer->hasActiveClinic(), 422, 'Bu sağlık merkezi şu anda randevuya açık değil.');
 
         if ($offer->status !== 'accepted') {
             abort(

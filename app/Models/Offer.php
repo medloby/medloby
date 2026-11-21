@@ -43,6 +43,16 @@ class Offer extends Model
         return $this->belongsTo(Conversation::class);
     }
 
+    public function hasActiveClinic(): bool
+    {
+        return $this->conversation()->withActiveClinic()
+            ->where('business_id', $this->business_id)
+            ->where('patient_profile_id', $this->patient_profile_id)
+            ->exists()
+            && ($this->branch_id === null || $this->branch()
+                ->where('business_id', $this->business_id)->where('status', 'active')->exists());
+    }
+
     public function business(): BelongsTo
     {
         return $this->belongsTo(Business::class);

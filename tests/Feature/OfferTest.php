@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Appointment;
+use App\Models\Branch;
 use App\Models\Business;
 use App\Models\BusinessUser;
 use App\Models\Conversation;
@@ -194,6 +195,38 @@ function createOfferBookingData(): array
         'startsAt' => $startsAt,
     ];
 }
+
+test('staff only see offers for assigned branches in a clinic-wide conversation', function () {
+    $data = createOfferBookingData();
+    $data['conversation']->update(['branch_id' => null]);
+    $secondBranch = Branch::factory()->for($data['business'])->create();
+    $membership = $data['businessUser']->businessMemberships()->sole();
+    $membership->branches()->attach($secondBranch->id, ['is_active' => true]);
+    $url = "/api/conversations/{$data['conversation']->id}/offers";
+    $offerUrl = "/api/offers/{$data['offer']->id}/appointments";
+
+    $this->actingAs($data['businessUser'])->getJson($url)->assertOk()->assertJsonCount(0, 'data');
+    $this->getJson($offerUrl)->assertForbidden();
+
+    $membership->branches()->attach($data['branch']->id, ['is_active' => true]);
+    $this->getJson($url)->assertOk()->assertJsonPath('data.0.id', $data['offer']->id);
+    $this->getJson($offerUrl)->assertOk();
+});
+
+test('a clinic-wide offer cannot be booked online at an inactive branch', function () {
+    $data = createOfferBookingData();
+    $data['conversation']->update(['branch_id' => null]);
+    $data['offer']->update(['branch_id' => null]);
+    Branch::findOrFail($data['branch']->id)->update(['status' => 'inactive']);
+
+    $this->actingAs($data['patientUser'])->postJson("/api/offers/{$data['offer']->id}/appointments", [
+        'branch_id' => $data['branch']->id,
+        'doctor_id' => $data['doctor']->id,
+        'starts_at' => $data['startsAt']->toDateTimeString(),
+    ])->assertUnprocessable()
+        ->assertJsonPath('message', 'Seçilen şube şu anda çevrimiçi randevuya açık değil.');
+    $this->assertDatabaseCount('appointments', 0);
+});
 
 test('patient can view offers belonging to their conversation', function () {
     $data = createOfferTestData();
@@ -857,7 +890,7 @@ test('a patient can accept a package offer and book all sessions only once', fun
     $membership->branches()->detach($data['branch']->id);
     $this->actingAs($data['businessUser'])->getJson($url)->assertForbidden();
     $offersUrl = "/api/conversations/{$data['conversation']->id}/offers";
-    $this->getJson($offersUrl)->assertOk()->assertJsonPath('data.0.appointments_exists', false);
+    $this->getJson($offersUrl)->assertForbidden();
 
     $otherBranch = $data['business']->branches()->create([
         'name' => 'Diğer Şube',
@@ -866,7 +899,7 @@ test('a patient can accept a package offer and book all sessions only once', fun
     ]);
     $membership->branches()->attach($otherBranch->id, ['is_active' => true]);
     $this->getJson($url)->assertForbidden();
-    $this->getJson($offersUrl)->assertOk()->assertJsonPath('data.0.appointments_exists', false);
+    $this->getJson($offersUrl)->assertForbidden();
 
     $membership->branches()->attach($data['branch']->id, ['is_active' => true]);
     $this->getJson($offersUrl)->assertOk()->assertJsonPath('data.0.appointments_exists', true);
