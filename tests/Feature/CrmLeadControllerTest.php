@@ -93,6 +93,41 @@ test('cannot list leads belonging to another branch', function () {
         ->assertJsonCount(0, 'data');
 });
 
+test('paginated crm leads are ordered, filtered and limited to fields needed for the branch list', function () {
+    $this->freezeTime();
+    $branchLead = [
+        'business_id' => $this->business->id,
+        'branch_id' => $this->branch->id,
+        'status' => 'new',
+    ];
+    $first = CrmLead::create($branchLead + ['first_name' => 'Önceki kayıt']);
+    $stage = CrmPipelineStage::create([
+        'business_id' => $this->business->id,
+        'name' => 'İlk temas',
+        'slug' => 'ilk-temas',
+    ]);
+    $latest = CrmLead::create($branchLead + [
+        'first_name' => 'Son kayıt',
+        'pipeline_stage_id' => $stage->id,
+        'notes' => 'Sadece ayrıntı ekranı için not.',
+    ]);
+    CrmLead::create(array_replace($branchLead, ['branch_id' => $this->otherBranch->id]));
+    CrmLead::create(array_replace($branchLead, ['status' => 'contacted']));
+
+    $path = "/api/branches/{$this->branch->id}/crm/leads?status=new&per_page=1";
+    $this->getJson($path)
+        ->assertOk()
+        ->assertJsonPath('data.total', 2)
+        ->assertJsonPath('data.last_page', 2)
+        ->assertJsonCount(1, 'data.data')
+        ->assertJsonPath('data.data.0.id', $latest->id)
+        ->assertJsonPath('data.data.0.pipeline_stage.name', 'İlk temas')
+        ->assertJsonMissingPath('data.data.0.notes')
+        ->assertJsonMissingPath('data.data.0.patient_profile');
+
+    $this->getJson($path.'&page=2')->assertOk()->assertJsonPath('data.data.0.id', $first->id);
+});
+
 test('can filter leads by status', function () {
     $newLead = CrmLead::create([
         'business_id' => $this->business->id,

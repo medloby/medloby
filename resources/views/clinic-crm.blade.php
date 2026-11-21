@@ -20,6 +20,8 @@
         </section>
     </div>
 
+    @include('crm-leads')
+
     <template data-crm-metric>
         <div class="grid gap-1 rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900">
             <dt class="text-sm text-slate-600 dark:text-slate-300"></dt>

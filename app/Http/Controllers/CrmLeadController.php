@@ -18,14 +18,15 @@ class CrmLeadController extends Controller
         Request $request,
         Branch $branch
     ): JsonResponse {
+        $filters = $request->validate([
+            'per_page' => ['sometimes', 'required', 'integer', 'min:1', 'max:100'],
+        ]);
+
         $query = CrmLead::query()
+            ->where('business_id', $branch->business_id)
             ->where('branch_id', $branch->id)
-            ->with([
-                'patientProfile',
-                'assignedBusinessUser',
-                'pipelineStage',
-            ])
-            ->latest();
+            ->latest()
+            ->orderByDesc('id');
 
         if ($request->filled('status')) {
             $query->where(
@@ -62,10 +63,17 @@ class CrmLeadController extends Controller
             );
         }
 
+        $leads = isset($filters['per_page'])
+            ? $query->with(['pipelineStage' => fn ($stage) => $stage->select('id', 'name')
+                ->where('business_id', $branch->business_id)])
+                ->paginate((int) $filters['per_page'], ['id', 'first_name', 'last_name', 'phone', 'email', 'status', 'pipeline_stage_id'])
+                ->withQueryString()
+            : $query->with(['patientProfile', 'assignedBusinessUser', 'pipelineStage'])->get();
+
         return response()->json([
             'success' => true,
-            'data' => $query->get(),
-        ]);
+            'data' => $leads,
+        ])->header('Cache-Control', 'private, no-store');
     }
 
     public function store(

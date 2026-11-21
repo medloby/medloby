@@ -1,3 +1,5 @@
+import { mountCrmLeads } from './crm-leads';
+
 const metricLabels = {
     total_leads: 'Toplam hasta adayı',
     new_leads: 'Yeni hasta adayı',
@@ -15,6 +17,7 @@ export function mountClinicCrm(section, api) {
     const summary = find('summary');
     const metrics = find('metrics');
     const pipeline = find('pipeline');
+    const leads = mountCrmLeads(find('leads'), { api, onCreated: refreshDashboard });
     let businessId = null;
     let request = 0;
 
@@ -63,6 +66,7 @@ export function mountClinicCrm(section, api) {
 
     async function loadBusiness(preferredBranch = '') {
         const pending = ++request;
+        leads.setBranch(null);
         clearSummary();
         title.textContent = '';
         branchField.hidden = true;
@@ -88,6 +92,7 @@ export function mountClinicCrm(section, api) {
                 ? preferredBranch
                 : String(branches[0].id);
             branchField.hidden = false;
+            leads.setBranch(branch.value);
             await loadDashboard(branch.value, pending);
         } catch (error) {
             if (pending === request) {
@@ -100,8 +105,7 @@ export function mountClinicCrm(section, api) {
         }
     }
 
-    refresh.addEventListener('click', () => loadBusiness(branch.value));
-    branch.addEventListener('change', async () => {
+    async function refreshDashboard() {
         const pending = ++request;
         setLoading(true);
         try {
@@ -115,6 +119,12 @@ export function mountClinicCrm(section, api) {
                 setLoading(false);
             }
         }
+    }
+
+    refresh.addEventListener('click', () => loadBusiness(branch.value));
+    branch.addEventListener('change', () => {
+        leads.setBranch(branch.value);
+        refreshDashboard();
     });
 
     return {
@@ -129,6 +139,7 @@ export function mountClinicCrm(section, api) {
                 loadBusiness();
             } else {
                 request++;
+                leads.setBranch(null);
                 clearSummary();
                 title.textContent = '';
                 branch.replaceChildren();
