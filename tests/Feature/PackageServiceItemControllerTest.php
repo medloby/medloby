@@ -10,7 +10,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
-    $this->business = Business::create([
+    $this->business = Business::factory()->create([
         'name' => 'Test Klinik',
         'slug' => 'test-klinik-'.uniqid(),
     ]);
@@ -81,10 +81,7 @@ test('can list package service items', function () {
             'data.0.quantity',
             2
         )
-        ->assertJsonPath(
-            'data.0.notes',
-            'Gidiş ve dönüş transferi.'
-        );
+        ->assertJsonMissingPath('data.0.notes');
 });
 
 test('package service items are returned in sort order', function () {

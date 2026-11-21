@@ -46,21 +46,27 @@ class TreatmentPackage extends Model
     }
 
     #[Scope]
-    protected function availableForEnquiries(Builder $query): Builder
+    protected function publishedInCatalog(Builder $query): Builder
     {
         $today = today()->toDateString();
 
         return $query->where('treatment_packages.is_active', true)
-            ->where('treatment_packages.is_offer_enabled', true)
             ->where(fn (Builder $packages) => $packages
                 ->whereNull('valid_from')->orWhereDate('valid_from', '<=', $today))
             ->where(fn (Builder $packages) => $packages
                 ->whereNull('valid_until')->orWhereDate('valid_until', '>=', $today))
             ->whereHas('business', fn (Builder $businesses) => $businesses
                 ->where('status', 'active')->where('is_verified', true))
-            ->where(fn (Builder $packages) => $packages->whereNull('branch_id')
+            ->where(fn (Builder $packages) => $packages->whereNull('treatment_packages.branch_id')
                 ->orWhereHas('branch', fn (Builder $branches) => $branches->where('status', 'active')
-                    ->whereColumn('branches.business_id', 'treatment_packages.business_id')))
+                    ->whereColumn('branches.business_id', 'treatment_packages.business_id')));
+    }
+
+    #[Scope]
+    protected function availableForEnquiries(Builder $query): Builder
+    {
+        return $query->publishedInCatalog()
+            ->where('treatment_packages.is_offer_enabled', true)
             ->whereHas('treatments')
             ->whereDoesntHave('treatments', fn (Builder $treatments) => $treatments
                 ->where(fn (Builder $invalid) => $invalid->where('treatments.is_active', false)
@@ -73,6 +79,24 @@ class TreatmentPackage extends Model
             ->whereDoesntHave('services', fn (Builder $services) => $services
                 ->where(fn (Builder $invalid) => $invalid->where('package_services.is_active', false)
                     ->orWhereColumn('package_services.business_id', '!=', 'treatment_packages.business_id')));
+    }
+
+    #[Scope]
+    protected function withPublicContents(Builder $query): Builder
+    {
+        return $query->with([
+            'business:id,name',
+            'branch:id,name',
+            'treatments' => fn ($relation) => $relation->where('treatments.is_active', true)
+                ->select('treatments.id', 'treatments.name')->orderByPivot('sort_order'),
+            'services' => fn ($relation) => $relation->where('package_services.is_active', true)
+                ->select('package_services.id', 'package_services.name', 'package_services.business_id')->orderByPivot('sort_order'),
+        ]);
+    }
+
+    public function isPublishedInCatalog(): bool
+    {
+        return $this->newQuery()->publishedInCatalog()->whereKey($this->getKey())->exists();
     }
 
     public function business(): BelongsTo

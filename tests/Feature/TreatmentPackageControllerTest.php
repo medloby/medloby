@@ -11,7 +11,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
-    $this->business = Business::create([
+    $this->business = Business::factory()->create([
         'name' => 'Test Klinik',
         'slug' => 'test-klinik-'.uniqid(),
     ]);
@@ -132,7 +132,7 @@ test('can list only offer enabled treatment packages', function () {
 });
 
 test('can filter treatment packages by business', function () {
-    $otherBusiness = Business::create([
+    $otherBusiness = Business::factory()->create([
         'name' => 'Other Klinik',
         'slug' => 'other-klinik-'.uniqid(),
     ]);
@@ -217,7 +217,7 @@ test('can filter treatment packages by package type', function () {
         );
 });
 
-test('can filter treatment packages by currency', function () {
+test('public package listing does not expose or filter by currency', function () {
     createPackage($this, [
         'name' => 'TRY Paket',
         'slug' => 'try-paket-'.uniqid(),
@@ -236,11 +236,9 @@ test('can filter treatment packages by currency', function () {
 
     $response
         ->assertSuccessful()
-        ->assertJsonCount(1, 'data.packages')
-        ->assertJsonPath(
-            'data.packages.0.currency',
-            'EUR'
-        );
+        ->assertJsonCount(2, 'data.packages')
+        ->assertJsonMissingPath('data.packages.0.currency')
+        ->assertJsonMissingPath('data.packages.1.currency');
 });
 
 test('can create treatment package', function () {

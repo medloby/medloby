@@ -122,7 +122,7 @@ export function mountPackageOffers(root) {
     });
     const clinicCrm = mountClinicCrm(get('clinic-crm'), api);
     const discoverySection = get('package-discovery');
-    const discovery = mountPackageDiscovery(discoverySection, { api, priceLabel, startConversation });
+    const discovery = mountPackageDiscovery(discoverySection, { api, startConversation });
     const thread = mountPackageConversation(get('package-conversation'), {
         api,
         downloadAttachment,
@@ -629,16 +629,11 @@ export function mountPackageOffers(root) {
         offerDialog.showModal();
 
         try {
-            const data = await api('/treatment-packages?offer_enabled=1&business_id=' + item.business_id);
+            const { packages } = await api('/conversations/' + item.id + '/offers/package-options');
             if (request !== dialogRequest) {
                 return;
             }
 
-            const packages = data.packages.filter((pkg) => (
-                (!pkg.branch_id || !item.branch_id || pkg.branch_id === item.branch_id)
-                && (!pkg.valid_from || pkg.valid_from.slice(0, 10) <= root.dataset.today)
-                && (!pkg.valid_until || pkg.valid_until.slice(0, 10) >= root.dataset.today)
-            ));
             selectedPackageById = new Map(packages.map((pkg) => [String(pkg.id), pkg]));
             setOptions(offerForm.elements.namedItem('package'), 'Paket seçin', packages.map((pkg) => [pkg.id, pkg.name]));
             const requested = packages.find((pkg) => pkg.id === item.treatment_package_id);

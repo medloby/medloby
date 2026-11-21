@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\PackageService;
+use App\Models\TreatmentPackage;
 use App\Services\CatalogManagementAccess;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -15,9 +17,7 @@ class PackageServiceController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $query = PackageService::query()
-            ->where('is_active', true)
-            ->with('business')
+        $query = $this->publicServices()
             ->orderBy('sort_order')
             ->orderBy('name');
 
@@ -117,15 +117,27 @@ class PackageServiceController extends Controller
     public function show(
         PackageService $packageService
     ): JsonResponse {
-        abort_unless($packageService->is_active, 404);
+        $service = $this->publicServices()->findOrFail($packageService->id);
+        $packages = $service->packages()
+            ->publishedInCatalog()
+            ->when($service->business_id !== null, fn ($query) => $query
+                ->where('treatment_packages.business_id', $service->business_id))
+            ->orderBy('treatment_packages.name')
+            ->get(['treatment_packages.id', 'treatment_packages.name', 'treatment_packages.slug', 'treatment_packages.package_type'])
+            ->map(fn (TreatmentPackage $package) => $package->only(['id', 'name', 'slug', 'package_type']));
 
         return response()->json([
             'success' => true,
-            'data' => $packageService->load([
-                'business',
-                'packages' => fn ($query) => $query->where('treatment_packages.is_active', true),
-            ]),
+            'data' => [...$service->toArray(), 'packages' => $packages],
         ]);
+    }
+
+    private function publicServices(): Builder
+    {
+        return PackageService::query()
+            ->publishedInCatalog()
+            ->select(['id', 'business_id', 'name', 'slug', 'service_type', 'description', 'unit', 'is_active', 'sort_order'])
+            ->with('business:id,name');
     }
 
     public function update(

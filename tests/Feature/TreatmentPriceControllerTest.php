@@ -68,7 +68,7 @@ test('can list treatment prices', function () {
         'is_active' => true,
     ]);
 
-    $response = $this->getJson('/api/treatment-prices');
+    $response = $this->actingAs($this->user, 'sanctum')->getJson('/api/treatment-prices');
 
     $response
         ->assertSuccessful()
@@ -103,7 +103,7 @@ test('can list only active treatment prices', function () {
         'is_active' => false,
     ]);
 
-    $response = $this->getJson(
+    $response = $this->actingAs($this->user, 'sanctum')->getJson(
         '/api/treatment-prices?active_only=1'
     );
 
@@ -138,7 +138,7 @@ test('can filter treatment prices by business', function () {
         'currency' => 'TRY',
     ]);
 
-    $response = $this->getJson(
+    $response = $this->actingAs($this->user, 'sanctum')->getJson(
         "/api/treatment-prices?business_id={$this->business->id}"
     );
 
@@ -175,7 +175,7 @@ test('can filter treatment prices by treatment', function () {
         'currency' => 'TRY',
     ]);
 
-    $response = $this->getJson(
+    $response = $this->actingAs($this->user, 'sanctum')->getJson(
         "/api/treatment-prices?treatment_id={$this->treatment->id}"
     );
 
@@ -206,7 +206,7 @@ test('can filter treatment prices by branch', function () {
         'currency' => 'TRY',
     ]);
 
-    $response = $this->getJson(
+    $response = $this->actingAs($this->user, 'sanctum')->getJson(
         "/api/treatment-prices?branch_id={$this->branch->id}"
     );
 
@@ -236,7 +236,7 @@ test('can filter treatment prices by currency', function () {
         'currency' => 'EUR',
     ]);
 
-    $response = $this->getJson(
+    $response = $this->actingAs($this->user, 'sanctum')->getJson(
         '/api/treatment-prices?currency=eur'
     );
 

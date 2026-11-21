@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\PackageServiceItem;
 use App\Models\TreatmentPackage;
 use App\Services\CatalogManagementAccess;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -16,15 +17,7 @@ class PackageServiceItemController extends Controller
     public function index(
         TreatmentPackage $treatmentPackage
     ): JsonResponse {
-        abort_unless($treatmentPackage->is_active, 404);
-
-        $items = PackageServiceItem::query()
-            ->where(
-                'treatment_package_id',
-                $treatmentPackage->id
-            )
-            ->whereHas('packageService', fn ($query) => $query->where('is_active', true))
-            ->with('packageService')
+        $items = $this->publicItems($treatmentPackage)
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get();
@@ -104,7 +97,7 @@ class PackageServiceItemController extends Controller
         TreatmentPackage $treatmentPackage,
         PackageServiceItem $packageServiceItem
     ): JsonResponse {
-        abort_unless($treatmentPackage->is_active, 404);
+        $items = $this->publicItems($treatmentPackage);
 
         if (
             $packageServiceItem->treatment_package_id
@@ -116,14 +109,23 @@ class PackageServiceItemController extends Controller
             ], 404);
         }
 
-        abort_unless($packageServiceItem->packageService?->is_active, 404);
-
         return response()->json([
             'success' => true,
-            'data' => $packageServiceItem->load([
-                'packageService',
-            ]),
+            'data' => $items->findOrFail($packageServiceItem->id),
         ]);
+    }
+
+    private function publicItems(TreatmentPackage $package): Builder
+    {
+        abort_unless($package->isPublishedInCatalog(), 404);
+
+        return PackageServiceItem::query()
+            ->where('treatment_package_id', $package->id)
+            ->whereHas('packageService', fn (Builder $services) => $services
+                ->publishedInCatalog()
+                ->where(fn (Builder $scope) => $scope->whereNull('business_id')->orWhere('business_id', $package->business_id)))
+            ->select(['id', 'treatment_package_id', 'package_service_id', 'quantity', 'sort_order'])
+            ->with('packageService:id,business_id,name,service_type');
     }
 
     public function update(

@@ -18,6 +18,7 @@ class TreatmentPriceController extends Controller
     public function index(Request $request): JsonResponse
     {
         $query = TreatmentPrice::query()
+            ->visibleTo($request->user())
             ->with([
                 'business',
                 'treatment',
@@ -72,7 +73,7 @@ class TreatmentPriceController extends Controller
             'data' => [
                 'prices' => $prices,
             ],
-        ]);
+        ])->header('Cache-Control', 'private, no-store');
     }
 
     public function store(Request $request): JsonResponse
@@ -246,34 +247,16 @@ class TreatmentPriceController extends Controller
         Request $request,
         TreatmentPrice $treatmentPrice
     ): JsonResponse {
-        if (! $request->user()) {
-            abort(401);
-        }
+        $price = TreatmentPrice::query()->visibleTo($request->user())
+            ->with(['business', 'treatment', 'branch', 'doctor'])
+            ->find($treatmentPrice->id);
 
-        if (
-            ! $request->user()
-                ->businessMemberships()
-                ->where(
-                    'business_id',
-                    $treatmentPrice->business_id
-                )
-                ->where('is_active', true)
-                ->exists()
-        ) {
-            abort(403, 'Bu işletmeye erişim yetkiniz yok.');
-        }
-
-        $treatmentPrice->load([
-            'business',
-            'treatment',
-            'branch',
-            'doctor',
-        ]);
+        abort_unless($price, 403, 'Bu tedavi fiyatına erişim yetkiniz yok.');
 
         return response()->json([
             'success' => true,
-            'data' => $treatmentPrice,
-        ]);
+            'data' => $price,
+        ])->header('Cache-Control', 'private, no-store');
     }
 
     public function update(

@@ -12,7 +12,6 @@
             <div class="min-w-0">
                 <p class="break-words text-sm text-slate-600 dark:text-slate-300" data-discovery-clinic></p>
                 <h2 class="mt-1 break-words text-xl font-semibold tracking-tight" data-discovery-name></h2>
-                <p class="mt-1 text-sm font-semibold text-teal-800 dark:text-teal-300" data-discovery-price></p>
             </div>
             <p class="whitespace-pre-wrap break-words text-sm text-slate-700 dark:text-slate-300" data-discovery-description hidden></p>
             <div class="grid gap-3 text-sm" data-discovery-contents></div>

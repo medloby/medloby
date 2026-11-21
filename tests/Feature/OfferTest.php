@@ -737,6 +737,9 @@ test('patient cannot create a second appointment from the same accepted offer', 
 });
 test('a patient can accept a package offer and book all sessions only once', function () {
     $data = createOfferBookingData();
+    $membership = $data['businessUser']->businessMemberships()->sole();
+    $membership->update(['role' => 'staff']);
+    $membership->branches()->attach($data['branch']->id, ['is_active' => true]);
     $package = $data['business']->treatmentPackages()->create([
         'branch_id' => $data['branch']->id,
         'name' => 'İki Seanslık Paket',
@@ -851,12 +854,11 @@ test('a patient can accept a package offer and book all sessions only once', fun
         ->assertJsonPath('data.1.id', $replacement->id)
         ->assertJsonPath('data.1.starts_at', $replacement->starts_at->toDateTimeString());
 
+    $membership->branches()->detach($data['branch']->id);
     $this->actingAs($data['businessUser'])->getJson($url)->assertForbidden();
     $offersUrl = "/api/conversations/{$data['conversation']->id}/offers";
     $this->getJson($offersUrl)->assertOk()->assertJsonPath('data.0.appointments_exists', false);
 
-    $membership = $data['businessUser']->businessMemberships()->sole();
-    $membership->update(['role' => 'staff']);
     $otherBranch = $data['business']->branches()->create([
         'name' => 'Diğer Şube',
         'slug' => 'diger-teklif-subesi',

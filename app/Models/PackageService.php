@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -25,6 +27,14 @@ class PackageService extends Model
             'is_active' => 'boolean',
             'sort_order' => 'integer',
         ];
+    }
+
+    #[Scope]
+    protected function publishedInCatalog(Builder $query): Builder
+    {
+        return $query->where('package_services.is_active', true)
+            ->where(fn (Builder $services) => $services->whereNull('package_services.business_id')
+                ->orWhereHas('business', fn (Builder $business) => $business->where('status', 'active')->where('is_verified', true)));
     }
 
     public function business(): BelongsTo

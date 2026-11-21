@@ -523,6 +523,8 @@ Route::prefix('notifications')->group(function () {
 
             ]);
 
+            Route::get('/{conversation}/offers/package-options', [OfferController::class, 'packageOptions']);
+
         });
 
         /*
@@ -917,10 +919,9 @@ Route::controller(BranchTreatmentController::class)->prefix('branches/{branch}/t
 });
 
 Route::controller(TreatmentPriceController::class)->prefix('treatment-prices')->group(function () {
-    Route::get('/', 'index');
-    Route::get('/{treatmentPrice}', 'show');
-
     Route::middleware(['auth:sanctum', 'verified'])->group(function () {
+        Route::get('/', 'index');
+        Route::get('/{treatmentPrice}', 'show');
         Route::post('/', 'store');
         Route::put('/{treatmentPrice}', 'update');
         Route::delete('/{treatmentPrice}', 'deactivate');

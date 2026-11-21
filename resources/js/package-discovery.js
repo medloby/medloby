@@ -1,4 +1,4 @@
-export function mountPackageDiscovery(section, { api, priceLabel, startConversation }) {
+export function mountPackageDiscovery(section, { api, startConversation }) {
     const find = (selector) => section.querySelector(selector);
     const status = find('[data-discovery-status]');
     const results = find('[data-discovery-results]');
@@ -18,7 +18,6 @@ export function mountPackageDiscovery(section, { api, priceLabel, startConversat
         const card = template.content.firstElementChild.cloneNode(true);
         card.querySelector('[data-discovery-name]').textContent = pkg.name;
         card.querySelector('[data-discovery-clinic]').textContent = [pkg.business.name, pkg.branch?.name].filter(Boolean).join(' · ');
-        card.querySelector('[data-discovery-price]').textContent = pkg.price === null ? 'Fiyatı klinikten isteyin' : priceLabel(pkg.price, pkg.currency);
         const description = card.querySelector('[data-discovery-description]');
         description.textContent = pkg.description ?? '';
         description.hidden = !pkg.description;

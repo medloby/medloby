@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\PublicTreatmentPackageResource;
 use App\Models\Branch;
 use App\Models\Business;
 use App\Models\PackageService;
@@ -22,14 +23,10 @@ class TreatmentPackageController extends Controller
     public function index(Request $request): JsonResponse
     {
         $query = TreatmentPackage::query()
-            ->where('is_active', true)
-            ->with([
-                'business',
-                'branch',
-                'treatments' => fn ($query) => $query->where('treatments.is_active', true),
-                'services' => fn ($query) => $query->where('package_services.is_active', true),
-            ])
-            ->orderBy('name');
+            ->publishedInCatalog()
+            ->withPublicContents()
+            ->orderBy('name')
+            ->orderBy('id');
 
         if ($request->boolean('offer_enabled')) {
             $query->where('is_offer_enabled', true);
@@ -56,21 +53,10 @@ class TreatmentPackageController extends Controller
             );
         }
 
-        if ($request->filled('currency')) {
-            $query->where(
-                'currency',
-                strtoupper(
-                    $request->string('currency')->value()
-                )
-            );
-        }
-
-        $packages = $query->get();
-
         return response()->json([
             'success' => true,
             'data' => [
-                'packages' => $packages,
+                'packages' => PublicTreatmentPackageResource::collection($query->get()),
             ],
         ]);
     }
@@ -79,34 +65,11 @@ class TreatmentPackageController extends Controller
     {
         $packages = TreatmentPackage::query()
             ->availableForEnquiries()
-            ->with([
-                'business:id,name',
-                'branch:id,name',
-                'treatments' => fn ($relation) => $relation->select('treatments.id', 'treatments.name')
-                    ->orderByPivot('sort_order'),
-                'services' => fn ($relation) => $relation->select('package_services.id', 'package_services.name')
-                    ->orderByPivot('sort_order'),
-            ])
+            ->withPublicContents()
             ->orderBy('name')
             ->orderBy('id')
-            ->paginate(12, ['id', 'business_id', 'branch_id', 'name', 'description', 'price', 'currency'])
-            ->through(fn (TreatmentPackage $package) => [
-                'id' => $package->id,
-                'name' => $package->name,
-                'description' => $package->description,
-                'price' => $package->price,
-                'currency' => $package->currency,
-                'business' => $package->business,
-                'branch' => $package->branch,
-                'treatments' => $package->treatments->map(fn (Treatment $treatment) => [
-                    'name' => $treatment->name,
-                    'quantity' => (int) $treatment->pivot->quantity,
-                ]),
-                'services' => $package->services->map(fn (PackageService $service) => [
-                    'name' => $service->name,
-                    'quantity' => (int) $service->pivot->quantity,
-                ]),
-            ]);
+            ->paginate(12)
+            ->through(fn (TreatmentPackage $package) => new PublicTreatmentPackageResource($package));
 
         return response()->json(['success' => true, 'data' => $packages]);
     }
@@ -143,7 +106,7 @@ class TreatmentPackageController extends Controller
                 'treatments' => $treatments,
                 'services' => $services,
             ],
-        ]);
+        ])->header('Cache-Control', 'private, no-store');
     }
 
     public function store(Request $request): JsonResponse
@@ -279,18 +242,12 @@ class TreatmentPackageController extends Controller
     public function show(
         TreatmentPackage $treatmentPackage
     ): JsonResponse {
-        abort_unless($treatmentPackage->is_active, 404);
-
-        $treatmentPackage->load([
-            'business',
-            'branch',
-            'treatments' => fn ($query) => $query->where('treatments.is_active', true),
-            'services' => fn ($query) => $query->where('package_services.is_active', true),
-        ]);
+        $package = TreatmentPackage::query()->publishedInCatalog()->withPublicContents()
+            ->findOrFail($treatmentPackage->getKey());
 
         return response()->json([
             'success' => true,
-            'data' => $treatmentPackage,
+            'data' => new PublicTreatmentPackageResource($package),
         ]);
     }
 

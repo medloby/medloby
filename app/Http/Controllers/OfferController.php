@@ -6,6 +6,7 @@ use App\Models\Conversation;
 use App\Models\Offer;
 use App\Models\Treatment;
 use App\Models\TreatmentPackage;
+use App\Models\User;
 use App\Notifications\NewOfferNotification;
 use App\Notifications\NotificationType;
 use App\Notifications\OfferAcceptedNotification;
@@ -67,30 +68,50 @@ class OfferController extends Controller
         ]);
     }
 
+    public function packageOptions(Request $request, Conversation $conversation): JsonResponse
+    {
+        $user = $request->user();
+        $this->authorizeOfferCreation($user, $conversation);
+
+        $branchId = $conversation->branch_id;
+        $branchIds = $user->accessibleBranchIds($conversation->business_id);
+        abort_if($branchId !== null && ! in_array($branchId, $branchIds, true), 403);
+
+        $packages = TreatmentPackage::query()
+            ->availableForEnquiries()
+            ->where('business_id', $conversation->business_id)
+            ->where(fn ($query) => $query->whereNull('branch_id')
+                ->orWhereIn('branch_id', $branchId === null ? $branchIds : [$branchId]))
+            ->when($branchId !== null, fn ($query) => $query
+                ->whereDoesntHave('treatments', fn ($treatments) => $treatments
+                    ->whereDoesntHave('branches', fn ($branches) => $branches->whereKey($branchId)
+                        ->where('branch_treatment.is_active', true))))
+            ->orderBy('name')
+            ->orderBy('id')
+            ->get(['id', 'name', 'price', 'currency']);
+
+        return response()->json([
+            'success' => true,
+            'data' => ['packages' => $packages],
+        ])->header('Cache-Control', 'private, no-store');
+    }
+
+    private function authorizeOfferCreation(User $user, Conversation $conversation): void
+    {
+        abort_unless($user->businessMemberships()
+            ->where('business_id', $conversation->business_id)
+            ->where('is_active', true)
+            ->exists(), 403, 'Bu görüşme için teklif oluşturma yetkiniz yok.');
+
+        abort_unless($conversation->status === 'open', 422, 'Kapalı bir görüşmeye teklif oluşturulamaz.');
+    }
+
     public function store(
         Request $request,
         Conversation $conversation
     ): JsonResponse {
         $user = $request->user();
-
-        $isBusinessUser = $user->businessMemberships()
-            ->where('business_id', $conversation->business_id)
-            ->where('is_active', true)
-            ->exists();
-
-        if (! $isBusinessUser) {
-            abort(
-                403,
-                'Bu görüşme için teklif oluşturma yetkiniz yok.'
-            );
-        }
-
-        if ($conversation->status !== 'open') {
-            abort(
-                422,
-                'Kapalı bir görüşmeye teklif oluşturulamaz.'
-            );
-        }
+        $this->authorizeOfferCreation($user, $conversation);
 
         $validated = $request->validate([
             'treatment_id' => [
@@ -139,6 +160,7 @@ class OfferController extends Controller
         if (isset($validated['treatment_package_id'])) {
             $package = TreatmentPackage::findOrFail($validated['treatment_package_id']);
             $branchId ??= $package->branch_id;
+            abort_if($branchId !== null && ! in_array($branchId, $user->accessibleBranchIds($conversation->business_id), true), 403);
             $snapshot = $this->packageSnapshot($package, $conversation, $branchId);
         } else {
             $this->validateTreatmentForConversation($conversation, (int) $validated['treatment_id']);
@@ -385,13 +407,10 @@ class OfferController extends Controller
 
     private function packageSnapshot(TreatmentPackage $package, Conversation $conversation, ?int $branchId): array
     {
-        $today = today();
         if ($package->business_id !== $conversation->business_id
             || ($package->branch_id !== null && $package->branch_id !== $branchId)
-            || ! $package->is_active
             || ! $package->is_offer_enabled
-            || ($package->valid_from && $package->valid_from->gt($today))
-            || ($package->valid_until && $package->valid_until->lt($today))) {
+            || ! $package->isPublishedInCatalog()) {
             throw ValidationException::withMessages([
                 'treatment_package_id' => 'Bu paket görüşmede teklif olarak kullanılamaz.',
             ]);

@@ -6,6 +6,7 @@ use App\Models\Treatment;
 use App\Models\TreatmentPackage;
 use App\Models\TreatmentPackageItem;
 use App\Services\CatalogManagementAccess;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -17,15 +18,7 @@ class TreatmentPackageItemController extends Controller
     public function index(
         TreatmentPackage $treatmentPackage
     ): JsonResponse {
-        abort_unless($treatmentPackage->is_active, 404);
-
-        $items = TreatmentPackageItem::query()
-            ->where(
-                'treatment_package_id',
-                $treatmentPackage->id
-            )
-            ->whereHas('treatment', fn ($query) => $query->where('is_active', true))
-            ->with('treatment')
+        $items = $this->publicItems($treatmentPackage)
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get();
@@ -103,7 +96,7 @@ class TreatmentPackageItemController extends Controller
         TreatmentPackage $treatmentPackage,
         TreatmentPackageItem $treatmentPackageItem
     ): JsonResponse {
-        abort_unless($treatmentPackage->is_active, 404);
+        $items = $this->publicItems($treatmentPackage);
 
         if (
             $treatmentPackageItem->treatment_package_id
@@ -115,14 +108,21 @@ class TreatmentPackageItemController extends Controller
             ], 404);
         }
 
-        abort_unless($treatmentPackageItem->treatment?->is_active, 404);
-
         return response()->json([
             'success' => true,
-            'data' => $treatmentPackageItem->load([
-                'treatment',
-            ]),
+            'data' => $items->findOrFail($treatmentPackageItem->id),
         ]);
+    }
+
+    private function publicItems(TreatmentPackage $package): Builder
+    {
+        abort_unless($package->isPublishedInCatalog(), 404);
+
+        return TreatmentPackageItem::query()
+            ->where('treatment_package_id', $package->id)
+            ->whereHas('treatment', fn ($query) => $query->where('is_active', true))
+            ->select(['id', 'treatment_package_id', 'treatment_id', 'quantity', 'sort_order'])
+            ->with('treatment:id,name');
     }
 
     public function update(
