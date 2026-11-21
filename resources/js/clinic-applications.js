@@ -4,13 +4,14 @@ const statusLabels = {
     rejected: 'Reddedildi',
 };
 
-export function mountClinicApplications(section, { api, timeLabel }) {
+export function mountClinicApplications(section, { api, timeLabel, onChanged }) {
     const find = (part, root = section) => root.querySelector('[data-application-' + part + ']');
     const refresh = find('refresh');
     const list = find('list');
     const message = find('message');
     let visible = false;
     let request = 0;
+    let crmBusinessIds = new Set();
 
     function updateVisibility() {
         section.hidden = !visible || (!list.childElementCount && message.hidden);
@@ -40,8 +41,19 @@ export function mountClinicApplications(section, { api, timeLabel }) {
             find('reason', row).textContent = application.applicant_rejection_reason;
             find('explanation', row).hidden = false;
         }
+        if (application.crm_available) {
+            const link = find('crm', row);
+            link.href = '#klinik-crm/' + application.id;
+            link.hidden = false;
+        }
 
         return row;
+    }
+
+    function render(applications) {
+        crmBusinessIds = new Set(applications.filter((item) => item.crm_available).map((item) => String(item.id)));
+        list.replaceChildren(...applications.map(applicationRow));
+        onChanged();
     }
 
     async function load(announce = false) {
@@ -52,13 +64,13 @@ export function mountClinicApplications(section, { api, timeLabel }) {
         try {
             const applications = await api('/clinic-applications');
             if (pending === request) {
-                list.replaceChildren(...applications.map(applicationRow));
+                render(applications);
                 showStatus(announce && applications.length ? 'Başvuru durumu güncellendi.' : '');
             }
         } catch (error) {
             if (pending === request) {
                 if (error.status === 403) {
-                    list.replaceChildren();
+                    render([]);
                 }
                 showStatus(error.message);
             }
@@ -72,6 +84,9 @@ export function mountClinicApplications(section, { api, timeLabel }) {
     refresh.addEventListener('click', () => load(true));
 
     return {
+        canOpenCrm(businessId) {
+            return crmBusinessIds.has(businessId);
+        },
         setVisible(value) {
             visible = value;
             updateVisibility();
@@ -80,7 +95,7 @@ export function mountClinicApplications(section, { api, timeLabel }) {
             request++;
             refresh.hidden = !verified;
             const known = businesses.filter((item) => item.status === 'pending' || item.status === 'rejected');
-            list.replaceChildren(...known.map(applicationRow));
+            render(known);
             showStatus();
             if (verified && businesses.length) {
                 load();
@@ -90,7 +105,7 @@ export function mountClinicApplications(section, { api, timeLabel }) {
             request++;
             refresh.hidden = true;
             refresh.disabled = false;
-            list.replaceChildren();
+            render([]);
             showStatus();
         },
     };

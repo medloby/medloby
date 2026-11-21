@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Middleware\EnsureClinicCrmAccess;
 use App\Models\Branch;
-use App\Models\BusinessUser;
 use App\Models\CrmActivity;
 use App\Models\CrmLead;
 use Illuminate\Http\JsonResponse;
@@ -16,15 +16,6 @@ class CrmActivityController extends Controller
         Request $request,
         Branch $branch
     ): JsonResponse {
-        $businessUser = $this->resolveAuthorizedBusinessUser(
-            $branch->business_id,
-            $branch->id
-        );
-
-        if (! $businessUser) {
-            return $this->forbiddenResponse();
-        }
-
         $query = CrmActivity::query()
             ->where('business_id', $branch->business_id)
             ->where('branch_id', $branch->id)
@@ -65,14 +56,7 @@ class CrmActivityController extends Controller
         Request $request,
         Branch $branch
     ): JsonResponse {
-        $businessUser = $this->resolveAuthorizedBusinessUser(
-            $branch->business_id,
-            $branch->id
-        );
-
-        if (! $businessUser) {
-            return $this->forbiddenResponse();
-        }
+        $businessUser = $request->attributes->get(EnsureClinicCrmAccess::class);
 
         $validated = $request->validate([
             'crm_lead_id' => [
@@ -128,10 +112,8 @@ class CrmActivityController extends Controller
             'business_user_id' => $businessUser->id,
             'type' => $validated['type'],
             'title' => $validated['title'],
-            'description' =>
-                $validated['description'] ?? null,
-            'occurred_at' =>
-                $validated['occurred_at'] ?? now(),
+            'description' => $validated['description'] ?? null,
+            'occurred_at' => $validated['occurred_at'] ?? now(),
         ]);
 
         return response()->json([
@@ -147,15 +129,6 @@ class CrmActivityController extends Controller
         Branch $branch,
         CrmActivity $crmActivity
     ): JsonResponse {
-        $businessUser = $this->resolveAuthorizedBusinessUser(
-            $branch->business_id,
-            $branch->id
-        );
-
-        if (! $businessUser) {
-            return $this->forbiddenResponse();
-        }
-
         if (
             $crmActivity->business_id !== $branch->business_id
             || $crmActivity->branch_id !== $branch->id
@@ -182,15 +155,6 @@ class CrmActivityController extends Controller
         Branch $branch,
         CrmActivity $crmActivity
     ): JsonResponse {
-        $businessUser = $this->resolveAuthorizedBusinessUser(
-            $branch->business_id,
-            $branch->id
-        );
-
-        if (! $businessUser) {
-            return $this->forbiddenResponse();
-        }
-
         if (
             $crmActivity->business_id !== $branch->business_id
             || $crmActivity->branch_id !== $branch->id
@@ -268,15 +232,6 @@ class CrmActivityController extends Controller
         Branch $branch,
         CrmActivity $crmActivity
     ): JsonResponse {
-        $businessUser = $this->resolveAuthorizedBusinessUser(
-            $branch->business_id,
-            $branch->id
-        );
-
-        if (! $businessUser) {
-            return $this->forbiddenResponse();
-        }
-
         if (
             $crmActivity->business_id !== $branch->business_id
             || $crmActivity->branch_id !== $branch->id
@@ -293,38 +248,5 @@ class CrmActivityController extends Controller
             'success' => true,
             'message' => 'CRM aktivitesi silindi.',
         ]);
-    }
-
-    private function resolveAuthorizedBusinessUser(
-        int $businessId,
-        int $branchId
-    ): ?BusinessUser {
-        $user = auth()->user();
-
-        if (! $user) {
-            return null;
-        }
-
-        return BusinessUser::query()
-            ->where('business_id', $businessId)
-            ->where('user_id', $user->id)
-            ->where('is_active', true)
-            ->whereHas('branches', function ($query) use ($branchId) {
-                $query
-                    ->where('branches.id', $branchId)
-                    ->where(
-                        'business_user_branch.is_active',
-                        true
-                    );
-            })
-            ->first();
-    }
-
-    private function forbiddenResponse(): JsonResponse
-    {
-        return response()->json([
-            'success' => false,
-            'message' => 'Bu şubeye erişim yetkiniz yok.',
-        ], 403);
     }
 }

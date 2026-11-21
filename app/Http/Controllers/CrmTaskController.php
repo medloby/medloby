@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Middleware\EnsureClinicCrmAccess;
 use App\Models\Branch;
 use App\Models\BusinessUser;
 use App\Models\CrmLead;
@@ -16,15 +17,6 @@ class CrmTaskController extends Controller
         Request $request,
         Branch $branch
     ): JsonResponse {
-        $businessUser = $this->resolveAuthorizedBusinessUser(
-            $branch->business_id,
-            $branch->id
-        );
-
-        if (! $businessUser) {
-            return $this->forbiddenResponse();
-        }
-
         $query = CrmTask::query()
             ->where('business_id', $branch->business_id)
             ->where('branch_id', $branch->id)
@@ -80,14 +72,7 @@ class CrmTaskController extends Controller
         Request $request,
         Branch $branch
     ): JsonResponse {
-        $createdByBusinessUser = $this->resolveAuthorizedBusinessUser(
-            $branch->business_id,
-            $branch->id
-        );
-
-        if (! $createdByBusinessUser) {
-            return $this->forbiddenResponse();
-        }
+        $createdByBusinessUser = $request->attributes->get(EnsureClinicCrmAccess::class);
 
         $validated = $request->validate([
             'crm_lead_id' => [
@@ -212,20 +197,14 @@ class CrmTaskController extends Controller
             'business_id' => $branch->business_id,
             'branch_id' => $branch->id,
             'crm_lead_id' => $lead?->id,
-            'assigned_business_user_id' =>
-                $assignedBusinessUser?->id,
-            'created_by_business_user_id' =>
-                $createdByBusinessUser->id,
+            'assigned_business_user_id' => $assignedBusinessUser?->id,
+            'created_by_business_user_id' => $createdByBusinessUser->id,
             'title' => $validated['title'],
-            'description' =>
-                $validated['description'] ?? null,
-            'type' =>
-                $validated['type'] ?? 'other',
+            'description' => $validated['description'] ?? null,
+            'type' => $validated['type'] ?? 'other',
             'status' => $status,
-            'priority' =>
-                $validated['priority'] ?? 'normal',
-            'due_at' =>
-                $validated['due_at'] ?? null,
+            'priority' => $validated['priority'] ?? 'normal',
+            'due_at' => $validated['due_at'] ?? null,
             'started_at' => $startedAt,
             'completed_at' => $completedAt,
         ]);
@@ -244,15 +223,6 @@ class CrmTaskController extends Controller
         Branch $branch,
         CrmTask $crmTask
     ): JsonResponse {
-        $businessUser = $this->resolveAuthorizedBusinessUser(
-            $branch->business_id,
-            $branch->id
-        );
-
-        if (! $businessUser) {
-            return $this->forbiddenResponse();
-        }
-
         if (
             $crmTask->business_id !== $branch->business_id
             || $crmTask->branch_id !== $branch->id
@@ -280,15 +250,6 @@ class CrmTaskController extends Controller
         Branch $branch,
         CrmTask $crmTask
     ): JsonResponse {
-        $businessUser = $this->resolveAuthorizedBusinessUser(
-            $branch->business_id,
-            $branch->id
-        );
-
-        if (! $businessUser) {
-            return $this->forbiddenResponse();
-        }
-
         if (
             $crmTask->business_id !== $branch->business_id
             || $crmTask->branch_id !== $branch->id
@@ -444,15 +405,6 @@ class CrmTaskController extends Controller
         Branch $branch,
         CrmTask $crmTask
     ): JsonResponse {
-        $businessUser = $this->resolveAuthorizedBusinessUser(
-            $branch->business_id,
-            $branch->id
-        );
-
-        if (! $businessUser) {
-            return $this->forbiddenResponse();
-        }
-
         if (
             $crmTask->business_id !== $branch->business_id
             || $crmTask->branch_id !== $branch->id
@@ -489,15 +441,6 @@ class CrmTaskController extends Controller
         Branch $branch,
         CrmTask $crmTask
     ): JsonResponse {
-        $businessUser = $this->resolveAuthorizedBusinessUser(
-            $branch->business_id,
-            $branch->id
-        );
-
-        if (! $businessUser) {
-            return $this->forbiddenResponse();
-        }
-
         if (
             $crmTask->business_id !== $branch->business_id
             || $crmTask->branch_id !== $branch->id
@@ -536,31 +479,6 @@ class CrmTaskController extends Controller
         ]);
     }
 
-    private function resolveAuthorizedBusinessUser(
-        int $businessId,
-        int $branchId
-    ): ?BusinessUser {
-        $user = auth()->user();
-
-        if (! $user) {
-            return null;
-        }
-
-        return BusinessUser::query()
-            ->where('business_id', $businessId)
-            ->where('user_id', $user->id)
-            ->where('is_active', true)
-            ->whereHas('branches', function ($query) use ($branchId) {
-                $query
-                    ->where('branches.id', $branchId)
-                    ->where(
-                        'business_user_branch.is_active',
-                        true
-                    );
-            })
-            ->first();
-    }
-
     private function resolveBusinessUserForBranch(
         int $businessUserId,
         int $businessId,
@@ -579,13 +497,5 @@ class CrmTaskController extends Controller
                     );
             })
             ->first();
-    }
-
-    private function forbiddenResponse(): JsonResponse
-    {
-        return response()->json([
-            'success' => false,
-            'message' => 'Bu şubeye erişim yetkiniz yok.',
-        ], 403);
     }
 }

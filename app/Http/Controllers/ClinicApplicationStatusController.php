@@ -19,7 +19,7 @@ class ClinicApplicationStatusController extends Controller
             ->whereIn('status', ['pending', 'active', 'rejected', 'suspended'])
             ->with('latestApplicationReview')
             ->orderByDesc('id')
-            ->get(['id', 'name', 'status'])
+            ->get(['id', 'name', 'status', 'is_verified'])
             ->map(function (Business $business): ?array {
                 $review = $business->latestApplicationReview;
                 $status = match ($business->status) {
@@ -39,6 +39,7 @@ class ClinicApplicationStatusController extends Controller
                     'id' => $business->id,
                     'name' => $business->name,
                     'status' => $status,
+                    'crm_available' => $status === 'approved' && $business->allowsCrmAccess(),
                     'reviewed_at' => $review?->reviewed_at?->toISOString(),
                     'applicant_rejection_reason' => $status === 'rejected' ? $review?->applicant_rejection_reason : null,
                 ];

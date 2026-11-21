@@ -16,15 +16,6 @@ class CrmDashboardController extends Controller
     public function index(
         Branch $branch
     ): JsonResponse {
-        $businessUser = $this->resolveAuthorizedBusinessUser(
-            $branch->business_id,
-            $branch->id
-        );
-
-        if (! $businessUser) {
-            return $this->forbiddenResponse();
-        }
-
         $baseLeadQuery = CrmLead::query()
             ->where('business_id', $branch->business_id)
             ->where('branch_id', $branch->id);
@@ -187,10 +178,8 @@ class CrmDashboardController extends Controller
                     'role' => $staff->role,
                     'lead_count' => $leadCount,
                     'task_count' => $taskCount,
-                    'completed_task_count' =>
-                        $completedTaskCount,
-                    'pending_follow_up_count' =>
-                        $followUpCount,
+                    'completed_task_count' => $completedTaskCount,
+                    'pending_follow_up_count' => $followUpCount,
                 ];
             })
             ->values();
@@ -215,38 +204,5 @@ class CrmDashboardController extends Controller
                 'staff_performance' => $staffPerformance,
             ],
         ]);
-    }
-
-    private function resolveAuthorizedBusinessUser(
-        int $businessId,
-        int $branchId
-    ): ?BusinessUser {
-        $user = auth()->user();
-
-        if (! $user) {
-            return null;
-        }
-
-        return BusinessUser::query()
-            ->where('business_id', $businessId)
-            ->where('user_id', $user->id)
-            ->where('is_active', true)
-            ->whereHas('branches', function ($query) use ($branchId) {
-                $query
-                    ->where('branches.id', $branchId)
-                    ->where(
-                        'business_user_branch.is_active',
-                        true
-                    );
-            })
-            ->first();
-    }
-
-    private function forbiddenResponse(): JsonResponse
-    {
-        return response()->json([
-            'success' => false,
-            'message' => 'Bu şubeye erişim yetkiniz yok.',
-        ], 403);
     }
 }

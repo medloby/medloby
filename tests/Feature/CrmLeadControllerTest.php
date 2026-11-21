@@ -6,12 +6,13 @@ use App\Models\BusinessUser;
 use App\Models\CrmLead;
 use App\Models\CrmPipelineStage;
 use App\Models\CrmPipelineStageHistory;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
-    $this->business = Business::create([
+    $this->business = Business::factory()->create([
         'name' => 'Test Klinik',
         'slug' => 'test-klinik-' . uniqid(),
     ]);
@@ -29,6 +30,14 @@ beforeEach(function () {
         'slug' => 'ikinci-sube-' . uniqid(),
         'status' => 'active',
     ]);
+
+    $owner = User::factory()->create();
+    $this->business->memberships()->create([
+        'user_id' => $owner->id,
+        'role' => 'business_owner',
+        'is_active' => true,
+    ]);
+    $this->actingAs($owner);
 });
 
 test('can list crm leads for branch', function () {
@@ -563,12 +572,13 @@ test('can create crm lead with pipeline stage history', function () {
 test('can record pipeline stage change history', function () {
     $user = \App\Models\User::factory()->create();
 
-    BusinessUser::create([
+    $membership = BusinessUser::create([
         'business_id' => $this->business->id,
         'user_id' => $user->id,
         'role' => 'staff',
         'is_active' => true,
     ]);
+    $membership->branches()->attach($this->branch->id, ['is_active' => true]);
 
     $this->actingAs($user);
 

@@ -22,6 +22,7 @@
                 <p class="font-medium">Ret açıklaması</p>
                 <p class="mt-1 whitespace-pre-wrap break-words text-slate-700 dark:text-slate-200" data-application-reason></p>
             </div>
+            <a class="offer-button mt-3" data-application-crm hidden>CRM’e geç</a>
         </li>
     </template>
 </section>

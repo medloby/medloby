@@ -6,28 +6,14 @@ use App\Models\Branch;
 use App\Models\Conversation;
 use App\Models\CrmLead;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 
 class CrmConversationController extends Controller
 {
     public function attachLead(
-        Request $request,
         Branch $branch,
         CrmLead $crmLead,
         Conversation $conversation
     ): JsonResponse {
-        $businessUser = $this->resolveAuthorizedBusinessUser(
-            $branch->business_id,
-            $branch->id
-        );
-
-        if (! $businessUser) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Bu şubeye erişim yetkiniz yok.',
-            ], 403);
-        }
-
         if ($crmLead->business_id !== $branch->business_id) {
             return response()->json([
                 'success' => false,
@@ -80,30 +66,5 @@ class CrmConversationController extends Controller
                 'branch',
             ]),
         ]);
-    }
-
-    private function resolveAuthorizedBusinessUser(
-        int $businessId,
-        int $branchId
-    ) {
-        $user = auth()->user();
-
-        if (! $user) {
-            return null;
-        }
-
-        return \App\Models\BusinessUser::query()
-            ->where('business_id', $businessId)
-            ->where('user_id', $user->id)
-            ->where('is_active', true)
-            ->whereHas('branches', function ($query) use ($branchId) {
-                $query
-                    ->where('branches.id', $branchId)
-                    ->where(
-                        'business_user_branch.is_active',
-                        true
-                    );
-            })
-            ->first();
     }
 }

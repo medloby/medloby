@@ -4,17 +4,18 @@ use App\Models\Branch;
 use App\Models\Business;
 use App\Models\CrmLead;
 use App\Models\CrmPipelineStage;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
-    $this->business = Business::create([
+    $this->business = Business::factory()->create([
         'name' => 'Test Klinik',
         'slug' => 'test-klinik-' . uniqid(),
     ]);
 
-    $this->otherBusiness = Business::create([
+    $this->otherBusiness = Business::factory()->create([
         'name' => 'Diğer Klinik',
         'slug' => 'diger-klinik-' . uniqid(),
     ]);
@@ -32,6 +33,19 @@ beforeEach(function () {
         'slug' => 'diger-merkez-' . uniqid(),
         'status' => 'active',
     ]);
+
+    $owner = User::factory()->create();
+    $this->business->memberships()->create([
+        'user_id' => $owner->id,
+        'role' => 'business_owner',
+        'is_active' => true,
+    ]);
+    $this->otherBusiness->memberships()->create([
+        'user_id' => $owner->id,
+        'role' => 'business_owner',
+        'is_active' => true,
+    ]);
+    $this->actingAs($owner);
 });
 
 test('can list active pipeline stages for business', function () {

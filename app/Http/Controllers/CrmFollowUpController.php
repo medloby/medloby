@@ -16,15 +16,6 @@ class CrmFollowUpController extends Controller
         Request $request,
         Branch $branch
     ): JsonResponse {
-        $businessUser = $this->resolveAuthorizedBusinessUser(
-            $branch->business_id,
-            $branch->id
-        );
-
-        if (! $businessUser) {
-            return $this->forbiddenResponse();
-        }
-
         $query = CrmFollowUp::query()
             ->where('business_id', $branch->business_id)
             ->where('branch_id', $branch->id)
@@ -72,15 +63,6 @@ class CrmFollowUpController extends Controller
         Request $request,
         Branch $branch
     ): JsonResponse {
-        $businessUser = $this->resolveAuthorizedBusinessUser(
-            $branch->business_id,
-            $branch->id
-        );
-
-        if (! $businessUser) {
-            return $this->forbiddenResponse();
-        }
-
         $validated = $request->validate([
             'crm_lead_id' => [
                 'required',
@@ -144,8 +126,7 @@ class CrmFollowUpController extends Controller
             if (! $assignedBusinessUser) {
                 return response()->json([
                     'success' => false,
-                    'message' =>
-                        'Seçilen personelin bu şubeye aktif erişimi yok.',
+                    'message' => 'Seçilen personelin bu şubeye aktif erişimi yok.',
                 ], 422);
             }
         }
@@ -154,8 +135,7 @@ class CrmFollowUpController extends Controller
             'business_id' => $branch->business_id,
             'branch_id' => $branch->id,
             'crm_lead_id' => $lead->id,
-            'assigned_business_user_id' =>
-                $assignedBusinessUserId,
+            'assigned_business_user_id' => $assignedBusinessUserId,
             'type' => $validated['type'],
             'title' => $validated['title'],
             'notes' => $validated['notes'] ?? null,
@@ -176,23 +156,13 @@ class CrmFollowUpController extends Controller
         Branch $branch,
         CrmFollowUp $crmFollowUp
     ): JsonResponse {
-        $businessUser = $this->resolveAuthorizedBusinessUser(
-            $branch->business_id,
-            $branch->id
-        );
-
-        if (! $businessUser) {
-            return $this->forbiddenResponse();
-        }
-
         if (
             $crmFollowUp->business_id !== $branch->business_id
             || $crmFollowUp->branch_id !== $branch->id
         ) {
             return response()->json([
                 'success' => false,
-                'message' =>
-                    'Bu takip belirtilen şubeye ait değil.',
+                'message' => 'Bu takip belirtilen şubeye ait değil.',
             ], 404);
         }
 
@@ -212,23 +182,13 @@ class CrmFollowUpController extends Controller
         Branch $branch,
         CrmFollowUp $crmFollowUp
     ): JsonResponse {
-        $businessUser = $this->resolveAuthorizedBusinessUser(
-            $branch->business_id,
-            $branch->id
-        );
-
-        if (! $businessUser) {
-            return $this->forbiddenResponse();
-        }
-
         if (
             $crmFollowUp->business_id !== $branch->business_id
             || $crmFollowUp->branch_id !== $branch->id
         ) {
             return response()->json([
                 'success' => false,
-                'message' =>
-                    'Bu takip belirtilen şubeye ait değil.',
+                'message' => 'Bu takip belirtilen şubeye ait değil.',
             ], 404);
         }
 
@@ -283,8 +243,7 @@ class CrmFollowUpController extends Controller
             if (! $lead) {
                 return response()->json([
                     'success' => false,
-                    'message' =>
-                        'Seçilen lead bu şubeye ait değil.',
+                    'message' => 'Seçilen lead bu şubeye ait değil.',
                 ], 422);
             }
         }
@@ -306,8 +265,7 @@ class CrmFollowUpController extends Controller
             if (! $assignedBusinessUser) {
                 return response()->json([
                     'success' => false,
-                    'message' =>
-                        'Seçilen personelin bu şubeye aktif erişimi yok.',
+                    'message' => 'Seçilen personelin bu şubeye aktif erişimi yok.',
                 ], 422);
             }
         }
@@ -327,31 +285,20 @@ class CrmFollowUpController extends Controller
         Branch $branch,
         CrmFollowUp $crmFollowUp
     ): JsonResponse {
-        $businessUser = $this->resolveAuthorizedBusinessUser(
-            $branch->business_id,
-            $branch->id
-        );
-
-        if (! $businessUser) {
-            return $this->forbiddenResponse();
-        }
-
         if (
             $crmFollowUp->business_id !== $branch->business_id
             || $crmFollowUp->branch_id !== $branch->id
         ) {
             return response()->json([
                 'success' => false,
-                'message' =>
-                    'Bu takip belirtilen şubeye ait değil.',
+                'message' => 'Bu takip belirtilen şubeye ait değil.',
             ], 404);
         }
 
         if ($crmFollowUp->status !== 'pending') {
             return response()->json([
                 'success' => false,
-                'message' =>
-                    'Sadece bekleyen takipler tamamlanabilir.',
+                'message' => 'Sadece bekleyen takipler tamamlanabilir.',
             ], 422);
         }
 
@@ -373,31 +320,20 @@ class CrmFollowUpController extends Controller
         Branch $branch,
         CrmFollowUp $crmFollowUp
     ): JsonResponse {
-        $businessUser = $this->resolveAuthorizedBusinessUser(
-            $branch->business_id,
-            $branch->id
-        );
-
-        if (! $businessUser) {
-            return $this->forbiddenResponse();
-        }
-
         if (
             $crmFollowUp->business_id !== $branch->business_id
             || $crmFollowUp->branch_id !== $branch->id
         ) {
             return response()->json([
                 'success' => false,
-                'message' =>
-                    'Bu takip belirtilen şubeye ait değil.',
+                'message' => 'Bu takip belirtilen şubeye ait değil.',
             ], 404);
         }
 
         if ($crmFollowUp->status !== 'pending') {
             return response()->json([
                 'success' => false,
-                'message' =>
-                    'Sadece bekleyen takipler iptal edilebilir.',
+                'message' => 'Sadece bekleyen takipler iptal edilebilir.',
             ], 422);
         }
 
@@ -413,31 +349,6 @@ class CrmFollowUpController extends Controller
                 'assignedBusinessUser',
             ]),
         ]);
-    }
-
-    private function resolveAuthorizedBusinessUser(
-        int $businessId,
-        int $branchId
-    ): ?BusinessUser {
-        $user = auth()->user();
-
-        if (! $user) {
-            return null;
-        }
-
-        return BusinessUser::query()
-            ->where('business_id', $businessId)
-            ->where('user_id', $user->id)
-            ->where('is_active', true)
-            ->whereHas('branches', function ($query) use ($branchId) {
-                $query
-                    ->where('branches.id', $branchId)
-                    ->where(
-                        'business_user_branch.is_active',
-                        true
-                    );
-            })
-            ->first();
     }
 
     private function resolveBusinessUserForBranch(
@@ -458,13 +369,5 @@ class CrmFollowUpController extends Controller
                     );
             })
             ->first();
-    }
-
-    private function forbiddenResponse(): JsonResponse
-    {
-        return response()->json([
-            'success' => false,
-            'message' => 'Bu şubeye erişim yetkiniz yok.',
-        ], 403);
     }
 }

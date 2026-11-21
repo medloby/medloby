@@ -34,6 +34,8 @@ use App\Http\Controllers\CalendarBlockController;
 
 use App\Http\Controllers\ClinicApplicationStatusController;
 
+use App\Http\Controllers\ClinicCrmWorkspaceController;
+
 use App\Http\Controllers\CrmLeadController;
 
 use App\Http\Controllers\CrmTaskController;
@@ -87,6 +89,8 @@ use App\Http\Controllers\OfferController;
 use App\Http\Controllers\PatientRegistrationController;
 
 use App\Http\Controllers\NotificationController;
+
+use App\Http\Middleware\EnsureClinicCrmAccess;
 
 use Illuminate\Support\Facades\Route;
 
@@ -145,6 +149,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('verified')->group(function () {
 
         Route::get('/clinic-applications', ClinicApplicationStatusController::class);
+        Route::get('/businesses/{business}/crm', ClinicCrmWorkspaceController::class);
 
         /*
 
@@ -1122,167 +1127,171 @@ Route::prefix('branches/{branch}/social-media')->group(function () {
     ]);
 });
 
-Route::prefix('branches/{branch}/crm/leads')->group(function () {
-    Route::get('/', [
-        CrmLeadController::class,
-        'index',
-    ]);
+Route::middleware(['auth:sanctum', 'verified', EnsureClinicCrmAccess::class])
+    ->prefix('branches/{branch}/crm')
+    ->group(function () {
+        Route::prefix('leads')->group(function () {
+            Route::get('/', [
+                CrmLeadController::class,
+                'index',
+            ]);
 
-    Route::post('/', [
-        CrmLeadController::class,
-        'store',
-    ]);
+            Route::post('/', [
+                CrmLeadController::class,
+                'store',
+            ]);
 
-    Route::get('/{crmLead}', [
-        CrmLeadController::class,
-        'show',
-    ]);
+            Route::get('/{crmLead}', [
+                CrmLeadController::class,
+                'show',
+            ]);
 
-    Route::put('/{crmLead}', [
-        CrmLeadController::class,
-        'update',
-    ]);
+            Route::put('/{crmLead}', [
+                CrmLeadController::class,
+                'update',
+            ]);
 
-    Route::post('/{crmLead}/convert', [
-        CrmLeadController::class,
-        'convert',
-    ]);
+            Route::post('/{crmLead}/convert', [
+                CrmLeadController::class,
+                'convert',
+            ]);
 
-    Route::post('/{crmLead}/lost', [
-        CrmLeadController::class,
-        'markLost',
-    ]);
-});
+            Route::post('/{crmLead}/lost', [
+                CrmLeadController::class,
+                'markLost',
+            ]);
+        });
 
-Route::prefix('branches/{branch}/crm/pipeline-stages')->group(function () {
-    Route::get('/', [
-        CrmPipelineStageController::class,
-        'index',
-    ]);
+        Route::prefix('pipeline-stages')->group(function () {
+            Route::get('/', [
+                CrmPipelineStageController::class,
+                'index',
+            ]);
 
-    Route::post('/', [
-        CrmPipelineStageController::class,
-        'store',
-    ]);
+            Route::post('/', [
+                CrmPipelineStageController::class,
+                'store',
+            ]);
 
-    Route::get('/{crmPipelineStage}', [
-        CrmPipelineStageController::class,
-        'show',
-    ]);
+            Route::get('/{crmPipelineStage}', [
+                CrmPipelineStageController::class,
+                'show',
+            ]);
 
-    Route::put('/{crmPipelineStage}', [
-        CrmPipelineStageController::class,
-        'update',
-    ]);
+            Route::put('/{crmPipelineStage}', [
+                CrmPipelineStageController::class,
+                'update',
+            ]);
 
-    Route::delete('/{crmPipelineStage}', [
-        CrmPipelineStageController::class,
-        'deactivate',
-    ]);
-});
+            Route::delete('/{crmPipelineStage}', [
+                CrmPipelineStageController::class,
+                'deactivate',
+            ]);
+        });
 
-Route::prefix('branches/{branch}/crm/tasks')->group(function () {
-    Route::get('/', [
-        CrmTaskController::class,
-        'index',
-    ]);
+        Route::prefix('tasks')->group(function () {
+            Route::get('/', [
+                CrmTaskController::class,
+                'index',
+            ]);
 
-    Route::post('/', [
-        CrmTaskController::class,
-        'store',
-    ]);
+            Route::post('/', [
+                CrmTaskController::class,
+                'store',
+            ]);
 
-    Route::get('/{crmTask}', [
-        CrmTaskController::class,
-        'show',
-    ]);
+            Route::get('/{crmTask}', [
+                CrmTaskController::class,
+                'show',
+            ]);
 
-    Route::put('/{crmTask}', [
-        CrmTaskController::class,
-        'update',
-    ]);
+            Route::put('/{crmTask}', [
+                CrmTaskController::class,
+                'update',
+            ]);
 
-    Route::post('/{crmTask}/complete', [
-        CrmTaskController::class,
-        'complete',
-    ]);
+            Route::post('/{crmTask}/complete', [
+                CrmTaskController::class,
+                'complete',
+            ]);
 
-    Route::post('/{crmTask}/cancel', [
-        CrmTaskController::class,
-        'cancel',
-    ]);
-});
+            Route::post('/{crmTask}/cancel', [
+                CrmTaskController::class,
+                'cancel',
+            ]);
+        });
 
-Route::prefix('branches/{branch}/crm/activities')->group(function () {
-    Route::get('/', [
-        CrmActivityController::class,
-        'index',
-    ]);
+        Route::prefix('activities')->group(function () {
+            Route::get('/', [
+                CrmActivityController::class,
+                'index',
+            ]);
 
-    Route::post('/', [
-        CrmActivityController::class,
-        'store',
-    ]);
+            Route::post('/', [
+                CrmActivityController::class,
+                'store',
+            ]);
 
-    Route::get('/{crmActivity}', [
-        CrmActivityController::class,
-        'show',
-    ]);
+            Route::get('/{crmActivity}', [
+                CrmActivityController::class,
+                'show',
+            ]);
 
-    Route::put('/{crmActivity}', [
-        CrmActivityController::class,
-        'update',
-    ]);
+            Route::put('/{crmActivity}', [
+                CrmActivityController::class,
+                'update',
+            ]);
 
-    Route::delete('/{crmActivity}', [
-        CrmActivityController::class,
-        'destroy',
-    ]);
-});
+            Route::delete('/{crmActivity}', [
+                CrmActivityController::class,
+                'destroy',
+            ]);
+        });
 
-Route::prefix('branches/{branch}/crm/follow-ups')->group(function () {
-    Route::get('/', [
-        CrmFollowUpController::class,
-        'index',
-    ]);
+        Route::prefix('follow-ups')->group(function () {
+            Route::get('/', [
+                CrmFollowUpController::class,
+                'index',
+            ]);
 
-    Route::post('/', [
-        CrmFollowUpController::class,
-        'store',
-    ]);
+            Route::post('/', [
+                CrmFollowUpController::class,
+                'store',
+            ]);
 
-    Route::get('/{crmFollowUp}', [
-        CrmFollowUpController::class,
-        'show',
-    ]);
+            Route::get('/{crmFollowUp}', [
+                CrmFollowUpController::class,
+                'show',
+            ]);
 
-    Route::put('/{crmFollowUp}', [
-        CrmFollowUpController::class,
-        'update',
-    ]);
+            Route::put('/{crmFollowUp}', [
+                CrmFollowUpController::class,
+                'update',
+            ]);
 
-    Route::post('/{crmFollowUp}/complete', [
-        CrmFollowUpController::class,
-        'complete',
-    ]);
+            Route::post('/{crmFollowUp}/complete', [
+                CrmFollowUpController::class,
+                'complete',
+            ]);
 
-    Route::post('/{crmFollowUp}/cancel', [
-        CrmFollowUpController::class,
-        'cancel',
-    ]);
-});
+            Route::post('/{crmFollowUp}/cancel', [
+                CrmFollowUpController::class,
+                'cancel',
+            ]);
+        });
 
-Route::prefix('branches/{branch}/crm/leads/{crmLead}/conversations')->group(function () {
-    Route::post('/{conversation}/attach', [
-        CrmConversationController::class,
-        'attachLead',
-    ]);
-});
+        Route::prefix('leads/{crmLead}/conversations')->group(function () {
+            Route::post('/{conversation}/attach', [
+                CrmConversationController::class,
+                'attachLead',
+            ]);
+        });
 
-Route::get(
-    'branches/{branch}/crm/dashboard',
-    [
-        CrmDashboardController::class,
-        'index',
-    ]
-);
+        Route::get(
+            'dashboard',
+            [
+                CrmDashboardController::class,
+                'index',
+            ]
+        );
+    });

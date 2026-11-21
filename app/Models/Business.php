@@ -41,6 +41,11 @@ class Business extends Model
         ];
     }
 
+    public function allowsCrmAccess(): bool
+    {
+        return $this->status === 'active' && $this->is_verified;
+    }
+
     public function branches(): HasMany
     {
         return $this->hasMany(Branch::class);

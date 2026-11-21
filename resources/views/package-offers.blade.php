@@ -37,6 +37,7 @@
                 <h1 id="page-title" class="text-3xl font-semibold tracking-tight sm:text-4xl">Paket teklifleri</h1>
                 <p id="page-message" class="mt-4 max-w-2xl text-sm text-slate-700 dark:text-slate-200" role="status" hidden></p>
                 @include('clinic-applications')
+                @include('clinic-crm')
 
                 @include('package-discovery')
 

@@ -6,6 +6,7 @@ import { mountWorkspaceRegistration } from './workspace-registration';
 import { mountClinicReview } from './clinic-review';
 import { mountClinicContracts } from './clinic-contracts';
 import { mountClinicApplications } from './clinic-applications';
+import { mountClinicCrm } from './clinic-crm';
 
 const statusLabels = {
     pending: 'Yanıt bekliyor',
@@ -117,7 +118,9 @@ export function mountPackageOffers(root) {
     const clinicApplications = mountClinicApplications(get('clinic-applications'), {
         api,
         timeLabel: (value) => offerDeadline.format(new Date(value)),
+        onChanged: syncPage,
     });
+    const clinicCrm = mountClinicCrm(get('clinic-crm'), api);
     const discoverySection = get('package-discovery');
     const discovery = mountPackageDiscovery(discoverySection, { api, priceLabel, startConversation });
     const thread = mountPackageConversation(get('package-conversation'), {
@@ -216,19 +219,22 @@ export function mountPackageOffers(root) {
     function syncPage() {
         const browsing = window.location.hash === '#katalog';
         const openingCatalogue = browsing && discoverySection.hidden;
+        const verified = Boolean(user?.email_verified_at);
+        const crmBusiness = /^#klinik-crm\/([1-9][0-9]*)$/.exec(window.location.hash)?.[1];
+        const inCrm = verified && clinicApplications.canOpenCrm(crmBusiness);
 
         discoverySection.hidden = !browsing;
-        get('page-title').textContent = browsing ? 'Tedavi paketleri' : 'Paket teklifleri';
+        get('page-title').textContent = inCrm ? 'Klinik CRM' : (browsing ? 'Tedavi paketleri' : 'Paket teklifleri');
         document.title = get('page-title').textContent + ' | Medloby';
         get('discovery-link').setAttribute('aria-current', browsing ? 'page' : 'false');
-        get('offers-link').setAttribute('aria-current', browsing ? 'false' : 'page');
-        const verified = Boolean(user?.email_verified_at);
+        get('offers-link').setAttribute('aria-current', browsing || inCrm ? 'false' : 'page');
         get('sign-in').hidden = browsing || Boolean(user);
         get('email-verification').hidden = browsing || !user || verified;
         get('verification-address').textContent = user?.email ?? '';
-        get('workspace').hidden = browsing || !verified;
+        get('workspace').hidden = browsing || inCrm || !verified;
 
-        clinicApplications.setVisible(!browsing && Boolean(user));
+        clinicApplications.setVisible(!browsing && !inCrm && Boolean(user));
+        clinicCrm.setBusiness(inCrm ? crmBusiness : null);
 
         if (openingCatalogue) {
             discovery.open();

@@ -134,32 +134,28 @@ class User extends Authenticatable implements MustVerifyEmail
         int $businessId,
         int $branchId
     ): bool {
+        $branch = Branch::query()->where('business_id', $businessId)->find($branchId);
+
+        return $branch !== null && $this->membershipForBranch($branch) !== null;
+    }
+
+    public function membershipForBranch(Branch $branch): ?BusinessUser
+    {
         $membership = $this->businessMemberships()
-            ->where('business_id', $businessId)
+            ->where('business_id', $branch->business_id)
             ->where('is_active', true)
             ->first();
 
-        if (! $membership) {
-            return false;
+        if (! $membership || $membership->role === 'business_owner') {
+            return $membership;
         }
 
-        $branchBelongsToBusiness = Branch::query()
-            ->whereKey($branchId)
-            ->where('business_id', $businessId)
-            ->exists();
-
-        if (! $branchBelongsToBusiness) {
-            return false;
-        }
-
-        if ($membership->role === 'business_owner') {
-            return true;
-        }
-
-        return $membership->branches()
-            ->where('branches.id', $branchId)
+        $assigned = $membership->branches()
+            ->where('branches.id', $branch->id)
             ->wherePivot('is_active', true)
             ->exists();
+
+        return $assigned ? $membership : null;
     }
 
     public function accessibleBranchIds(int $businessId): array
