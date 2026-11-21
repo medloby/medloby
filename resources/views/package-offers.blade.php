@@ -21,6 +21,10 @@
                     </nav>
                     <div id="account" class="flex flex-wrap items-center gap-3" hidden>
                         <span id="account-name" class="text-sm text-slate-200"></span>
+                        <button id="notifications-button" type="button" class="inline-flex items-center gap-2 rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800" hidden>
+                            Bildirimler
+                            <span id="notifications-count" class="rounded-full bg-teal-300 px-1.5 text-xs font-semibold text-slate-950" aria-hidden="true" hidden></span>
+                        </button>
                         <button id="catalog-button" type="button" class="rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800" hidden>Paketleri yönet</button>
                         <button id="logout" type="button" class="rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800">Çıkış yap</button>
                     </div>
@@ -62,7 +66,7 @@
                     <section class="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7 dark:border-slate-800 dark:bg-slate-900" aria-labelledby="conversation-title">
                         <div class="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 pb-5 dark:border-slate-800">
                             <div class="min-w-0">
-                                <h2 id="conversation-title" class="break-words text-2xl font-semibold tracking-tight">Görüşme seçin</h2>
+                                <h2 id="conversation-title" tabindex="-1" class="break-words text-2xl font-semibold tracking-tight">Görüşme seçin</h2>
                                 <p id="conversation-context" class="mt-1 break-words text-sm text-slate-600 dark:text-slate-300"></p>
                             </div>
                             <button id="new-offer" type="button" class="offer-button" hidden>Paket teklifi oluştur</button>
@@ -74,6 +78,7 @@
             </main>
 
             @include('package-catalog-dialog')
+            @include('workspace-notifications')
 
             <dialog id="offer-dialog" class="offer-dialog" aria-labelledby="offer-dialog-title">
                 <div class="flex items-start justify-between gap-4">

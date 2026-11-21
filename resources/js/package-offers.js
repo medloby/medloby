@@ -1,6 +1,7 @@
 import { mountPackageCatalog } from './package-catalog';
 import { mountPackageDiscovery } from './package-discovery';
 import { mountPackageConversation } from './package-conversation';
+import { mountWorkspaceNotifications } from './workspace-notifications';
 
 const statusLabels = {
     pending: 'Yanıt bekliyor',
@@ -101,6 +102,18 @@ export function mountPackageOffers(root) {
         timeLabel: (value) => offerDeadline.format(new Date(value)),
     });
 
+    const notifications = mountWorkspaceNotifications(
+        get('notifications-dialog'),
+        get('notifications-button'),
+        get('notifications-count'),
+        {
+            api,
+            openTarget: openNotificationTarget,
+            focusTarget: focusNotificationTarget,
+            timeLabel: (value) => offerDeadline.format(new Date(value)),
+        },
+    );
+
     let token;
     let user;
     let conversation;
@@ -117,8 +130,9 @@ export function mountPackageOffers(root) {
 
     async function api(path, body, method = body === undefined ? 'GET' : 'POST', download = false) {
         const headers = { Accept: 'application/json' };
-        if (token) {
-            headers.Authorization = 'Bearer ' + token;
+        const requestToken = token;
+        if (requestToken) {
+            headers.Authorization = 'Bearer ' + requestToken;
         }
         const multipart = body instanceof FormData;
         if (body !== undefined && !multipart) {
@@ -138,7 +152,7 @@ export function mountPackageOffers(root) {
         const result = await response.json().catch(() => null);
 
         if (!response.ok || !result?.success) {
-            if (response.status === 401 && token) {
+            if (response.status === 401 && requestToken && requestToken === token) {
                 endSession();
             }
 
@@ -201,6 +215,52 @@ export function mountPackageOffers(root) {
         showStatus(notice, 'Paket görüşmesi açıldı.');
     }
 
+    async function openNotificationTarget(data) {
+        const actor = user;
+        let conversationId = Number(data.conversation_id);
+        let offerId = data.offer_id;
+        const appointmentId = Number(data.appointment_id);
+        if (!conversationId && Number.isSafeInteger(appointmentId) && appointmentId > 0) {
+            const appointment = await api('/appointments/' + appointmentId);
+            conversationId = appointment.offer?.conversation_id;
+            offerId = appointment.offer?.id;
+        }
+        conversationId = Number(conversationId);
+        if (!Number.isSafeInteger(conversationId) || conversationId <= 0 || user !== actor) {
+            return null;
+        }
+
+        const { conversation: item } = await api('/conversations/' + conversationId);
+        if (user !== actor) {
+            return null;
+        }
+        window.location.hash = 'gorusmeler';
+        syncPage();
+        await loadConversations(1, item);
+        return { offerId, appointmentId };
+    }
+
+    function focusNotificationTarget(target) {
+        if (!target.offerId) {
+            const conversationThread = get('package-conversation');
+            conversationThread.open = true;
+            conversationThread.querySelector('summary').focus();
+            return;
+        }
+
+        const card = offerList.querySelector('[data-offer-id="' + Number(target.offerId) + '"]');
+        if (card && target.appointmentId) {
+            const schedule = card.querySelector('[data-schedule]');
+            if (!schedule.hidden) {
+                schedule.open = true;
+                schedule.querySelector('summary').focus();
+                return;
+            }
+        }
+
+        (card ?? get('conversation-title')).focus();
+    }
+
     function endSession() {
         token = undefined;
         user = undefined;
@@ -219,6 +279,7 @@ export function mountPackageOffers(root) {
         bookingDialog.close();
         appointmentDialog.close();
         packageCatalog.close();
+        notifications.stop();
         catalogButton.hidden = true;
         appointmentForm.reset();
         offerForm.reset();
@@ -334,6 +395,8 @@ export function mountPackageOffers(root) {
 
     function renderOffer(offer, item) {
         const card = get('offer-template').content.firstElementChild.cloneNode(true);
+        card.dataset.offerId = offer.id;
+        card.tabIndex = -1;
         const snapshot = offer.package_snapshot;
         const booked = offer.appointments_exists;
         card.querySelector('[data-title]').textContent = offer.title;
@@ -666,6 +729,9 @@ export function mountPackageOffers(root) {
         get('account-name').textContent = user.name;
         catalogButton.hidden = ownedBusinesses().length === 0;
         get('account').hidden = false;
+        if (user.email_verified_at) {
+            notifications.start(ownedBusinesses());
+        }
         syncPage();
 
         const requested = pendingPackage;

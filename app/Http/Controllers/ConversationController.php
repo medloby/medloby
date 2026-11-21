@@ -7,6 +7,7 @@ use App\Models\Conversation;
 use App\Models\MessageAttachment;
 use App\Models\PatientProfile;
 use App\Models\TreatmentPackage;
+use App\Services\PackageConversationNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -15,6 +16,8 @@ use Illuminate\Validation\ValidationException;
 
 class ConversationController extends Controller
 {
+    public function __construct(private PackageConversationNotificationService $packageNotifications) {}
+
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -195,6 +198,7 @@ class ConversationController extends Controller
                     'message_type' => 'text',
                 ]);
                 $conversation->update(['last_message_at' => $message->created_at]);
+                $this->packageNotifications->notifyRequest($conversation, $patient->user_id);
             }
 
             return $conversation;
@@ -227,7 +231,7 @@ class ConversationController extends Controller
         return response()->json([
             'success' => true,
             'data' => [
-                'conversation' => $conversation->load('treatmentPackage:id,name'),
+                'conversation' => $conversation->load(['business', 'branch', 'patientProfile', 'treatmentPackage:id,name']),
                 'messages' => $messages,
             ],
         ]);
@@ -308,6 +312,8 @@ class ConversationController extends Controller
             $conversation->update([
                 'last_message_at' => now(),
             ]);
+
+            $this->packageNotifications->notifyMessage($conversation, $request->user()->id);
 
             return $message;
         });

@@ -8,6 +8,7 @@ use App\Models\PatientProfile;
 use App\Models\Treatment;
 use App\Models\TreatmentCategory;
 use App\Models\User;
+use App\Notifications\NotificationType;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -685,6 +686,19 @@ test('message attachment is stored under the conversation directory', function (
 
 test('guests can discover eligible packages and patients can open one conversation for a package', function () {
     $data = createConversationTestData();
+    $data['businessUser']->businessMemberships()->sole()->update(['role' => 'business_owner']);
+    $assigned = User::factory()->create();
+    $data['business']->memberships()->create([
+        'user_id' => $assigned->id,
+        'role' => 'staff',
+        'is_active' => true,
+    ])->branches()->attach($data['businessBranch']->id, ['is_active' => true]);
+    $unassigned = User::factory()->create();
+    $data['business']->memberships()->create([
+        'user_id' => $unassigned->id,
+        'role' => 'staff',
+        'is_active' => true,
+    ]);
     $category = TreatmentCategory::create(['name' => 'Tedaviler', 'slug' => 'paket-tedavileri']);
     $treatment = Treatment::create([
         'treatment_category_id' => $category->id,
@@ -748,9 +762,35 @@ test('guests can discover eligible packages and patients can open one conversati
         'body' => 'Bu tedavi paketi için teklif almak istiyorum.',
     ]);
 
+    foreach ([$data['businessUser'], $assigned] as $recipient) {
+        $this->actingAs($recipient)->getJson('/api/notifications')->assertOk()
+            ->assertJsonCount(1, 'data.data')
+            ->assertJsonPath('data.data.0.data.notification_type', NotificationType::PATIENT_REQUEST)
+            ->assertJsonPath('data.data.0.data.conversation_id', $id);
+    }
+    $this->actingAs($unassigned)->getJson('/api/notifications/unread-count')->assertOk()
+        ->assertJsonPath('data.count', 0);
+
     $this->actingAs($data['businessUser'])->getJson('/api/conversations')->assertOk()
         ->assertJsonPath('data.data.0.treatment_package.name', $package->name);
     $this->postJson('/api/conversations', $payload)->assertForbidden();
+
+    $messages = "/api/conversations/{$id}/messages";
+    $this->postJson($messages, ['body' => 'Size nasıl yardımcı olabiliriz?'])->assertCreated();
+    $this->actingAs($data['patientUser'])->getJson('/api/notifications')->assertOk()
+        ->assertJsonCount(1, 'data.data')
+        ->assertJsonPath('data.data.0.data.notification_type', NotificationType::NEW_MESSAGE)
+        ->assertJsonPath('data.data.0.data.conversation_id', $id);
+
+    $data['business']->notificationPreferences()->create([
+        'notification_type' => NotificationType::NEW_MESSAGE,
+        'in_app_enabled' => false,
+        'email_enabled' => false,
+    ]);
+    $this->postJson($messages, ['body' => 'Paketle ilgili bilgi almak istiyorum.'])->assertCreated();
+
+    $this->actingAs($data['businessUser'])->getJson('/api/notifications/unread-count')->assertOk()
+        ->assertJsonPath('data.count', 1);
 
     $package->update(['valid_until' => today()->subDay()]);
     $this->getJson('/api/package-catalog')->assertOk()->assertJsonPath('data.data', []);
