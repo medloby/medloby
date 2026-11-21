@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Branch;
 use App\Models\TreatmentPackage;
 use App\Services\PackageCatalogAccess;
+use DateTimeInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -149,11 +150,12 @@ class TreatmentPackageController extends Controller
             'valid_until' => [
                 'nullable',
                 'date',
-                'after_or_equal:valid_from',
             ],
         ]);
 
         $this->catalogAccess->authorizeManagement($request->user(), (int) $validated['business_id']);
+
+        $this->validateValidityDates($validated['valid_from'] ?? null, $validated['valid_until'] ?? null);
 
         $this->validateBranch(
             (int) $validated['business_id'],
@@ -331,12 +333,7 @@ class TreatmentPackageController extends Controller
                 'valid_until' => $treatmentPackage->valid_until,
             ];
 
-            if ($dates['valid_from'] !== null && $dates['valid_until'] !== null
-                && Carbon::parse($dates['valid_until'])->toDateString() < Carbon::parse($dates['valid_from'])->toDateString()) {
-                throw ValidationException::withMessages([
-                    'valid_until' => 'Bitiş tarihi başlangıç tarihinden önce olamaz.',
-                ]);
-            }
+            $this->validateValidityDates($dates['valid_from'], $dates['valid_until']);
         }
 
         if (
@@ -389,6 +386,16 @@ class TreatmentPackageController extends Controller
             'success' => true,
             'data' => $treatmentPackage->fresh(),
         ]);
+    }
+
+    private function validateValidityDates(string|DateTimeInterface|null $from, string|DateTimeInterface|null $until): void
+    {
+        if ($from !== null && $until !== null
+            && Carbon::parse($until)->toDateString() < Carbon::parse($from)->toDateString()) {
+            throw ValidationException::withMessages([
+                'valid_until' => 'Bitiş tarihi başlangıç tarihinden önce olamaz.',
+            ]);
+        }
     }
 
     private function validateBranch(int $businessId, ?int $branchId): void

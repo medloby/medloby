@@ -614,3 +614,13 @@ test('moving a package resolves slug conflicts in the destination business', fun
         ->assertJsonPath('data.business_id', $otherBusiness->id)
         ->assertJsonPath('data.slug', 'shared-package-2');
 });
+
+test('package creation compares validity by calendar day', function () {
+    $this->postJson('/api/treatment-packages', [
+        'business_id' => $this->business->id,
+        'name' => 'Same Day Package',
+        'valid_from' => '2026-10-20 18:00:00',
+        'valid_until' => '2026-10-20 09:00:00',
+    ])->assertCreated()
+        ->assertJsonPath('data.name', 'Same Day Package');
+});
