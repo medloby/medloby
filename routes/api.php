@@ -350,6 +350,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
                 ]);
 
+                Route::get('/{platformContract}/acceptances', [AdminPlatformContractController::class, 'acceptances']);
+
                 Route::put('/{platformContract}', [
 
                     AdminPlatformContractController::class,

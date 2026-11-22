@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PlatformContract extends Model
 {
@@ -45,5 +46,10 @@ class PlatformContract extends Model
             User::class,
             'updated_by_user_id'
         );
+    }
+
+    public function acceptances(): HasMany
+    {
+        return $this->hasMany(ClinicContractAcceptance::class);
     }
 }

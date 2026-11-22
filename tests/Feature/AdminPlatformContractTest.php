@@ -283,6 +283,71 @@ test('admin cannot publish an already published contract', function () {
     $response->assertStatus(422);
 });
 
+test('publishing from an older draft screen cannot publish changes made by another administrator', function () {
+    $admin = createAdminUser();
+    $contract = createContract();
+    $path = '/api/admin/platform-contracts/'.$contract->id;
+
+    $this->actingAs($admin, 'sanctum');
+    $revision = $this->getJson($path)->assertOk()->json('data.draft_revision');
+    $this->putJson($path, ['content' => 'Güncellenen sözleşme.', 'draft_revision' => $revision])->assertOk();
+    $this->postJson($path.'/publish', ['draft_revision' => $revision])->assertConflict();
+    $this->assertDatabaseHas('platform_contracts', ['id' => $contract->id, 'status' => 'draft']);
+    $this->getJson('/api/register/business/contract')->assertNotFound();
+});
+
+test('a contract must have a valid effective period when it is published', function () {
+    $this->freezeTime();
+    $past = createContract(['version' => '1.1', 'effective_at' => now()->subDays(2), 'expires_at' => now()->subDay()]);
+    $equal = createContract(['version' => '1.2', 'effective_at' => now()->addDay(), 'expires_at' => now()->addDay()]);
+
+    $this->actingAs(createAdminUser(), 'sanctum');
+    foreach ([$past, $equal] as $contract) {
+        $this->postJson('/api/admin/platform-contracts/'.$contract->id.'/publish')
+            ->assertUnprocessable()->assertJsonValidationErrors('expires_at');
+        $this->assertDatabaseHas('platform_contracts', ['id' => $contract->id, 'status' => 'draft', 'published_at' => null]);
+    }
+});
+
+test('a future version starts on its effective date and keeps its private acceptance records after removal', function () {
+    $this->travelTo(now()->startOfSecond());
+    $previous = createContract(['status' => 'published', 'published_at' => now()->subDay(), 'effective_at' => now()->subDay()]);
+    $new = createContract(['version' => '2.0', 'effective_at' => now()->addHour(), 'expires_at' => now()->addHours(3)]);
+    $path = '/api/admin/platform-contracts/'.$new->id;
+    $acceptances = $path.'/acceptances?per_page=1';
+    $admin = createAdminUser();
+
+    $this->actingAs($admin, 'sanctum');
+    $revision = $this->getJson($path)->assertOk()->json('data.draft_revision');
+    $this->postJson($path.'/publish', ['draft_revision' => $revision])->assertOk()
+        ->assertJsonPath('data.effective_at', $new->effective_at->toISOString());
+
+    $apply = function (string $email, string $clinic, PlatformContract $contract): void {
+        $this->postJson('/api/register/business/application', [
+            'owner_email' => $email, 'business_name' => $clinic, 'business_phone' => '+90 312 555 32 01',
+            'platform_contract_id' => $contract->id, 'contract_accepted' => true,
+        ])->assertCreated();
+    };
+
+    $this->getJson('/api/register/business/contract')->assertOk()->assertJsonPath('data.id', $previous->id);
+    $apply('onceki@example.test', 'Önceki Sürüm Kliniği', $previous);
+    $this->travel(1)->hour();
+    $this->getJson('/api/register/business/contract')->assertOk()->assertJsonPath('data.id', $new->id);
+    $apply('yeni@example.test', 'Yeni Sürüm Kliniği', $new);
+    $apply('son@example.test', 'Son Başvuran Klinik', $new);
+
+    $this->postJson($path.'/deactivate')->assertOk();
+    $this->getJson('/api/register/business/contract')->assertOk()->assertJsonPath('data.id', $previous->id);
+    $this->getJson($acceptances)->assertOk()->assertHeader('Cache-Control', 'no-store, private')
+        ->assertJsonPath('data.total', 2)->assertJsonCount(1, 'data.data')
+        ->assertJsonPath('data.data.0.contract_version', '2.0')
+        ->assertJsonPath('data.data.0.business.name', 'Son Başvuran Klinik')
+        ->assertJsonMissingPath('data.data.0.ip_address')->assertJsonMissingPath('data.data.0.user_agent')
+        ->assertJsonMissingPath('data.data.0.user.email');
+    $this->getJson($acceptances.'&page=2')->assertOk()->assertJsonPath('data.data.0.business.name', 'Yeni Sürüm Kliniği');
+    $this->actingAs(createRegularUser(), 'sanctum')->getJson($acceptances)->assertForbidden();
+});
+
 test('admin can deactivate a published platform contract', function () {
     $admin = createAdminUser();
 

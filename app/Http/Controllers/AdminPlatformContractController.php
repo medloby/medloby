@@ -63,6 +63,20 @@ class AdminPlatformContractController extends Controller
         ]);
     }
 
+    public function acceptances(Request $request, PlatformContract $platformContract): JsonResponse
+    {
+        $perPage = min(max((int) $request->input('per_page', 20), 1), 100);
+        $acceptances = $platformContract->acceptances()->where('is_accepted', true)
+            ->with(['business:id,name', 'user:id,name'])
+            ->orderByDesc('accepted_at')->orderByDesc('id')
+            ->paginate($perPage, ['id', 'business_id', 'user_id', 'contract_version', 'accepted_at', 'acceptance_method']);
+
+        return response()->json([
+            'success' => true,
+            'data' => $acceptances,
+        ])->header('Cache-Control', 'private, no-store');
+    }
+
     /**
      * Yeni platform sözleşmesi oluşturur.
      */
@@ -191,10 +205,7 @@ class AdminPlatformContractController extends Controller
                     ],
                 ]);
 
-                $revision = Arr::pull($validated, 'draft_revision');
-                if ($revision !== null && ! hash_equals($this->draftRevision($platformContract), $revision)) {
-                    abort(409, 'Bu taslak başka bir oturumda güncellendi. Değişikliklerinizi kopyalayıp güncel taslağı yeniden açın.');
-                }
+                $this->ensureDraftRevision($platformContract, Arr::pull($validated, 'draft_revision'));
 
                 $validated['updated_by_user_id'] = $request->user()->id;
                 $platformContract->update($validated);
@@ -222,9 +233,12 @@ class AdminPlatformContractController extends Controller
         Request $request,
         PlatformContract $platformContract
     ): JsonResponse {
+        $validated = $request->validate(['draft_revision' => ['sometimes', 'required', 'string', 'size:64']]);
+
         $result = DB::transaction(function () use (
             $request,
-            $platformContract
+            $platformContract,
+            $validated,
         ) {
             $platformContract = PlatformContract::query()->lockForUpdate()->findOrFail($platformContract->getKey());
 
@@ -236,12 +250,20 @@ class AdminPlatformContractController extends Controller
                 ]);
             }
 
+            $this->ensureDraftRevision($platformContract, $validated['draft_revision'] ?? null);
             $now = now();
+            $effectiveAt = $platformContract->effective_at ?? $now;
+            $expiresAt = $platformContract->expires_at;
+            if ($expiresAt !== null && ($expiresAt->lessThanOrEqualTo($effectiveAt) || $expiresAt->lessThanOrEqualTo($now))) {
+                throw ValidationException::withMessages([
+                    'expires_at' => ['Bitiş tarihi yürürlük tarihinden ve yayımlama anından sonra olmalıdır.'],
+                ]);
+            }
 
             $platformContract->update([
                 'status' => 'published',
                 'published_at' => $now,
-                'effective_at' => $platformContract->effective_at ?? $now,
+                'effective_at' => $effectiveAt,
                 'updated_by_user_id' => $request->user()->id,
             ]);
 
@@ -304,6 +326,13 @@ class AdminPlatformContractController extends Controller
     private function draftRevision(PlatformContract $contract): string
     {
         return hash('sha256', json_encode($contract->getRawOriginal(), JSON_THROW_ON_ERROR));
+    }
+
+    private function ensureDraftRevision(PlatformContract $contract, ?string $revision): void
+    {
+        if ($revision !== null && ! hash_equals($this->draftRevision($contract), $revision)) {
+            abort(409, 'Bu taslak başka bir oturumda güncellendi. Değişikliklerinizi kopyalayıp güncel taslağı yeniden açın.');
+        }
     }
 
     private function duplicateVersion(): ValidationException

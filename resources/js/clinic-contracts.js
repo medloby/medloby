@@ -5,6 +5,25 @@ const statusLabels = {
     published: 'Yayımlandı',
     inactive: 'Yayından kaldırıldı',
 };
+const dateLabel = new Intl.DateTimeFormat('tr-TR', { dateStyle: 'medium', timeStyle: 'short' });
+
+function localDateTime(value) {
+    if (!value) {
+        return '';
+    }
+    const date = new Date(value);
+    return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 19);
+}
+
+function contractState(contract) {
+    if (contract.status === 'published' && contract.effective_at && Date.parse(contract.effective_at) > Date.now()) {
+        return 'Yürürlük bekliyor';
+    }
+    if (contract.status === 'published' && contract.expires_at && Date.parse(contract.expires_at) <= Date.now()) {
+        return 'Süresi doldu';
+    }
+    return statusLabels[contract.status] ?? contract.status;
+}
 
 export function mountClinicContracts(dialog, trigger, { api }) {
     const find = (part, root = dialog) => root.querySelector('[data-contract-' + part + ']');
@@ -19,13 +38,23 @@ export function mountClinicContracts(dialog, trigger, { api }) {
     const back = find('back');
     const form = find('form');
     const editorFields = form.querySelector('fieldset');
-    const fields = ['title', 'version', 'content'].map((name) => form.elements.namedItem(name));
-    const [title, version, content] = fields;
+    const fields = ['title', 'version', 'content', 'effective_at', 'expires_at'].map((name) => form.elements.namedItem(name));
+    const [title, version, content, effectiveAt, expiresAt] = fields;
+    const publish = find('publish');
+    const deactivate = find('deactivate');
+    const acceptances = find('acceptances');
+    const acceptanceList = find('acceptance-list');
+    const acceptanceStatus = find('acceptance-status');
+    const acceptancePages = find('acceptance-pages');
+    const previousAcceptance = find('acceptance-prev');
+    const nextAcceptance = find('acceptance-next');
     let selected;
     let original = [];
     let request = 0;
     let page = 1;
     let saving = false;
+    let acceptanceRequest = 0;
+    let acceptancePage = 1;
 
     function showStatus(message = '') {
         status.textContent = message;
@@ -38,6 +67,11 @@ export function mountClinicContracts(dialog, trigger, { api }) {
         form.hidden = true;
         editorFields.disabled = false;
         form.reset();
+        acceptanceRequest++;
+        acceptances.open = false;
+        acceptances.hidden = true;
+        acceptanceList.replaceChildren();
+        acceptancePages.hidden = true;
     }
 
     function clearDialog() {
@@ -53,15 +87,19 @@ export function mountClinicContracts(dialog, trigger, { api }) {
     function allowLeavingEditor() {
         return !saving && (
             selected?.status !== 'draft'
-            || fields.every((field, index) => field.value === original[index])
+            || !hasChanges()
             || window.confirm('Kaydedilmemiş değişiklikler var. Bu taslaktan çıkılsın mı?')
         );
+    }
+
+    function hasChanges() {
+        return fields.some((field, index) => field.value !== original[index]);
     }
 
     function contractRow(contract) {
         const row = find('row').content.firstElementChild.cloneNode(true);
         find('row-title', row).textContent = contract.title;
-        find('row-state', row).textContent = 'Sürüm ' + contract.version + ' · ' + (statusLabels[contract.status] ?? contract.status);
+        find('row-state', row).textContent = 'Sürüm ' + contract.version + ' · ' + contractState(contract);
         row.querySelector('button').addEventListener('click', () => loadContract(contract.id));
         return row;
     }
@@ -103,26 +141,37 @@ export function mountClinicContracts(dialog, trigger, { api }) {
         }
     }
 
-    function showEditor(contract) {
+    function showEditor(contract, confirmation = '') {
         selected = contract;
         for (const field of fields) {
-            field.value = contract[field.name] ?? '';
+            const value = contract[field.name];
+            field.value = field.type === 'datetime-local' ? localDateTime(value) : (value ?? '');
         }
         original = fields.map((field) => field.value);
-        title.readOnly = content.readOnly = contract.status !== 'draft';
+        const draft = contract.status === 'draft';
+        title.readOnly = content.readOnly = effectiveAt.readOnly = expiresAt.readOnly = !draft;
         version.readOnly = Boolean(contract.id);
-        find('save').hidden = contract.status !== 'draft';
+        find('save').hidden = !draft;
+        find('date-help').hidden = !draft;
+        publish.hidden = !draft || !contract.id;
+        deactivate.hidden = contract.status !== 'published';
+        acceptances.hidden = draft;
+        find('metadata').hidden = !contract.id;
+        find('published-at').textContent = contract.published_at ? dateLabel.format(new Date(contract.published_at)) : 'Henüz yayımlanmadı';
+        find('updated-at').textContent = [contract.updated_by?.name, contract.updated_at && dateLabel.format(new Date(contract.updated_at))]
+            .filter(Boolean).join(' · ');
         const state = find('state');
-        state.textContent = contract.id ? (statusLabels[contract.status] ?? contract.status) : 'Yeni taslak';
+        state.textContent = contract.id ? contractState(contract) : 'Yeni taslak';
         listView.hidden = true;
         detail.hidden = false;
         form.hidden = false;
         state.focus();
-        showStatus();
+        showStatus(confirmation);
     }
 
-    async function loadContract(id) {
+    async function loadContract(id, confirmation = '') {
         const pending = ++request;
+        clearEditor();
         listView.hidden = true;
         detail.hidden = false;
         back.focus();
@@ -131,7 +180,7 @@ export function mountClinicContracts(dialog, trigger, { api }) {
         try {
             const contract = await api(endpoint + '/' + id);
             if (pending === request) {
-                showEditor(contract);
+                showEditor(contract, confirmation);
             }
         } catch (error) {
             if (pending === request) {
@@ -139,6 +188,93 @@ export function mountClinicContracts(dialog, trigger, { api }) {
             }
         }
     }
+
+    async function loadAcceptances(requestedPage) {
+        if (!selected?.id || acceptances.hidden || !acceptances.open) {
+            return;
+        }
+
+        const pending = ++acceptanceRequest;
+        acceptanceList.replaceChildren();
+        acceptancePages.hidden = true;
+        acceptanceStatus.hidden = false;
+        acceptanceStatus.textContent = 'Kabul kayıtları yükleniyor…';
+        try {
+            const result = await api(endpoint + '/' + selected.id + '/acceptances?page=' + requestedPage);
+            if (pending !== acceptanceRequest || !acceptances.open) {
+                return;
+            }
+
+            acceptancePage = result.current_page;
+            acceptanceList.replaceChildren(...result.data.map((record) => {
+                const row = find('acceptance-row').content.firstElementChild.cloneNode(true);
+                find('acceptance-clinic', row).textContent = record.business.name;
+                find('acceptance-detail', row).textContent = [
+                    record.user.name, 'Sürüm ' + record.contract_version,
+                    record.accepted_at && dateLabel.format(new Date(record.accepted_at)),
+                ].filter(Boolean).join(' · ');
+                return row;
+            }));
+            previousAcceptance.disabled = acceptancePage <= 1;
+            nextAcceptance.disabled = acceptancePage >= result.last_page;
+            find('acceptance-page').textContent = acceptancePage + ' / ' + result.last_page;
+            acceptancePages.hidden = result.last_page < 2;
+            acceptanceStatus.hidden = result.data.length > 0;
+            acceptanceStatus.textContent = result.data.length ? '' : 'Bu sürüm için kabul kaydı bulunamadı.';
+        } catch (error) {
+            if (pending === acceptanceRequest) {
+                acceptanceStatus.textContent = error.message;
+            }
+        }
+    }
+
+    async function changePublication(action) {
+        if (saving || !selected?.id) {
+            return;
+        }
+
+        const publishing = action === 'publish';
+        if (publishing && hasChanges()) {
+            showStatus('Sürümü yayımlamadan önce taslaktaki değişiklikleri kaydedin.');
+            return;
+        }
+        const start = selected.effective_at ? dateLabel.format(new Date(selected.effective_at)) : 'yayımlandığı an';
+        const question = publishing
+            ? 'Sürüm ' + selected.version + ' yayımlansın mı? Yürürlük zamanı ' + start + '.'
+            : 'Bu sürüm yayından kaldırılsın mı? Yürürlükte başka sürüm kalmazsa yeni klinik başvuruları durur.';
+        if (!window.confirm(question)) {
+            return;
+        }
+
+        const pending = request;
+        const id = selected.id;
+        saving = true;
+        editorFields.disabled = true;
+        showStatus(publishing ? 'Sürüm yayımlanıyor…' : 'Sürüm yayından kaldırılıyor…');
+        try {
+            await api(endpoint + '/' + id + '/' + action, publishing ? { draft_revision: selected.draft_revision } : {});
+        } catch (error) {
+            if (pending === request) {
+                showStatus(error.message);
+            }
+            return;
+        } finally {
+            if (pending === request) {
+                saving = false;
+                editorFields.disabled = false;
+            }
+        }
+
+        if (pending === request) {
+            await loadContract(id, publishing ? 'Sürüm yayımlandı.' : 'Sürüm yayından kaldırıldı.');
+        }
+    }
+
+    publish.addEventListener('click', () => changePublication('publish'));
+    deactivate.addEventListener('click', () => changePublication('deactivate'));
+    acceptances.addEventListener('toggle', () => loadAcceptances(1));
+    previousAcceptance.addEventListener('click', () => loadAcceptances(acceptancePage - 1));
+    nextAcceptance.addEventListener('click', () => loadAcceptances(acceptancePage + 1));
 
     form.addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -149,6 +285,11 @@ export function mountClinicContracts(dialog, trigger, { api }) {
         const pending = request;
         const existingId = selected.id;
         const values = { title: title.value.trim(), content: content.value };
+        for (const date of [effectiveAt, expiresAt]) {
+            if (!existingId || date.value !== original[fields.indexOf(date)]) {
+                values[date.name] = date.value ? new Date(date.value).toISOString() : null;
+            }
+        }
         saving = true;
         editorFields.disabled = true;
         showStatus('Taslak kaydediliyor…');
