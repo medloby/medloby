@@ -277,6 +277,13 @@
                             <select class="offer-control" data-time required disabled></select>
                         </label>
                     </div>
+                    <details class="mt-3">
+                        <summary class="cursor-pointer text-sm font-medium">Randevu açıklaması ekle</summary>
+                        <label class="offer-field mt-2">
+                            Randevu açıklaması (isteğe bağlı)
+                            <textarea class="offer-control" data-session-notes rows="2" maxlength="2000"></textarea>
+                        </label>
+                    </details>
                     <p class="mt-2 text-sm text-slate-600 dark:text-slate-300" data-session-status role="status" hidden></p>
                 </fieldset>
             </template>

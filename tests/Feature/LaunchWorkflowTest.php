@@ -136,10 +136,11 @@ test('a newly approved clinic and a verified patient can complete a private pack
     $authenticate($patientToken);
     $slots = $this->getJson($options)->assertOk()->assertJsonPath('data.doctors.0.id', $doctor)->json('data.doctors.0.slots');
     expect($slots)->toContain('2026-12-04 10:00:00', '2026-12-04 11:00:00');
+    $visitNotes = 'Randevu öncesinde danışmaya uğrayacağım.';
     $bookings = $this->postJson($appointmentPath, [
         'branch_id' => $branch,
         'sessions' => [
-            ['doctor_id' => $doctor, 'treatment_id' => $treatment, 'starts_at' => '2026-12-04 10:00:00'],
+            ['doctor_id' => $doctor, 'treatment_id' => $treatment, 'starts_at' => '2026-12-04 10:00:00', 'notes' => $visitNotes],
             ['doctor_id' => $doctor, 'treatment_id' => $treatment, 'starts_at' => '2026-12-04 11:00:00'],
         ],
     ])->assertCreated()->assertJsonCount(2, 'data.appointments')->json('data.appointments');
@@ -149,6 +150,10 @@ test('a newly approved clinic and a verified patient can complete a private pack
         ->assertJsonPath('data.appointments.0.id', $bookings[0]['id']);
     $this->postJson($calendar.'/appointments/'.$bookings[0]['id'].'/confirm')
         ->assertOk()->assertJsonPath('data.status', 'confirmed');
+    $this->getJson($calendar.'/appointments/'.$bookings[0]['id'])->assertOk()
+        ->assertJsonPath('data.notes', $visitNotes)->assertJsonPath('data.status', 'confirmed')
+        ->assertJsonPath('data.email', $patientEmail);
+    $this->getJson($calendar.'/appointments/'.$bookings[1]['id'])->assertOk()->assertJsonPath('data.notes', null);
     $this->putJson($onlineBooking, ['is_public' => false])->assertOk();
 
     $authenticate($patientToken);

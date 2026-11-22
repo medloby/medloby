@@ -788,6 +788,7 @@ export function mountPackageOffers(root) {
             date: row.querySelector('[data-date]'),
             doctor: row.querySelector('[data-doctor]'),
             time: row.querySelector('[data-time]'),
+            notes: row.querySelector('[data-session-notes]'),
             status: row.querySelector('[data-session-status]'),
             doctors: [],
             request: 0,
@@ -1082,6 +1083,7 @@ export function mountPackageOffers(root) {
                 treatment_id: session.treatmentId,
                 doctor_id: Number(session.doctor.value),
                 starts_at: session.time.value,
+                notes: session.notes.value.trim() || null,
             })),
         });
 

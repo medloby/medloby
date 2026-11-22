@@ -93,7 +93,7 @@ test('clinic calendar books a patient known to the branch and prevents the same 
     $this->assertDatabaseCount('appointments', 2);
 });
 
-test('clinic appointment contact is available on demand only in an authorized branch', function () {
+test('clinic appointment card includes the saved notes and is available only in an authorized branch', function () {
     $this->travelTo(now()->setDate(2026, 12, 1)->startOfDay());
     [$business, $owner, $branch, $other, $doctor, $treatment, $calendar, $otherCalendar] = clinicAppointmentFixture();
     $patientUser = User::factory()->create(['email' => 'hasta@example.test']);
@@ -102,32 +102,46 @@ test('clinic appointment contact is available on demand only in an authorized br
     ]);
     $patient->conversations()->create(['business_id' => $business->id, 'branch_id' => $branch->id, 'status' => 'open']);
     $payload = ['doctor_id' => $doctor->id, 'treatment_id' => $treatment->id, 'starts_at' => '2026-12-04 10:00:00'];
+    $notes = "Önceki film kaydı getirilecek.\nGirişte danışmaya uğrayacak.";
+    $this->getJson($calendar.'/appointments/1')->assertUnauthorized();
+    $this->actingAs($owner, 'sanctum')->postJson($calendar.'/appointments', [
+        ...$payload, 'patient_profile_id' => $patient->id, 'notes' => str_repeat('x', 2001),
+    ])->assertUnprocessable()->assertJsonValidationErrors('notes');
     $linked = $this->actingAs($owner, 'sanctum')->postJson($calendar.'/appointments', [
-        ...$payload, 'patient_profile_id' => $patient->id,
+        ...$payload, 'patient_profile_id' => $patient->id, 'notes' => $notes,
     ])->assertCreated()->json('data.id');
     $manual = $this->postJson($calendar.'/appointments', [
         ...$payload, 'patient_name' => 'Şubeye gelen hasta', 'starts_at' => '2026-12-04 10:30:00',
     ])->assertCreated()->json('data.id');
-    $history = $calendar.'/appointments/'.$linked.'/contact';
+    $card = $calendar.'/appointments/'.$linked;
     $this->getJson($calendar.'?date=2026-12-04')->assertOk()->assertJsonPath('data.appointments.0.patient', 'Deneme Hasta')
-        ->assertDontSee('+90 555 123 45 67')->assertDontSee('hasta@example.test');
-    $this->getJson($history)->assertOk()->assertHeader('Cache-Control', 'no-store, private')->assertExactJson([
+        ->assertDontSee('+90 555 123 45 67')->assertDontSee('hasta@example.test')->assertJsonMissingPath('data.appointments.0.notes');
+    $this->getJson($card)->assertOk()->assertHeader('Cache-Control', 'no-store, private')->assertExactJson([
+        'success' => true,
+        'data' => [
+            'id' => $linked, 'clinic' => $business->name, 'branch' => $branch->name,
+            'name' => 'Deneme Hasta', 'phone' => '+90 555 123 45 67', 'email' => 'hasta@example.test',
+            'doctor' => trim($doctor->person->first_name.' '.$doctor->person->last_name), 'treatment' => $treatment->name,
+            'starts_at' => '2026-12-04 10:00:00', 'ends_at' => '2026-12-04 10:30:00', 'status' => 'pending', 'notes' => $notes,
+        ],
+    ]);
+    $this->getJson($card.'/contact')->assertOk()->assertExactJson([
         'success' => true, 'data' => ['name' => 'Deneme Hasta', 'phone' => '+90 555 123 45 67', 'email' => 'hasta@example.test'],
     ]);
-    $this->getJson($calendar.'/appointments/'.$manual.'/contact')->assertOk()->assertJsonPath('data', [
-        'name' => 'Şubeye gelen hasta', 'phone' => null, 'email' => null,
-    ]);
-    $this->getJson($otherCalendar.'/appointments/'.$linked.'/contact')->assertNotFound();
+    $this->getJson($calendar.'/appointments/'.$manual)->assertOk()
+        ->assertJsonPath('data.name', 'Şubeye gelen hasta')->assertJsonPath('data.phone', null)
+        ->assertJsonPath('data.email', null)->assertJsonPath('data.notes', null);
+    $this->getJson($otherCalendar.'/appointments/'.$linked)->assertNotFound();
 
     $staff = User::factory()->create();
     $membership = $business->memberships()->create(['user_id' => $staff->id, 'role' => 'staff', 'is_active' => true]);
     $membership->branches()->attach($other->id, ['is_active' => true]);
-    $this->actingAs($staff, 'sanctum')->getJson($history)->assertForbidden();
+    $this->actingAs($staff, 'sanctum')->getJson($card)->assertForbidden();
     $membership->branches()->attach($branch->id, ['is_active' => true]);
-    $this->getJson($history)->assertOk()->assertJsonPath('data.email', 'hasta@example.test');
-    $this->actingAs($patientUser, 'sanctum')->getJson($history)->assertForbidden();
+    $this->getJson($card)->assertOk()->assertJsonPath('data.email', 'hasta@example.test');
+    $this->actingAs($patientUser, 'sanctum')->getJson($card)->assertForbidden();
     $business->update(['status' => 'suspended']);
-    $this->actingAs($owner, 'sanctum')->getJson($history)->assertForbidden();
+    $this->actingAs($owner, 'sanctum')->getJson($card)->assertForbidden();
 });
 
 test('crm lead appointments show only the linked patient in the authorized branch and booking requires permission', function () {

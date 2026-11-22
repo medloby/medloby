@@ -97,6 +97,7 @@ class ClinicAppointmentController extends Controller
             'doctor_id' => ['required', 'integer'],
             'treatment_id' => ['required', 'integer'],
             'starts_at' => ['required', 'date_format:Y-m-d H:i:s', 'after:'.Appointment::clinicLocalNow()->toDateTimeString()],
+            'notes' => ['nullable', 'string', 'max:2000'],
         ]);
 
         if (isset($validated['patient_profile_id']) && ! PatientProfile::query()->knownToBranch($branch)

@@ -42,6 +42,10 @@
                         <select class="offer-control" name="starts_at" required disabled></select>
                     </label>
                 </div>
+                <label class="offer-field">
+                    Randevu açıklaması (isteğe bağlı)
+                    <textarea class="offer-control" name="notes" rows="2" maxlength="2000"></textarea>
+                </label>
                 <p class="text-sm text-slate-600 dark:text-slate-300" data-booking-slot-status role="status" hidden></p>
                 <div>
                     <button type="submit" class="offer-button" data-booking-save disabled>Hasta randevusunu kaydet</button>

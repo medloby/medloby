@@ -90,19 +90,51 @@ class ClinicCalendarController extends Controller
 
     public function contact(Branch $branch, Appointment $appointment): JsonResponse
     {
+        return response()->json([
+            'success' => true,
+            'data' => $this->appointmentContact($branch, $appointment),
+        ])->header('Cache-Control', 'private, no-store');
+    }
+
+    public function appointment(Branch $branch, Appointment $appointment): JsonResponse
+    {
+        $contact = $this->appointmentContact($branch, $appointment);
+        $appointment->load([
+            'doctor.person' => fn ($people) => $people->where('business_id', $branch->business_id)
+                ->select('id', 'first_name', 'last_name'),
+            'treatment:id,name',
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                ...$contact,
+                'id' => $appointment->id,
+                'clinic' => $branch->business->name,
+                'branch' => $branch->name,
+                'starts_at' => $appointment->starts_at->toDateTimeString(),
+                'ends_at' => $appointment->ends_at->toDateTimeString(),
+                'status' => $appointment->status,
+                'doctor' => $this->doctorName($appointment->doctor),
+                'treatment' => $appointment->treatment?->name,
+                'notes' => $appointment->notes,
+            ],
+        ])->header('Cache-Control', 'private, no-store');
+    }
+
+    /** @return array{name: ?string, phone: ?string, email: ?string} */
+    private function appointmentContact(Branch $branch, Appointment $appointment): array
+    {
         abort_unless($appointment->branch_id === $branch->id && $appointment->business_id === $branch->business_id, 404);
 
         $patient = $appointment->patientProfile()->knownToBranch($branch)
             ->with('user:id,email')->first(['id', 'user_id', 'first_name', 'last_name', 'phone']);
 
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'name' => $patient ? trim($patient->first_name.' '.$patient->last_name) : $appointment->patient_name,
-                'phone' => filled($appointment->patient_phone) ? $appointment->patient_phone : $patient?->phone,
-                'email' => filled($appointment->patient_email) ? $appointment->patient_email : $patient?->user?->email,
-            ],
-        ])->header('Cache-Control', 'private, no-store');
+        return [
+            'name' => $patient ? trim($patient->first_name.' '.$patient->last_name) : $appointment->patient_name,
+            'phone' => filled($appointment->patient_phone) ? $appointment->patient_phone : $patient?->phone,
+            'email' => filled($appointment->patient_email) ? $appointment->patient_email : $patient?->user?->email,
+        ];
     }
 
     private function doctorName(?Doctor $doctor): ?string
