@@ -25,6 +25,7 @@ export function mountClinicApplications(section, { api, timeLabel, onChanged }) 
 
     function applicationRow(application) {
         const row = find('row').content.firstElementChild.cloneNode(true);
+        row.dataset.applicationId = application.id;
         find('name', row).textContent = application.name;
 
         const status = find('status', row);
@@ -66,6 +67,7 @@ export function mountClinicApplications(section, { api, timeLabel, onChanged }) 
             if (pending === request) {
                 render(applications);
                 showStatus(announce && applications.length ? 'Başvuru durumu güncellendi.' : '');
+                return true;
             }
         } catch (error) {
             if (pending === request) {
@@ -84,6 +86,14 @@ export function mountClinicApplications(section, { api, timeLabel, onChanged }) 
     refresh.addEventListener('click', () => load(true));
 
     return {
+        async getApplicationHeading(id) {
+            if (await load()) {
+                const row = list.querySelector('[data-application-id="' + id + '"]');
+                return row ? find('name', row) : null;
+            }
+
+            return null;
+        },
         canOpenCrm(businessId) {
             return crmBusinessIds.has(businessId);
         },

@@ -188,10 +188,21 @@ export function mountClinicReview(dialog, trigger, { api, timeLabel }) {
         }
     }
 
-    trigger.addEventListener('click', () => {
-        dialog.showModal();
-        loadList(1);
-    });
+    function open(businessId) {
+        if (trigger.hidden) {
+            return;
+        }
+        if (!dialog.open) {
+            dialog.showModal();
+        }
+        if (businessId) {
+            loadBusiness(businessId);
+        } else {
+            loadList(1);
+        }
+    }
+
+    trigger.addEventListener('click', () => open());
     refresh.addEventListener('click', () => loadList(page));
     previous.addEventListener('click', () => loadList(page - 1));
     next.addEventListener('click', () => loadList(page + 1));
@@ -212,6 +223,7 @@ export function mountClinicReview(dialog, trigger, { api, timeLabel }) {
     });
 
     return {
+        open,
         start() {
             trigger.hidden = false;
         },

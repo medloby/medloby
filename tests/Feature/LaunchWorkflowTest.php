@@ -13,6 +13,8 @@ test('a newly approved clinic and a verified patient can complete a private pack
     config(['mail.default' => 'array', 'queue.default' => 'sync']);
     $this->travelTo(now()->setDate(2026, 12, 1)->startOfDay());
     $administrator = User::factory()->create(['is_admin' => true]);
+    $unverifiedAdministrator = User::factory()->unverified()->create(['is_admin' => true]);
+    $otherUser = User::factory()->create();
     $administratorToken = $administrator->createToken('launch-test')->plainTextToken;
     PlatformContract::create([
         'contract_type' => 'clinic_membership', 'title' => 'Prova sözleşmesi', 'version' => 'pilot',
@@ -47,6 +49,7 @@ test('a newly approved clinic and a verified patient can complete a private pack
 
     $authenticate($ownerToken);
     $this->getJson($crm)->assertForbidden();
+    $this->getJson('/api/notifications/unread')->assertForbidden();
     $verifyLatestEmail($ownerEmail);
     $authenticate($ownerToken);
     $this->getJson('/api/clinic-applications')->assertOk()
@@ -54,8 +57,18 @@ test('a newly approved clinic and a verified patient can complete a private pack
     $this->getJson($crm)->assertForbidden();
 
     $authenticate($administratorToken);
+    $submitted = $this->getJson('/api/notifications/unread')->assertOk()
+        ->assertJsonCount(1, 'data.data')
+        ->assertJsonPath('data.data.0.data.notification_type', NotificationType::CLINIC_APPLICATION_SUBMITTED)
+        ->assertJsonPath('data.data.0.data.message', 'Prova Sağlık Merkezi başvurusu değerlendirme bekliyor.')
+        ->assertJsonPath('data.data.0.data.clinic_application_id', $business)->json('data.data.0.id');
+    expect($unverifiedAdministrator->notifications()->count())->toBe(0);
+    expect($otherUser->notifications()->count())->toBe(0);
+    $this->postJson('/api/notifications/'.$submitted.'/read')->assertOk();
+    $this->getJson('/api/notifications/unread-count')->assertOk()->assertJsonPath('data.count', 0);
     $this->postJson("/api/admin/businesses/{$business}/approve")->assertOk()
         ->assertJsonPath('data.business.branches.0.status', 'active');
+    $this->postJson("/api/admin/businesses/{$business}/approve")->assertUnprocessable();
     $category = $this->postJson('/api/treatment-categories', ['name' => 'Prova kategorisi', 'is_active' => true])
         ->assertCreated()->json('data.id');
     $treatment = $this->postJson('/api/treatments', [
@@ -63,6 +76,9 @@ test('a newly approved clinic and a verified patient can complete a private pack
     ])->assertCreated()->json('data.id');
 
     $authenticate($ownerToken);
+    $this->getJson('/api/notifications/unread')->assertOk()->assertJsonCount(1, 'data.data')
+        ->assertJsonPath('data.data.0.data.notification_type', NotificationType::CLINIC_APPLICATION_APPROVED)
+        ->assertJsonPath('data.data.0.data.clinic_application_id', $business);
     $this->getJson('/api/clinic-applications')->assertOk()->assertJsonPath('data.0.crm_available', true);
     $this->getJson($crm)->assertOk()->assertJsonPath('data.branches.0.id', $branch);
     $operations = "/api/branches/{$branch}/operations";

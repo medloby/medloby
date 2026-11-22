@@ -319,6 +319,25 @@ export function mountPackageOffers(root) {
 
     async function openNotificationTarget(data) {
         const actor = user;
+        const applicationId = Number(data.clinic_application_id);
+        if (Number.isSafeInteger(applicationId) && applicationId > 0) {
+            if (data.notification_type === 'clinic_application_submitted') {
+                if (!actor?.is_admin) {
+                    throw new Error('Klinik başvurularını incelemek için yönetici yetkisi gerekir.');
+                }
+
+                return { applicationReviewId: applicationId };
+            }
+
+            const applicationHeading = await clinicApplications.getApplicationHeading(applicationId);
+            if (!applicationHeading || user !== actor) {
+                throw new Error('Bu klinik başvurusu hesabınızdan görüntülenemiyor.');
+            }
+            window.location.hash = 'gorusmeler';
+            syncPage();
+            return { applicationHeading };
+        }
+
         let conversationId = Number(data.conversation_id);
         let offerId = data.offer_id;
         const appointmentId = Number(data.appointment_id);
@@ -343,6 +362,14 @@ export function mountPackageOffers(root) {
     }
 
     function focusNotificationTarget(target) {
+        if (target.applicationReviewId) {
+            clinicReview.open(target.applicationReviewId);
+            return;
+        }
+        if (target.applicationHeading) {
+            target.applicationHeading.focus();
+            return;
+        }
         if (!target.offerId) {
             const conversationThread = get('package-conversation');
             conversationThread.open = true;

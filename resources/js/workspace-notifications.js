@@ -75,7 +75,7 @@ export function mountWorkspaceNotifications(dialog, button, badge, { api, openTa
 
         const open = row.querySelector('[data-notification-open]');
         const read = row.querySelector('[data-notification-read]');
-        open.hidden = !data.conversation_id && !data.appointment_id;
+        open.hidden = !data.conversation_id && !data.appointment_id && !data.clinic_application_id;
         read.hidden = Boolean(notification.read_at);
 
         async function act(task) {

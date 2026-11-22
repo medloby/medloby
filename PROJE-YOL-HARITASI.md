@@ -2,7 +2,7 @@
 
 **İnceleme tarihi** 22 Kasım 2026 · **İncelenen sürüm** `main / 668980d`
 
-**Güncel durum** İlk klinik ve hasta akışının test ortamındaki provası ile hesap kurtarma tamamlandı. Canlı e-posta, üretim yedeklemesi, işletmeci bilgileri ve KVKK onayları yayın öncesi kontrol listesinde takip ediliyor. [Yayın öncesi kontrol listesi](README.md#medloby-yayına-çıkmadan-önce)
+**Güncel durum** İlk klinik ve hasta akışının test ortamındaki provası, hesap kurtarma ve klinik başvuru bildirimleri tamamlandı. Canlı e-posta, üretim yedeklemesi, işletmeci bilgileri ve KVKK onayları yayın öncesi kontrol listesinde takip ediliyor. [Yayın öncesi kontrol listesi](README.md#medloby-yayına-çıkmadan-önce)
 
 ## Kapsam ve doğrulama
 
@@ -52,7 +52,7 @@ flowchart LR
 | Modül | Depoda çalışan bölüm | Tamamlanacak bölüm |
 | --- | --- | --- |
 | Hesaplar | Hasta kaydı, giriş/çıkış, e-posta doğrulaması ve şifre sıfırlama. Giriş, kayıt ve şifre yenileme istekleri sınırlı. Şifre değişince önceki oturum anahtarları geçersiz olur. | Yayın sırasında gerçek gelen kutusu ve hesap kurtarma testi |
-| Klinik başvurusu | Geçerli sözleşme sürümüyle başvuru, yönetici inceleme/onay/ret, klinik sahibinin durum ve kendisine yazılan açıklamayı görmesi | İşletmeci ve ruhsat doğrulama sürecini netleştirme, idari görevleri ve eksik yönetim ekranlarını bitirme |
+| Klinik başvurusu | Geçerli sözleşme sürümüyle başvuru, yönetici inceleme/onay/ret, bildirimden başvuruya geçiş, klinik sahibinin durum ve kendisine yazılan açıklamayı görmesi | İşletmeci ve ruhsat doğrulama sürecini netleştirme, idari görevleri ve eksik yönetim ekranlarını bitirme |
 | Sözleşmeler ve platform yönetimi | Yönetici taslak listesi, düzenleme ve sürüm oluşturma, eşzamanlı değişiklik denetimi. Yayımlama, pasife alma, klinik askıya alma ve üyelik yetki işlemleri için sunucu uç noktaları | Yayımlama koşulları, geçmiş sözleşme ve kabul görünümü, klinik durum geçmişi ve üyelik yönetimi ekranları |
 | CRM hasta adayları | Şube seçimi ve özet, aday listeleme, durum filtresi, sayfalama, iletişim bilgilerini düzenleme ve personele atama. Takip aşaması ekleme, aşama geçmişi ve aday sonuçlandırma | Klinik takvimi ve operasyon ekranlarıyla birlikte doğrulama |
 | CRM görevleri ve takip | Adaya bağlı görev, planlı takip ve aktivite kayıtları. Görev ve takiplerin tamamlanması ve iptali. Yetkili şube görüşmesini ve hastayı adaya bağlama | Süresi gelen takipler için hatırlatma kuralları |
@@ -60,7 +60,7 @@ flowchart LR
 | Katalog ve fiyat | Tedavi, kategori ve fiyat kayıtları. Klinik paketleri, seans ve ek hizmet yönetimi. Paket, klinik, tedavi ve il araması. Yetkili kliniğe açık fiyat kayıtları ve hastaya özel paket teklifi | Yayımlanacak katalog kayıtlarının içerik incelemesi |
 | Görüşme ve teklif | Paketle görüşme başlatma, mesaj ve özel ek, teklif oluşturma, kabul/ret ve paket içeriği kaydı | Farklı şube ve rollerin görmesi gereken verileri tutarlı hale getirme, geçmiş kayıt ve dosya saklama kurallarını belirleme |
 | Randevu | Uygun saat arama, tekil randevu ve kabul edilen paket seanslarının planlanması. Klinik takviminde onay, iptal, tarih değişikliği, tamamlanma ve hasta gelmedi işlemleri | Seçilecek üretim veritabanında eşzamanlı rezervasyon testi |
-| Bildirim | Görüşme, teklif ve randevu bildirimleri, okunma durumu ve klinik tercihleri | Klinik başvuru bildirimleri ve takip hatırlatmalarının kapsamı, kuyruk işçisi ve canlı e-posta teslimatı |
+| Bildirim | Klinik başvurusu, görüşme, teklif ve randevu bildirimleri, okunma durumu ve klinik tercihleri | Takip hatırlatmalarının kapsamı, kuyruk işçisi ve canlı e-posta teslimatı |
 | Sağlık verisi ve bekleme listesi | Tıbbi kayıt, onam ve bekleme listesi için şema ve modeller | Kullanıcı akışları, erişim ve saklama kararları. Bu modüllerin kapsamı ürün kararıyla belirlenecek |
 | Yayın ve operasyon | Yerel kurulum, kilit dosyaları, derleme ve test altyapısı, yerel font ve lisans bildirimleri | Medloby ana sayfası, otomatik test/derleme, üretim kurulumu, yedek ve geri yükleme, izleme ve yayın kontrol listesi |
 
@@ -110,6 +110,7 @@ Kamuya açılış için içeriğin uygunluğu, onaylı sözleşme ve kişisel ve
 4. Site tamamlandığında anlaşmaya göre canlı e-posta gönderimini bağla. Gönderen, destek adresi, SMTP, TLS ve gerçek gelen kutusu doğrulamasını tamamla. [Canlı e-posta maddesi](README.md#medloby-yayına-çıkmadan-önce)
 5. **5.5 Test ortamında ilk klinik ve hasta provası tamamlandı.** Klinik, üyelik sözleşmesini kabul edip e-postasını doğruladı. Yönetici onayından sonra klinik sahibi CRM’e geçti, hekim ve çalışma saatlerini tanımladı, iki seanslık paket yayımladı. Hasta fiyat gösterilmeyen katalogdan görüşmeye geçti ve kendisine gönderilen özel teklifi kabul etti. Klinik sahibi hekimi çevrimiçi randevuya açınca hasta iki ayrı seans seçti. Klinik takviminde ilk randevu onaylandı ve hasta bildirimi hesabında gördü. Masaüstü ve mobil Chromium provasında e-posta bağlantıları yerel kayıttan açıldı ve teklif bildirimi veritabanı kuyruğundan işlendi. 815 test, 3.298 doğrulama ve Vite derlemesi geçti. Canlı ortamda son prova yayın öncesi kontrol listesinde. [Otomatik prova](tests/Feature/LaunchWorkflowTest.php)
 6. **5.6 Hesap kurtarma tamamlandı.** Hasta ve klinik hesapları giriş ekranından şifre yenileme bağlantısı isteyebilir. Tek kullanımlık bağlantı 60 dakika geçerlidir ve şifre değişince mevcut erişim anahtarları iptal edilir. E-posta işi şifreli olarak mevcut kuyruğa eklenir. Giriş, hasta ve klinik kaydı, bağlantı isteme ve şifre yenileme denemelerinde istek sınırı uygulanır. Mobil Chromium’da yerel e-posta kuyruğundan alınan bağlantı ile şifre değiştirme ve yeniden giriş doğrulandı. 821 test, 3.384 doğrulama ve Vite derlemesi geçti. [Hesap kurtarma testleri](tests/Feature/AccountPasswordResetTest.php)
+7. **5.7 Klinik başvuru bildirimleri tamamlandı.** Yeni başvurular doğrulanmış platform yöneticilerine, onay ve ret kararları aktif klinik sahiplerine uygulama içinden bildirilir. Yönetici bildirime tıklayarak ilgili incelemeyi açar. Klinik sahibi kendi başvuru sonucuna gider ve onaylanan başvurudan **CRM’e geç** düğmesiyle çalışma alanını açar. Ret açıklaması yetkili kişinin başvuru kartında görüntülenir. Masaüstü ve mobil Chromium’da iki karar yolu doğrulandı. 821 test, 3.408 doğrulama ve Vite derlemesi geçti. [Başvuru akışı testi](tests/Feature/LaunchWorkflowTest.php) · [Ret açıklaması ve yetki testi](tests/Feature/ClinicApplicationStatusTest.php)
 
 ## Uygulama düzeni
 

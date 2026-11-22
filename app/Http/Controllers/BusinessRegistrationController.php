@@ -8,11 +8,14 @@ use App\Models\BusinessUser;
 use App\Models\ClinicContractAcceptance;
 use App\Models\PlatformContract;
 use App\Models\User;
+use App\Notifications\ClinicApplicationNotification;
+use App\Notifications\NotificationType;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
 
@@ -162,6 +165,9 @@ class BusinessRegistrationController extends Controller
             $token = $user
                 ->createToken('medloby-auth')
                 ->plainTextToken;
+
+            $administrators = User::query()->where('is_admin', true)->whereNotNull('email_verified_at')->get();
+            Notification::send($administrators, new ClinicApplicationNotification($business, NotificationType::CLINIC_APPLICATION_SUBMITTED));
 
             return [
                 'user' => $user,

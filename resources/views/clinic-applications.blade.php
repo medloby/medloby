@@ -9,7 +9,7 @@
     <template data-application-row>
         <li class="rounded-xl border border-slate-200 px-4 py-3 dark:border-slate-700">
             <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                <h3 class="min-w-0 break-words font-semibold" data-application-name></h3>
+                <h3 class="min-w-0 break-words font-semibold" tabindex="-1" data-application-name></h3>
                 <span class="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-900
                     data-[state=approved]:bg-teal-100 data-[state=approved]:text-teal-900
                     data-[state=rejected]:bg-rose-100 data-[state=rejected]:text-rose-900

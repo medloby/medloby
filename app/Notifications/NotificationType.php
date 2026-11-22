@@ -28,8 +28,14 @@ final class NotificationType
 
     public const SYSTEM_ANNOUNCEMENT = 'system_announcement';
 
+    public const CLINIC_APPLICATION_SUBMITTED = 'clinic_application_submitted';
+
+    public const CLINIC_APPLICATION_APPROVED = 'clinic_application_approved';
+
+    public const CLINIC_APPLICATION_REJECTED = 'clinic_application_rejected';
+
     /**
-     * Medloby'deki tüm bildirim türleri.
+     * Klinik bildirim tercihlerinde ayarlanabilen türler.
      */
     public static function all(): array
     {

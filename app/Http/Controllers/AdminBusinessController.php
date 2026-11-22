@@ -4,9 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\Business;
 use App\Models\BusinessReview;
+use App\Models\User;
+use App\Notifications\ClinicApplicationNotification;
+use App\Notifications\NotificationType;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\ValidationException;
 
 class AdminBusinessController extends Controller
@@ -112,6 +116,8 @@ class AdminBusinessController extends Controller
                 'new_status' => 'active',
             ]);
 
+            $this->notifyOwners($business, NotificationType::CLINIC_APPLICATION_APPROVED);
+
             return [
                 'business' => $business->fresh([
                     'branches',
@@ -191,6 +197,8 @@ class AdminBusinessController extends Controller
                 'new_status' => 'rejected',
             ]);
 
+            $this->notifyOwners($business, NotificationType::CLINIC_APPLICATION_REJECTED);
+
             return [
                 'business' => $business->fresh([
                     'branches',
@@ -205,5 +213,15 @@ class AdminBusinessController extends Controller
             'message' => 'Klinik başvurusu reddedildi.',
             'data' => $result,
         ]);
+    }
+
+    private function notifyOwners(Business $application, string $type): void
+    {
+        $owners = User::query()->whereHas('businessMemberships', fn ($query) => $query
+            ->where('business_id', $application->id)
+            ->where('role', 'business_owner')
+            ->where('is_active', true))->get();
+
+        Notification::send($owners, new ClinicApplicationNotification($application, $type));
     }
 }

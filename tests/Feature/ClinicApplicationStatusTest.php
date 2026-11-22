@@ -2,6 +2,7 @@
 
 use App\Models\Business;
 use App\Models\User;
+use App\Notifications\NotificationType;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -52,9 +53,13 @@ test('a verified owner can see pending and approved decisions for their own appl
 
 test('an owner receives only the explanation explicitly provided for the applicant', function () {
     $owner = User::factory()->create();
+    $staff = User::factory()->create();
+    $inactiveOwner = User::factory()->create();
     $admin = User::factory()->create(['is_admin' => true]);
     $business = Business::factory()->create(['status' => 'pending', 'is_verified' => false]);
     $business->memberships()->create(['user_id' => $owner->id, 'role' => 'business_owner', 'is_active' => true]);
+    $business->memberships()->create(['user_id' => $staff->id, 'role' => 'staff', 'is_active' => true]);
+    $business->memberships()->create(['user_id' => $inactiveOwner->id, 'role' => 'business_owner', 'is_active' => false]);
 
     $response = $this->actingAs($admin, 'sanctum')
         ->postJson('/api/admin/businesses/'.$business->id.'/reject', [
@@ -63,6 +68,16 @@ test('an owner receives only the explanation explicitly provided for the applica
             'applicant_rejection_reason' => 'Lütfen şubenin güncel ruhsat bilgilerini hazırlayın.',
         ]);
     $response->assertOk();
+
+    $this->actingAs($owner, 'sanctum')->getJson('/api/notifications/unread')
+        ->assertOk()
+        ->assertJsonPath('data.data.0.data.notification_type', NotificationType::CLINIC_APPLICATION_REJECTED)
+        ->assertJsonPath('data.data.0.data.clinic_application_id', $business->id)
+        ->assertDontSee('İç değerlendirme için saklanan ayrıntılı gerekçe.')
+        ->assertDontSee('Yöneticiye özel inceleme notu.')
+        ->assertDontSee('Lütfen şubenin güncel ruhsat bilgilerini hazırlayın.');
+    expect($staff->notifications()->count())->toBe(0);
+    expect($inactiveOwner->notifications()->count())->toBe(0);
 
     $this->actingAs($owner, 'sanctum')
         ->getJson('/api/clinic-applications')
