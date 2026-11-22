@@ -1,6 +1,7 @@
 <?php
 
 use App\Mail\NewAppointmentMail;
+use App\Mail\NewPatientAppointmentMail;
 use App\Models\Appointment;
 use App\Models\Branch;
 use App\Models\Business;
@@ -268,4 +269,25 @@ test('new appointment email contains appointment information', function () {
                 && $mail->appointment->doctor->id === $appointment->doctor_id;
         }
     );
+});
+
+test('appointment email bodies use an account link and omit identifying and medical information', function () {
+    $appointment = new Appointment([
+        'patient_name' => 'Deneme Hasta',
+        'patient_email' => 'hasta@example.test',
+        'patient_phone' => '05551112233',
+        'notes' => 'Kişiye özel görüşme notu',
+    ]);
+    $appointment->setRelation('patientProfile', new PatientProfile(['first_name' => 'Deneme Hasta']));
+    $appointment->setRelation('treatment', new Treatment(['name' => 'Özel tedavi bilgisi']));
+    $account = route('package-offers').'#gorusmeler';
+
+    foreach ([new NewAppointmentMail($appointment), new NewPatientAppointmentMail($appointment)] as $mail) {
+        $mail->assertSeeInHtml($account);
+        $mail->assertDontSeeInHtml('Deneme Hasta');
+        $mail->assertDontSeeInHtml('hasta@example.test');
+        $mail->assertDontSeeInHtml('05551112233');
+        $mail->assertDontSeeInHtml('Kişiye özel görüşme notu');
+        $mail->assertDontSeeInHtml('Özel tedavi bilgisi');
+    }
 });

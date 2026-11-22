@@ -62,8 +62,9 @@
         </main>
 
         <footer class="border-t border-[#dbe3dc] dark:border-slate-800">
-            <div class="mx-auto grid max-w-7xl gap-2 px-5 py-6 text-sm text-[#42594f] sm:flex sm:items-center sm:justify-between sm:px-8 lg:px-12 dark:text-slate-300">
+            <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-5 py-6 text-sm text-[#42594f] sm:px-8 lg:px-12 dark:text-slate-300">
                 <p class="font-semibold">Medloby</p>
+                @include('privacy.footer-links')
                 <p>Son içerik güncellemesi <time datetime="2026-11-22">22 Kasım 2026</time></p>
             </div>
         </footer>

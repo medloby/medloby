@@ -13,7 +13,8 @@
         </label>
         <label class="offer-field">
             Dosya (isteğe bağlı)
-            <input class="offer-control" type="file" name="attachment" accept=".jpg,.jpeg,.png,.pdf">
+            <input class="offer-control" type="file" name="attachment" accept=".jpg,.jpeg,.png,.pdf" aria-describedby="conversation-attachment-help">
+            <span id="conversation-attachment-help" class="text-sm font-normal text-slate-600 dark:text-slate-300">Görüşme için gereken dosyaları ekleyin. Sağlık raporu veya kimlik belgesi istendiğinde kliniğin bildirdiği güvenli kanalı kullanın.</span>
         </label>
         <button type="submit" class="offer-button justify-self-start">Mesaj gönder</button>
     </form>

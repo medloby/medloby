@@ -1,3 +1,5 @@
+@inject('registrationPrivacy', 'App\Services\PrivacyPublication')
+
 <dialog id="registration-dialog" class="offer-dialog" aria-labelledby="registration-title">
     <div class="flex items-start justify-between gap-4">
         <h2 id="registration-title" class="text-2xl font-semibold tracking-tight"></h2>
@@ -6,6 +8,9 @@
     <p class="mt-3 text-sm text-slate-600 dark:text-slate-300" data-registration-status role="status" hidden></p>
 
     <form method="post" class="mt-5 grid gap-4" data-registration-patient hidden>
+        @if ($registrationPrivacy->isPublished())
+            <p class="text-sm"><a class="font-semibold underline underline-offset-4" href="{{ route('privacy.notice', 'hasta') }}" target="_blank" rel="noopener">Hasta hesabı KVKK aydınlatma metni</a></p>
+        @endif
         <div class="grid gap-4 sm:grid-cols-2">
             <label class="offer-field">
                 Ad
@@ -34,6 +39,9 @@
     </form>
 
     <form method="post" class="mt-5 grid gap-4" data-registration-business hidden>
+        @if ($registrationPrivacy->isPublished())
+            <p class="text-sm"><a class="font-semibold underline underline-offset-4" href="{{ route('privacy.notice', 'klinik') }}" target="_blank" rel="noopener">Klinik başvurusu KVKK aydınlatma metni</a></p>
+        @endif
         <div class="grid gap-4 sm:grid-cols-2">
             <label class="offer-field">
                 İşletme sahibi

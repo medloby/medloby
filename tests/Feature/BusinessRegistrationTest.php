@@ -490,6 +490,7 @@ test('clinic membership draft stays private and reseeding preserves edits', func
     $this->seed(ClinicMembershipContractDraftSeeder::class);
 
     $draft = PlatformContract::sole();
+    expect($draft->version)->toBe('0.2-draft');
     expect($draft->status)->toBe('draft');
     expect($draft->content)->toContain('MEDLOBY KLİNİK ÜYELİK VE PLATFORM KULLANIM SÖZLEŞMESİ');
     $this->getJson('/api/register/business/contract')->assertNotFound();

@@ -15,7 +15,7 @@ class ClinicMembershipContractDraftSeeder extends Seeder
     {
         PlatformContract::firstOrCreate([
             'contract_type' => 'clinic_membership',
-            'version' => '0.1-draft',
+            'version' => '0.2-draft',
         ], [
             'title' => 'Medloby Klinik Üyelik ve Platform Kullanım Sözleşmesi',
             'content' => File::get(resource_path('contracts/medloby-klinik-uyelik-taslak.txt')),

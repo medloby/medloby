@@ -13,6 +13,7 @@ Uygulama mimarisi, tamamlanan işler, eksikler ve geliştirme sırası proje yol
 
 ## Medloby yayına çıkmadan önce
 
+- [ ] **İşletmeci ve KVKK iletişim bilgilerini tanımla.** Tam unvanı ve posta adresini `MEDLOBY_OPERATOR_LEGAL_NAME` ile `MEDLOBY_OPERATOR_POSTAL_ADDRESS` ayarlarına gir. Kullanılan kanallara göre `MEDLOBY_PRIVACY_EMAIL` ve `MEDLOBY_PRIVACY_KEP` değerlerini belirle. Destek ve site editörü adreslerini ilgili ayarlara gir. Veri işleme ve saklama planı doğrulanıp metinler onaylandığında `MEDLOBY_PRIVACY_PUBLISHED` ayarı hasta ve klinik aydınlatma sayfalarını açar. Klinik üyelik sözleşmesi yönetim ekranından kendi sürümü ve yürürlük tarihiyle yayımlanır. [Veri işleme ve saklama planı](resources/contracts/medloby-veri-isleme-ve-saklama-taslagi.md)
 - [ ] **Canlı e-posta gönderimini aç.** Site geliştirmesi tamamlandığında yetkili gönderici adresini ve destek adresini belirle. Canlı ortamda SMTP sunucusunu ve portunu yapılandır, gerekiyorsa erişim bilgilerini gizli ayarlara ekle. Klinik başvurusu ve hasta kaydı için doğrulama e-postasının gerçek bir test gelen kutusuna ulaştığını ve bağlantının çalıştığını kontrol et.
 
 ## About Laravel

@@ -1,11 +1,13 @@
 MEDLOBY KLİNİK ÜYELİK VE PLATFORM KULLANIM SÖZLEŞMESİ
-İnceleme taslağı v0.1 · 22 Kasım 2026
+İnceleme taslağı v0.2 · 22 Kasım 2026
 
 1. Taraflar ve kapsam
 
 Platform işletmecisi
-[Ticaret unvanı, MERSİS numarası, vergi bilgileri ve tebligat adresi]
-[Destek e-postası, sözleşme bildirim adresi ve KVKK başvuru kanalı]
+[Tam ticaret unvanı, varsa MERSİS numarası ve vergi bilgileri]
+[Tebligata esas posta adresi ve varsa kayıtlı elektronik posta adresi]
+[Destek e-postası ve sözleşme bildirim adresi]
+[KVKK başvuru adresi ve işletmecinin kullandığı elektronik başvuru kanalları]
 
 Klinik
 [Başvuruda beyan edilen sağlık kuruluşu unvanı, ruhsat bilgileri ve adresi]
@@ -56,6 +58,8 @@ Klinik yalnızca belirli bir amaç için gerekli verileri, uygun işleme şartı
 Dosyalar yalnızca ilgili hasta ve yetkili klinik hesaplarıyla paylaşılır. Zorunlu olmayan sağlık kayıtları, kimlik belgeleri ve üçüncü kişilerin verileri sohbet veya paket alanlarına yüklenmez. E-posta bildirimlerinde sağlık raporu, tıbbi kayıt eki ve gereksiz sağlık bilgisi paylaşımı yasaktır. Hesap doğrulamasında süreli bağlantı, ayrıntılı bilgiler için yetkili oturum veya uygulama içi bildirim kullanılır.
 
 Veriler bildirilen amaç ve hukuki saklama yükümlülükleri için gereken süre boyunca tutulur. Süre sonunda ilgili imha politikası uygulanır. Yurt dışına aktarım planlandığında Kanunun 9. maddesine uygun aktarım şartı ve gerekli güvenceler önceden belirlenir. Taraflar, ilgili kişi başvuruları, yetkili makam talepleri ve güvenlik olaylarında sorumlulukları kapsamında iş birliği yapar. Başvuru kanalları ve veri işleme ayrıntıları ayrı aydınlatma metninde belirtilir.
+
+Medloby klinik başvurusu ve hasta hesabı için ayrı aydınlatma metinleri sunar. Klinik, bir kişiye ait bilgiyi randevu, CRM veya benzeri bir işlem için doğrudan kendisinden almadan kaydediyorsa ilgili kişiye aydınlatmayı mevzuatta belirtilen zamanda ve yöntemle ulaştırır. İlgili kişinin yetkili başvuru kanalına erişimi sağlanır.
 
 8. Elektronik bildirimler ve sözleşme kayıtları
 
