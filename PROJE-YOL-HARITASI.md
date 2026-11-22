@@ -2,7 +2,7 @@
 
 **İnceleme tarihi** 22 Kasım 2026 · **İncelenen sürüm** `main / 668980d`
 
-**Sıradaki iş 4.2** İşletmeci ve KVKK başvuru bilgilerini doğrulamak, veri saklama sürelerini ve sağlık verilerinin işleme şartlarını kesinleştirmek.
+**Sıradaki geliştirme işi 5.1** Otomatik derleme ve test hazırlığı. İşletmeci bilgileri ve KVKK onayları yayın öncesi kontrol listesinde takip ediliyor. [Yayın öncesi kontrol listesi](README.md#medloby-yayına-çıkmadan-önce)
 
 ## Kapsam ve doğrulama
 
@@ -97,7 +97,7 @@ Kabul senaryosu şubede hekim ve uygunluk hazırlığından başlayıp hastanın
 ### 4. Kamuya açık site ve yayın içeriği
 
 1. **4.1 Uygulama tamamlandı.** Medloby ana sayfasından tedavi paketi arama, hesap ve klinik başvurusu açılıyor. Katalog klinik, konum, tedavi seansları ve ek hizmetleri gösteriyor. Fiyat teklifleri ilgili hastanın hesabında görüntüleniyor. Hasta, katalogdan seçtiği paketin görüşmesini doğrulanmış hesabında başlatabiliyor. 808 test ve 3.155 doğrulama, Vite derlemesi ve masaüstü ile mobil Chromium kontrolleri geçti. [Ana sayfa ve katalog](https://github.com/medloby/medloby/commit/2c1a937c756527e89c862bfd30779e205602ca86)
-2. **4.2 Taslaklar ve teknik hazırlık tamamlandı.** Hasta ve klinik için ayrı KVKK metinleri, kayıt formu bağlantıları, iletişim ayarları ve veri işleme ile saklama planı hazırlandı. Klinik üyelik sözleşmesi `0.2-draft` sürümüne taşındı. Randevu e-postaları kullanıcıyı hesabına yönlendiriyor, ayrıntılar yetkili hesap içinde gösteriliyor. 811 test, Vite derlemesi ve mobil Chromium kontrolleri geçti. Yayın için işletmecinin tam unvanı, posta ve tebligat adresi, kullanılacak KVKK başvuru kanalları, destek ve içerik editörü adresleri gerekiyor. Kesin saklama süreleri, sağlık verilerinin işleme şartları ve hizmet sağlayıcılar doğrulanacak. [KVKK hazırlığı](https://github.com/medloby/medloby/commit/a83b9ec2c6febea6ed1ab2ec83e4372254abe95f) · [Veri işleme ve saklama planı](resources/contracts/medloby-veri-isleme-ve-saklama-taslagi.md)
+2. **4.2 Taslaklar ve teknik hazırlık tamamlandı.** Hasta ve klinik için ayrı KVKK metinleri, kayıt formu bağlantıları, iletişim ayarları ve veri işleme ile saklama planı hazırlandı. Klinik üyelik sözleşmesi `0.2-draft` sürümüne taşındı. Randevu e-postaları kullanıcıyı hesabına yönlendiriyor, ayrıntılar yetkili hesap içinde gösteriliyor. 811 test, Vite derlemesi ve mobil Chromium kontrolleri geçti. İşletmeci ve iletişim bilgileri ile saklama ve işleme onayları yayın öncesi kontrol listesine alındı. Hizmet sağlayıcılar yayın öncesinde doğrulanacak. [KVKK hazırlığı](https://github.com/medloby/medloby/commit/a83b9ec2c6febea6ed1ab2ec83e4372254abe95f) · [Veri işleme ve saklama planı](resources/contracts/medloby-veri-isleme-ve-saklama-taslagi.md)
 3. Yayımlanacak sözleşme sürümünü ve yürürlük tarihini onayla. Yayımlanacak katalog kayıtlarını ve klinik bilgilerinin sunumunu sağlık tanıtımı kurallarına göre incele. [Klinik üyelik taslağı](resources/contracts/medloby-klinik-uyelik-taslak.txt) · [Sağlık Hizmetlerinde Tanıtım ve Bilgilendirme Faaliyetleri Hakkında Yönetmelik](https://www.resmigazete.gov.tr/eskiler/2025/11/12/20251112-2.htm)
 
 Kamuya açılış için içeriğin uygunluğu, onaylı sözleşme ve kişisel veri süreçleri doğrulanır. Tıbbi kayıt, bekleme listesi, platform içi ödeme ve varsa uluslararası sağlık turizmi akışı için kapsam ayrıca kararlaştırılır.
@@ -106,8 +106,9 @@ Kamuya açılış için içeriğin uygunluğu, onaylı sözleşme ve kişisel ve
 
 1. Otomatik derleme ve test çalıştırmasını ekle. Üretim uygulaması için HTTPS, kapalı hata ayıklama, gizli ayarlar, depolama, veritabanı ve kuyruk işçisini hazırla.
 2. Veritabanı ve özel dosyaların yedeklenmesini kur. Geri yükleme, migration ve geri dönüş provasını test ortamında yap. İlk yönetici ve üretim verisi kurulumunu kontrollü hale getir.
-3. Site tamamlandığında anlaşmaya göre canlı e-posta gönderimini bağla. Gönderen, destek adresi, SMTP, TLS ve gerçek gelen kutusu doğrulamasını tamamla. [Canlı e-posta maddesi](README.md#medloby-yayına-çıkmadan-önce)
-4. İlk klinik ve hasta için başvuru, kabul, CRM, özel teklif, seans randevusu ve bildirim akışını yayın koşullarında doğrula.
+3. İşletmeci ve iletişim bilgilerini doğrula, veri saklama sürelerini ve sağlık verilerinin işleme şartlarını onayla. [Yayın öncesi kontrol listesi](README.md#medloby-yayına-çıkmadan-önce)
+4. Site tamamlandığında anlaşmaya göre canlı e-posta gönderimini bağla. Gönderen, destek adresi, SMTP, TLS ve gerçek gelen kutusu doğrulamasını tamamla. [Canlı e-posta maddesi](README.md#medloby-yayına-çıkmadan-önce)
+5. İlk klinik ve hasta için başvuru, kabul, CRM, özel teklif, seans randevusu ve bildirim akışını yayın koşullarında doğrula.
 
 ## Uygulama düzeni
 
