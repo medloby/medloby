@@ -16,6 +16,7 @@ class EmailVerificationController extends Controller
         string $hash
     ): JsonResponse|RedirectResponse {
         $user = User::findOrFail($id);
+        abort_if($user->email === null || $user->clinic_onboarding_pending, 403, 'Bu hesap için e-posta doğrulaması kullanılamıyor.');
 
         if (! hash_equals(
             (string) $hash,
@@ -44,6 +45,7 @@ class EmailVerificationController extends Controller
 
     public function resend(Request $request): JsonResponse
     {
+        abort_if($request->user()->email === null || $request->user()->clinic_onboarding_pending, 403, 'Bu hesap için e-posta doğrulaması kullanılamıyor.');
         if ($request->user()->hasVerifiedEmail()) {
             return response()->json([
                 'success' => true,

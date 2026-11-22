@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -23,7 +24,7 @@ class ClinicBranchOperationsController extends Controller
             ->where('business_id', $branch->business_id)
             ->whereIn('role', ['manager', 'staff'])
             ->with([
-                'user:id,name,email,email_verified_at',
+                'user:id,name,email,email_verified_at,login_code,staff_business_id',
                 'branches' => fn ($query) => $query->where('branches.id', $branch->id)->select('branches.id'),
             ])
             ->orderBy('id')
@@ -32,9 +33,11 @@ class ClinicBranchOperationsController extends Controller
                 'id' => $member->id,
                 'name' => $member->user->name,
                 'email' => $member->user->email,
+                'login_code' => $member->user->login_code,
+                'can_reset_password' => $member->user->staff_business_id === $branch->business_id,
                 'is_active' => $member->is_active,
                 'branch_access' => (bool) $member->branches->first()?->pivot->is_active,
-                'can_assign' => $member->is_active && $member->user->hasVerifiedEmail(),
+                'can_assign' => $member->is_active && ($member->user->hasVerifiedEmail() || $member->user->staff_business_id === $branch->business_id),
             ]);
 
         $doctors = $this->clinicDoctors($branch)
@@ -112,13 +115,56 @@ class ClinicBranchOperationsController extends Controller
         return $this->saved('Şube yetkisi kaydedildi.');
     }
 
+    public function createStaffAccount(Request $request, Branch $branch): JsonResponse
+    {
+        if (is_string($request->input('login_code'))) {
+            $request->merge(['login_code' => Str::lower($request->input('login_code'))]);
+        }
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'login_code' => ['required', 'alpha_dash:ascii', 'min:3', 'max:50', 'not_regex:/\Aklinik-/', 'unique:users,login_code'],
+            'password' => ['required', 'string', 'min:8', 'regex:/\A[^\x00]{1,72}\z/s'],
+        ], [
+            'login_code.unique' => 'Bu kullanıcı kodu kullanımda.',
+            'login_code.not_regex' => 'Personel kullanıcı kodu klinik- ile başlayamaz.',
+        ]);
+
+        DB::transaction(function () use ($branch, $validated): void {
+            $staff = new User(['name' => $validated['name'], 'password' => Hash::make($validated['password'])]);
+            $staff->forceFill(['login_code' => $validated['login_code'], 'staff_business_id' => $branch->business_id])->save();
+            $member = $staff->businessMemberships()->create([
+                'business_id' => $branch->business_id,
+                'role' => 'staff',
+                'is_active' => true,
+            ]);
+            $this->setStaffAccess($branch, $member->id, true);
+        }, attempts: 3);
+
+        return response()->json(['success' => true, 'message' => 'Personel hesabı açıldı ve şube yetkisi verildi.', 'data' => null], 201);
+    }
+
+    public function resetStaffPassword(Request $request, Branch $branch, BusinessUser $businessUser): JsonResponse
+    {
+        abort_unless($businessUser->business_id === $branch->business_id && in_array($businessUser->role, ['staff', 'manager'], true), 404);
+        $validated = $request->validate(['password' => ['required', 'string', 'min:8', 'regex:/\A[^\x00]{1,72}\z/s']]);
+
+        DB::transaction(function () use ($branch, $businessUser, $validated): void {
+            $staff = User::query()->where('staff_business_id', $branch->business_id)->lockForUpdate()->findOrFail($businessUser->user_id);
+            $staff->update(['password' => Hash::make($validated['password'])]);
+            $staff->tokens()->delete();
+        }, attempts: 3);
+
+        return $this->saved('Personelin şifresi güncellendi.');
+    }
+
     private function setStaffAccess(Branch $branch, int $memberId, bool $active): void
     {
         $member = BusinessUser::query()->where('business_id', $branch->business_id)
             ->lockForUpdate()->findOrFail($memberId);
 
-        if (! in_array($member->role, ['manager', 'staff'], true)
-            || ($active && (! $member->is_active || ! $member->user->hasVerifiedEmail()))) {
+        $canAssign = $member->user->hasVerifiedEmail() || $member->user->staff_business_id === $branch->business_id;
+        if (! in_array($member->role, ['manager', 'staff'], true) || ($active && (! $member->is_active || ! $canAssign))) {
             throw ValidationException::withMessages(['is_active' => 'Şube yetkisi yalnızca aktif ve doğrulanmış personele verilebilir.']);
         }
 
@@ -126,6 +172,11 @@ class ClinicBranchOperationsController extends Controller
             $member->branches()->syncWithoutDetaching([$branch->id => ['is_active' => true]]);
         } else {
             $member->branches()->updateExistingPivot($branch->id, ['is_active' => false]);
+            if ($member->user->staff_business_id === $branch->business_id && ! $member->branches()
+                ->where('branches.business_id', $branch->business_id)->where('branches.status', 'active')
+                ->wherePivot('is_active', true)->exists()) {
+                $member->user()->lockForUpdate()->firstOrFail()->tokens()->delete();
+            }
         }
     }
 

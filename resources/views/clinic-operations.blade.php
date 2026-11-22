@@ -5,12 +5,18 @@
         <details class="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
             <summary class="cursor-pointer font-semibold">Personel ve şube yetkileri</summary>
             <form class="mt-4 grid gap-3" data-operations-staff-form>
-                <p class="text-sm text-slate-600 dark:text-slate-300">Doğrulanmış bir Medloby hesabına bu şubenin CRM erişimini verin.</p>
-                <label class="offer-field max-w-sm">
-                    Personelin e-postası
-                    <input class="offer-control" name="email" type="email" maxlength="255" required>
-                </label>
-                <button type="submit" class="offer-button justify-self-start">Personele şube yetkisi ver</button>
+                <div class="grid gap-3 sm:grid-cols-2">
+                    <label class="offer-field">Personelin adı ve soyadı
+                        <input class="offer-control" name="name" maxlength="255" required>
+                    </label>
+                    <label class="offer-field">Kullanıcı kodu
+                        <input class="offer-control" name="login_code" minlength="3" maxlength="50" pattern="[A-Za-z0-9_\-]+" autocapitalize="none" spellcheck="false" required>
+                    </label>
+                    <label class="offer-field">Personel şifresi
+                        <input class="offer-control" name="password" type="password" minlength="8" maxlength="72" autocomplete="new-password" required>
+                    </label>
+                </div>
+                <button type="submit" class="offer-button justify-self-start">Personel hesabı aç ve şube yetkisi ver</button>
             </form>
             <p class="mt-4 text-sm text-slate-600 dark:text-slate-300" data-operations-empty-staff hidden>Bu kliniğe kayıtlı personel yok.</p>
             <ul class="mt-4 grid gap-2" data-operations-staff></ul>
@@ -98,5 +104,16 @@
             </label>
             <button type="submit" class="offer-button offer-button-secondary">Süreyi kaydet</button>
         </form>
+    </template>
+    <template data-operations-staff-password>
+        <details class="mt-2">
+            <summary class="cursor-pointer text-sm font-semibold">Personel şifresini değiştir</summary>
+            <form class="mt-2 grid gap-2">
+                <label class="offer-field">Yeni personel şifresi
+                    <input class="offer-control" name="password" type="password" minlength="8" maxlength="72" autocomplete="new-password" required>
+                </label>
+                <button type="submit" class="offer-button offer-button-secondary justify-self-start">Şifreyi kaydet</button>
+            </form>
+        </details>
     </template>
 </details>

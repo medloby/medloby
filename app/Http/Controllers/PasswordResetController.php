@@ -9,6 +9,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -35,7 +36,7 @@ class PasswordResetController extends Controller
                 $accountEmail = User::query()->where('email', $lowercaseEmail)->lockForUpdate()->value('email');
             }
 
-            Password::sendResetLink(['email' => $accountEmail ?? $email], function (User $user, string $token): void {
+            Password::sendResetLink(['email' => $accountEmail ?? $email, 'clinic_onboarding_pending' => false], function (User $user, string $token): void {
                 $user->notify((new AccountPasswordResetNotification($token))->afterCommit());
             });
         }, attempts: 3);
@@ -82,12 +83,16 @@ class PasswordResetController extends Controller
             return $this->form($link, message: $password->errors()->first('password'), status: 422);
         }
 
-        $credentials = $link + $password->validated();
+        $credentials = $link + $password->validated() + ['clinic_onboarding_pending' => false];
         $result = DB::transaction(function () use ($credentials): string {
             User::query()->where('email', $credentials['email'])->lockForUpdate()->value('id');
 
             return Password::reset($credentials, function (User $user, string $password): void {
-                $user->forceFill(['password' => $password, 'remember_token' => Str::random(60)])->save();
+                if ($user->temporary_password_expires_at !== null) {
+                    $user->email_verified_at ??= now();
+                    $user->temporary_password_expires_at = null;
+                }
+                $user->forceFill(['password' => Hash::make($password), 'remember_token' => Str::random(60)])->save();
                 $user->tokens()->delete();
                 DB::afterCommit(fn () => event(new PasswordReset($user)));
             });

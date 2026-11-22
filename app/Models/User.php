@@ -27,6 +27,8 @@ class User extends Authenticatable implements MustVerifyEmail
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_admin' => 'boolean',
+            'clinic_onboarding_pending' => 'boolean',
+            'temporary_password_expires_at' => 'datetime',
         ];
     }
 

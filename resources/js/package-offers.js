@@ -145,6 +145,9 @@ export function mountPackageOffers(root) {
 
     const registration = mountWorkspaceRegistration(get('registration-dialog'), {
         api,
+        onApplicationSubmitted() {
+            showStatus(notice, 'Klinik başvurunuz alındı. Onaydan sonra giriş bilgileriniz e-posta ile gönderilecek.');
+        },
         async onRegistered(sessionToken) {
             try {
                 await activateSession(sessionToken);
@@ -222,9 +225,10 @@ export function mountPackageOffers(root) {
     function syncPage() {
         const browsing = window.location.hash === '#katalog';
         const openingCatalogue = browsing && discoverySection.hidden;
-        const verified = Boolean(user?.email_verified_at);
+        const verified = Boolean(user?.email_verified_at || user?.staff_business_id);
         const crmBusiness = /^#klinik-crm\/([1-9][0-9]*)$/.exec(window.location.hash)?.[1];
-        const inCrm = verified && (clinicApplications.canOpenCrm(crmBusiness) || staffCrmIds.has(crmBusiness));
+        const inCrm = verified && (crmBusiness === String(user.owner_crm_business_id)
+            || clinicApplications.canOpenCrm(crmBusiness) || staffCrmIds.has(crmBusiness));
         const requestingPackage = !browsing && !inCrm && verified && user.patient_profile_exists && pendingPackage;
 
         discoverySection.hidden = !browsing;
@@ -902,7 +906,7 @@ export function mountPackageOffers(root) {
         await loadConversations(1);
     }
 
-    async function activateSession(sessionToken) {
+    async function activateSession(sessionToken, openOwnerCrm = false) {
         token = sessionToken;
         try {
             user = (await api('/me')).user;
@@ -915,8 +919,11 @@ export function mountPackageOffers(root) {
         get('account-name').textContent = user.name;
         get('account').hidden = false;
         showStatus(notice);
+        if (openOwnerCrm && user.owner_crm_business_id) {
+            window.location.hash = 'klinik-crm/' + user.owner_crm_business_id;
+        }
         syncPage();
-        if (user.email_verified_at) {
+        if (user.email_verified_at || user.staff_business_id) {
             await openVerifiedWorkspace();
         } else {
             clinicApplications.setAccount(ownedBusinesses(), false);
@@ -924,11 +931,20 @@ export function mountPackageOffers(root) {
     }
 
     onSubmit(signIn, notice, async (fields) => {
-        const result = await api('/login', {
-            email: fields.get('email').trim().toLowerCase(),
-            password: fields.get('password'),
-        });
-        await activateSession(result.token);
+        const firstPassword = get('first-password');
+        const credentials = Object.fromEntries(fields);
+        credentials.identifier = credentials.identifier.trim().toLowerCase();
+        const result = await api('/login', credentials);
+        if (result.password_change_required) {
+            firstPassword.hidden = false;
+            firstPassword.disabled = false;
+            firstPassword.querySelector('input').focus();
+            return;
+        }
+
+        firstPassword.hidden = true;
+        firstPassword.disabled = true;
+        await activateSession(result.token, true);
     });
 
     get('patient-registration').addEventListener('click', () => registration.open('patient'));

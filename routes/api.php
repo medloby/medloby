@@ -78,6 +78,8 @@ use App\Http\Controllers\BusinessNotificationPreferenceController;
 
 use App\Http\Controllers\BusinessRegistrationController;
 
+use App\Http\Controllers\ClinicProfileController;
+
 use App\Http\Controllers\ConversationController;
 
 use App\Http\Controllers\PackageServiceController;
@@ -117,6 +119,8 @@ Route::post('/register/patient', [
 ])->middleware('throttle:15,1,registration:');
 
 Route::get('/register/business/contract', [BusinessRegistrationController::class, 'contract']);
+Route::post('/register/business/application', [BusinessRegistrationController::class, 'requestApproval'])
+    ->middleware('throttle:15,1,registration:');
 
 Route::post('/register/business', [
 
@@ -163,6 +167,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/clinic-applications', ClinicApplicationStatusController::class);
         Route::get('/clinic-crm/staff-workspaces', [ClinicCrmWorkspaceController::class, 'staffIndex']);
         Route::get('/businesses/{business}/crm', ClinicCrmWorkspaceController::class);
+        Route::get('/businesses/{business}/crm/profile', [ClinicProfileController::class, 'show']);
+        Route::put('/businesses/{business}/crm/profile', [ClinicProfileController::class, 'update']);
 
         /*
 
@@ -1004,7 +1010,9 @@ Route::middleware(['auth:sanctum', 'verified', EnsureClinicCrmAccess::class, Ens
     ->prefix('branches/{branch}/operations')->group(function () {
         Route::get('/', 'index');
         Route::post('/staff', 'addStaff');
+        Route::post('/staff/accounts', 'createStaffAccount');
         Route::put('/staff/{businessUser}', 'updateStaff');
+        Route::put('/staff/{businessUser}/password', 'resetStaffPassword');
         Route::post('/treatments', [BranchTreatmentController::class, 'store']);
         Route::put('/treatments/{treatment}', [BranchTreatmentController::class, 'update']);
         Route::post('/doctors', 'addDoctor');

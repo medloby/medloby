@@ -33,6 +33,8 @@ class AdminBusinessMemberRoleController extends Controller
 
         $oldRole = $businessUser->role;
         $newRole = $validated['role'];
+        abort_if($newRole === 'business_owner' && $businessUser->user?->staff_business_id !== null,
+            422, 'Klinik tarafından oluşturulan personel hesabı işletme sahibi yapılamaz.');
 
         if ($oldRole === $newRole) {
             return response()->json([

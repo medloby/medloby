@@ -1,4 +1,4 @@
-export function mountWorkspaceRegistration(dialog, { api, onRegistered }) {
+export function mountWorkspaceRegistration(dialog, { api, onRegistered, onApplicationSubmitted }) {
     const find = (selector) => dialog.querySelector(selector);
     const patient = find('[data-registration-patient]');
     const clinic = find('[data-registration-business]');
@@ -85,9 +85,13 @@ export function mountWorkspaceRegistration(dialog, { api, onRegistered }) {
             submit.disabled = true;
             showStatus('');
             try {
-                const result = await api('/register/' + (clinicRegistration ? 'business' : 'patient'), fields);
+                const result = await api(clinicRegistration ? '/register/business/application' : '/register/patient', fields);
                 close();
-                await onRegistered(result.token);
+                if (clinicRegistration) {
+                    onApplicationSubmitted();
+                } else {
+                    await onRegistered(result.token);
+                }
             } catch (error) {
                 if (dialog.open && clinicRegistration && error.status === 409) {
                     await loadContract(++request);

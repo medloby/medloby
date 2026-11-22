@@ -11,6 +11,7 @@
         Şube
         <select class="offer-control" data-crm-branch></select>
     </label>
+    @include('clinic-profile')
     <div class="grid gap-5" data-crm-summary hidden>
         <dl class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" data-crm-metrics></dl>
         <section class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900" aria-labelledby="clinic-crm-pipeline">

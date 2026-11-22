@@ -21,6 +21,23 @@ use Illuminate\Validation\Rules\Password;
 
 class BusinessRegistrationController extends Controller
 {
+    public function requestApproval(Request $request): JsonResponse
+    {
+        if (is_string($request->input('owner_email'))) {
+            $request->merge(['owner_email' => Str::lower($request->input('owner_email'))]);
+        }
+
+        $validated = $request->validate([
+            'owner_email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            'business_name' => ['required', 'string', 'max:255'],
+            'business_phone' => ['required', 'string', 'max:30', 'regex:/\A(?=(?:\D*\d){7,})[+0-9() .\-]{7,30}\z/'],
+            'contract_accepted' => ['accepted'],
+            'platform_contract_id' => ['required', 'integer'],
+        ]);
+
+        return $this->register($request, $validated, pendingCredentials: true);
+    }
+
     public function contract(): JsonResponse
     {
         $contract = $this->currentClinicContract();
@@ -66,6 +83,11 @@ class BusinessRegistrationController extends Controller
             'platform_contract_id' => ['sometimes', 'required', 'integer'],
         ]);
 
+        return $this->register($request, $validated, pendingCredentials: false);
+    }
+
+    private function register(Request $request, array $validated, bool $pendingCredentials): JsonResponse
+    {
         $contract = $this->currentClinicContract();
 
         if (! $contract) {
@@ -85,13 +107,16 @@ class BusinessRegistrationController extends Controller
         $result = DB::transaction(function () use (
             $validated,
             $request,
-            $contract
+            $contract,
+            $pendingCredentials,
         ) {
-            $user = User::create([
-                'name' => $validated['owner_name'],
+            $user = new User([
+                'name' => $validated['owner_name'] ?? $validated['business_name'],
                 'email' => strtolower($validated['owner_email']),
-                'password' => Hash::make($validated['password']),
+                'password' => Hash::make($pendingCredentials ? Str::random(48) : $validated['password']),
             ]);
+            $user->clinic_onboarding_pending = $pendingCredentials;
+            $user->save();
 
             $businessSlug = $this->uniqueBusinessSlug(
                 $validated['business_name']
@@ -104,15 +129,15 @@ class BusinessRegistrationController extends Controller
                 'description' => $validated['description'] ?? null,
                 'email' => isset($validated['business_email'])
                     ? strtolower($validated['business_email'])
-                    : null,
+                    : ($pendingCredentials ? $user->email : null),
                 'phone' => $validated['business_phone'] ?? null,
                 'website' => $validated['website'] ?? null,
                 'country_code' => strtoupper(
                     $validated['country_code'] ?? 'TR'
                 ),
-                'city' => $validated['city'],
+                'city' => $validated['city'] ?? null,
                 'district' => $validated['district'] ?? null,
-                'address' => $validated['address'],
+                'address' => $validated['address'] ?? null,
                 'postal_code' => $validated['postal_code'] ?? null,
                 'status' => 'pending',
                 'is_verified' => false,
@@ -132,13 +157,13 @@ class BusinessRegistrationController extends Controller
                 'phone' => $validated['business_phone'] ?? null,
                 'email' => isset($validated['business_email'])
                     ? strtolower($validated['business_email'])
-                    : null,
+                    : ($pendingCredentials ? $user->email : null),
                 'country_code' => strtoupper(
                     $validated['country_code'] ?? 'TR'
                 ),
-                'city' => $validated['city'],
+                'city' => $validated['city'] ?? null,
                 'district' => $validated['district'] ?? null,
-                'address' => $validated['address'],
+                'address' => $validated['address'] ?? null,
                 'postal_code' => $validated['postal_code'] ?? null,
                 'status' => 'pending',
             ]);
@@ -162,9 +187,7 @@ class BusinessRegistrationController extends Controller
                 'is_accepted' => true,
             ]);
 
-            $token = $user
-                ->createToken('medloby-auth')
-                ->plainTextToken;
+            $token = $pendingCredentials ? null : $user->createToken('medloby-auth')->plainTextToken;
 
             $administrators = User::query()->where('is_admin', true)->whereNotNull('email_verified_at')->get();
             Notification::send($administrators, new ClinicApplicationNotification($business, NotificationType::CLINIC_APPLICATION_SUBMITTED));
@@ -178,6 +201,14 @@ class BusinessRegistrationController extends Controller
                 'token' => $token,
             ];
         });
+
+        if ($pendingCredentials) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Klinik başvurunuz alındı. Onaydan sonra giriş bilgileri e-posta adresinize gönderilecek.',
+                'data' => ['approval_status' => 'pending'],
+            ], 201);
+        }
 
         event(new Registered($result['user']));
 

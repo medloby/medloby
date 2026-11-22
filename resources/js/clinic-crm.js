@@ -1,6 +1,7 @@
 import { mountCrmLeads } from './crm-leads';
 import { mountClinicOperations } from './clinic-operations';
 import { mountClinicCalendar } from './clinic-calendar';
+import { mountClinicProfile } from './clinic-profile';
 
 const metricLabels = {
     total_leads: 'Toplam hasta adayı',
@@ -28,6 +29,10 @@ export function mountClinicCrm(section, api, appointmentDialogs) {
     const leads = mountCrmLeads(find('leads'), { api, onChanged: refreshDashboard });
     const operations = mountClinicOperations(find('operations'), api);
     const calendar = mountClinicCalendar(find('calendar'), api, appointmentDialogs);
+    const profile = mountClinicProfile(find('profile'), api, (saved) => {
+        title.textContent = saved.clinic.name;
+        branch.selectedOptions[0].textContent = saved.branch.name;
+    });
     let businessId = null;
     let canManageOperations = false;
     let request = 0;
@@ -66,6 +71,7 @@ export function mountClinicCrm(section, api, appointmentDialogs) {
         leads.setBranch(id);
         operations.setBranch(canManageOperations ? id : null);
         calendar.setBranch(id, canManageOperations);
+        profile.setBranch(canManageOperations ? businessId : null, id);
     }
 
     async function loadDashboard(branchId, pending) {

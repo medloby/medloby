@@ -53,13 +53,24 @@
                     @endif
                     <form id="sign-in-form" method="post" class="mt-6 grid gap-4">
                         <label class="offer-field">
-                            E-posta
-                            <input class="offer-control" type="email" name="email" autocomplete="username" required>
+                            E-posta veya kullanıcı kodu
+                            <input class="offer-control" type="text" name="identifier" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="255" required>
                         </label>
                         <label class="offer-field">
                             Şifre
                             <input class="offer-control" type="password" name="password" autocomplete="current-password" required>
                         </label>
+                        <fieldset class="grid gap-4" id="first-password" hidden disabled>
+                            <legend class="mb-2 font-semibold">Yeni şifrenizi belirleyin</legend>
+                            <label class="offer-field">
+                                Yeni şifre
+                                <input class="offer-control" type="password" name="new_password" autocomplete="new-password" minlength="8" maxlength="72" required>
+                            </label>
+                            <label class="offer-field">
+                                Yeni şifre tekrar
+                                <input class="offer-control" type="password" name="new_password_confirmation" autocomplete="new-password" minlength="8" maxlength="72" required>
+                            </label>
+                        </fieldset>
                         <button type="submit" class="offer-button mt-1">Giriş yap</button>
                     </form>
                     <a href="{{ route('password.request') }}" class="mt-4 inline-block text-sm font-semibold text-teal-800 underline underline-offset-4 dark:text-teal-300">Şifremi unuttum</a>

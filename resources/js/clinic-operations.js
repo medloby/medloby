@@ -81,9 +81,20 @@ export function mountClinicOperations(panel, api) {
         find('staff').replaceChildren(...data.staff.map((member) => {
             const label = member.branch_access ? 'Şube yetkisini kaldır' : 'Şube yetkisi ver';
             const access = member.branch_access ? 'Şube yetkisi var' : 'Şube yetkisi yok';
-            return row(member.name, [member.email, member.is_active ? '' : 'Pasif üyelik', access].filter(Boolean).join(' · '),
+            const entry = row(member.name, [member.login_code ?? member.email, member.is_active ? '' : 'Pasif üyelik', access].filter(Boolean).join(' · '),
                 action(label, () => write(current, current.operations + '/staff/' + member.id,
                     { is_active: !member.branch_access }, 'PUT', 'Şube yetkisi kaydedildi.'), !member.branch_access && !member.can_assign));
+            if (member.can_reset_password) {
+                const passwordPanel = find('staff-password').content.firstElementChild.cloneNode(true);
+                const form = passwordPanel.querySelector('form');
+                form.addEventListener('submit', (event) => {
+                    event.preventDefault();
+                    write(current, current.operations + '/staff/' + member.id + '/password', Object.fromEntries(new FormData(form)),
+                        'PUT', 'Personelin şifresi güncellendi.', () => form.reset());
+                });
+                entry.firstElementChild.append(passwordPanel);
+            }
+            return entry;
         }));
 
         const linkedIds = new Set(data.branch_treatments.map((item) => item.id));
@@ -178,8 +189,8 @@ export function mountClinicOperations(panel, api) {
     staffForm.addEventListener('submit', (event) => {
         event.preventDefault();
         if (scope) {
-            write(scope, scope.operations + '/staff', { email: staffForm.elements.namedItem('email').value.trim() },
-                'POST', 'Personele şube yetkisi verildi.', () => staffForm.reset());
+            write(scope, scope.operations + '/staff/accounts', Object.fromEntries(new FormData(staffForm)),
+                'POST', 'Personel hesabı açıldı ve şube yetkisi verildi.', () => staffForm.reset());
         }
     });
 

@@ -44,34 +44,18 @@
         @endif
         <div class="grid gap-4 sm:grid-cols-2">
             <label class="offer-field">
-                İşletme sahibi
-                <input class="offer-control" name="owner_name" autocomplete="name" maxlength="255" required>
-            </label>
-            <label class="offer-field">
-                İşletme sahibinin e-postası
+                E-posta
                 <input class="offer-control" type="email" name="owner_email" autocomplete="email" maxlength="255" required>
-            </label>
-            <label class="offer-field">
-                Şifre
-                <input class="offer-control" type="password" name="password" autocomplete="new-password" minlength="8" required>
-            </label>
-            <label class="offer-field">
-                Şifre tekrar
-                <input class="offer-control" type="password" name="password_confirmation" autocomplete="new-password" minlength="8" required>
             </label>
             <label class="offer-field">
                 Klinik adı
                 <input class="offer-control" name="business_name" autocomplete="organization" maxlength="255" required>
             </label>
             <label class="offer-field">
-                Şehir
-                <input class="offer-control" name="city" autocomplete="address-level2" maxlength="100" required>
+                Telefon
+                <input class="offer-control" type="tel" name="business_phone" autocomplete="tel" minlength="7" maxlength="30" required>
             </label>
         </div>
-        <label class="offer-field">
-            Adres
-            <textarea class="offer-control" name="address" autocomplete="street-address" rows="2" required></textarea>
-        </label>
         <details class="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
             <summary class="cursor-pointer text-sm font-semibold text-teal-800 dark:text-teal-300" data-contract-heading></summary>
             <p class="mt-3 whitespace-pre-wrap break-words text-sm text-slate-700 dark:text-slate-200" data-contract-content></p>

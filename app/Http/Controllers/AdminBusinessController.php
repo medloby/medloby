@@ -6,11 +6,13 @@ use App\Models\Business;
 use App\Models\BusinessReview;
 use App\Models\User;
 use App\Notifications\ClinicApplicationNotification;
+use App\Notifications\ClinicOwnerCredentialsNotification;
 use App\Notifications\NotificationType;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class AdminBusinessController extends Controller
@@ -117,6 +119,7 @@ class AdminBusinessController extends Controller
             ]);
 
             $this->notifyOwners($business, NotificationType::CLINIC_APPLICATION_APPROVED);
+            $this->provisionPendingOwner($business);
 
             return [
                 'business' => $business->fresh([
@@ -223,5 +226,26 @@ class AdminBusinessController extends Controller
             ->where('is_active', true))->get();
 
         Notification::send($owners, new ClinicApplicationNotification($application, $type));
+    }
+
+    private function provisionPendingOwner(Business $business): void
+    {
+        $owner = User::query()->where('clinic_onboarding_pending', true)
+            ->whereHas('businessMemberships', fn ($query) => $query->where('business_id', $business->id)
+                ->where('role', 'business_owner')->where('is_active', true))
+            ->lockForUpdate()->first();
+
+        if ($owner === null) {
+            return;
+        }
+
+        $temporaryPassword = Str::random(24);
+        $owner->forceFill([
+            'login_code' => 'klinik-'.$business->id,
+            'password' => $temporaryPassword,
+            'clinic_onboarding_pending' => false,
+            'temporary_password_expires_at' => now()->addHours(48),
+        ])->save();
+        $owner->notify((new ClinicOwnerCredentialsNotification($temporaryPassword))->afterCommit());
     }
 }
