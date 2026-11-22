@@ -80,6 +80,7 @@ class ClinicCalendarController extends Controller
             'success' => true,
             'data' => [
                 'open' => $calendar->isDateOpen($branch->id, $date),
+                'online_booking_enabled' => $branch->appointmentSetting()->where('is_active', true)->value('online_booking_enabled') ?? true,
                 'can_create_appointments' => isset($permissions['create']),
                 'appointments' => $appointments,
                 'blocks' => $blocks,

@@ -1044,6 +1044,8 @@ Route::middleware(['auth:sanctum', 'verified', EnsureClinicCrmAccess::class])
         Route::post('/package-offers/{offer}/appointments', [AppointmentBookingController::class, 'storeForClinic']);
 
         Route::middleware(EnsureClinicBranchOperationsAccess::class)->group(function () {
+            Route::get('/appointment-settings', [BranchAppointmentSettingController::class, 'show']);
+            Route::put('/appointment-settings', [BranchAppointmentSettingController::class, 'update']);
             Route::get('/rules', [BookingCalendarController::class, 'show']);
             Route::put('/rules', [BookingCalendarController::class, 'updateRule']);
             Route::post('/overrides', [BookingCalendarController::class, 'createOverride']);

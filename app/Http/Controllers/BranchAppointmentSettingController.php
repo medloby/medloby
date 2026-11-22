@@ -89,15 +89,11 @@ class BranchAppointmentSettingController extends Controller
             true
         );
 
-        $settings = $branch->appointmentSetting;
-
-        if (! $settings) {
-            $settings = BranchAppointmentSetting::create([
-                'branch_id' => $branch->id,
-                ...$this->defaultSettings($branch, false),
-                ...$validated,
-            ]);
-        } else {
+        $settings = $branch->appointmentSetting()->firstOrCreate([], fn (): array => [
+            ...$this->defaultSettings($branch, false),
+            ...$validated,
+        ]);
+        if (! $settings->wasRecentlyCreated) {
             $settings->update($validated);
         }
 
@@ -264,6 +260,7 @@ class BranchAppointmentSettingController extends Controller
 
         if (! $asModel) {
             unset($defaults['branch_id']);
+
             return $defaults;
         }
 

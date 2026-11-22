@@ -1,4 +1,5 @@
 import { mountCalendarBooking } from './clinic-calendar-booking';
+import { mountClinicCalendarSettings } from './clinic-calendar-settings';
 import { mountAppointmentCard } from './clinic-appointment-card';
 
 const weekdays = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
@@ -44,6 +45,7 @@ export function mountClinicCalendar(panel, api, { openBookingDialog, openAppoint
     const ruleForm = find('rule-form');
     const doctor = find('doctor');
     const appointmentCard = mountAppointmentCard(find('appointment-card'), { api, dateLabel, timeLabel, appointmentStatuses });
+    const appointmentSettings = mountClinicCalendarSettings(find('appointment-settings'), api, () => load(scope));
     const forms = Object.fromEntries(Array.from(panel.querySelectorAll('[data-calendar-form]'))
         .map((form) => [form.dataset.calendarForm, form]));
     const blockDoctor = forms.blocks.elements.namedItem('doctor_id');
@@ -130,7 +132,9 @@ export function mountClinicCalendar(panel, api, { openBookingDialog, openAppoint
     }
 
     function renderAgenda(current, data) {
-        find('day-rule').textContent = data.open ? 'Çevrimiçi randevu açık' : 'Çevrimiçi randevu kapalı';
+        find('day-rule').textContent = data.online_booking_enabled
+            ? (data.open ? 'Gün kuralı açık' : 'Gün kuralı kapalı')
+            : 'Şubede çevrimiçi randevu kapalı';
         find('empty-appointments').hidden = data.appointments.length > 0;
         find('appointments').replaceChildren(...data.appointments.map((item) => {
             const actions = item.actions.map((key) => action(appointmentActionLabels[key], () => {
@@ -398,6 +402,7 @@ export function mountClinicCalendar(panel, api, { openBookingDialog, openAppoint
                 path: '/branches/' + id + '/clinic-calendar', canManage, doctorId: '', edits: {}, request: 0,
                 loading: false, loaded: false, saving: false,
             } : null;
+            appointmentSettings.setBranch(scope?.canManage ? scope.path + '/appointment-settings' : null);
             panel.open = false;
             panel.hidden = !scope;
             day.value = clinicToday();

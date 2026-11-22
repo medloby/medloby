@@ -84,6 +84,44 @@ test('the agenda shows only overlapping appointments and active blocks in the as
     $this->getJson($this->day)->assertForbidden();
 });
 
+test('the clinic owner can manage online booking settings from the branch calendar', function () {
+    $path = $this->calendar.'/appointment-settings';
+    $settings = [
+        'online_booking_enabled' => false, 'same_day_booking_enabled' => false,
+        'minimum_booking_notice_minutes' => 60, 'maximum_booking_days' => 14, 'is_active' => true,
+    ];
+    $this->getJson($path)->assertUnauthorized();
+    $this->actingAs($this->owner, 'sanctum')->getJson($path)->assertOk()
+        ->assertJsonPath('data.settings.online_booking_enabled', true)
+        ->assertJsonPath('data.settings.maximum_booking_days', 90);
+    $this->assertDatabaseCount('branch_appointment_settings', 0);
+    $this->putJson($path, [...$settings, 'maximum_booking_days' => 0])
+        ->assertUnprocessable()->assertJsonValidationErrors('maximum_booking_days');
+    $this->putJson($path, $settings)->assertOk()->assertJsonPath('data.maximum_booking_days', 14);
+    $this->assertDatabaseHas('branch_appointment_settings', ['branch_id' => $this->branch->id, ...$settings]);
+    $this->getJson($this->day)->assertOk()->assertJsonPath('data.online_booking_enabled', false);
+    $this->getJson($this->otherCalendar.'/appointment-settings')->assertOk()
+        ->assertJsonPath('data.settings.maximum_booking_days', 90);
+
+    $this->branch->appointmentSetting()->update(['is_active' => false, 'slot_interval_minutes' => 45]);
+    $this->getJson($this->day)->assertOk()->assertJsonPath('data.online_booking_enabled', true);
+    $this->getJson($path)->assertOk()->assertJsonPath('data.settings.is_active', false);
+    $this->putJson($path, [...$settings, 'online_booking_enabled' => true])->assertOk()
+        ->assertJsonPath('data.slot_interval_minutes', 45)->assertJsonPath('data.is_active', true);
+    $this->assertDatabaseCount('branch_appointment_settings', 1);
+
+    $staff = User::factory()->create();
+    $membership = $this->business->memberships()->create([
+        'user_id' => $staff->id, 'role' => 'staff', 'is_active' => true,
+    ]);
+    $membership->branches()->attach($this->branch->id, ['is_active' => true]);
+    $this->actingAs($staff, 'sanctum')->getJson($this->day)->assertOk();
+    $this->getJson($path)->assertForbidden();
+    $this->putJson($path, $settings)->assertForbidden();
+    $this->business->update(['status' => 'suspended']);
+    $this->actingAs($this->owner, 'sanctum')->putJson($path, $settings)->assertForbidden();
+});
+
 test('calendar settings change booking availability and cannot be edited from another branch', function () {
     $treatment = Treatment::create([
         'treatment_category_id' => TreatmentCategory::factory()->create()->id,
