@@ -31,10 +31,7 @@ class CrmLeadController extends Controller
             ->orderByDesc('id');
 
         if ($request->filled('status')) {
-            $query->where(
-                'status',
-                $request->string('status')->toString()
-            );
+            $query->withStatus($request->string('status')->toString());
         }
 
         if ($request->filled('source')) {
@@ -250,7 +247,8 @@ class CrmLeadController extends Controller
                 ...$this->leadRelations($branch),
                 'pipelineStageHistories.fromStage' => fn ($stage) => $stage->where('business_id', $branch->business_id),
                 'pipelineStageHistories.toStage' => fn ($stage) => $stage->where('business_id', $branch->business_id),
-                'pipelineStageHistories.changedByBusinessUser' => fn ($member) => $member->where('business_id', $branch->business_id),
+                'pipelineStageHistories.changedByBusinessUser' => fn ($member) => $member
+                    ->where('business_id', $branch->business_id)->with('user:id,name'),
             ])),
         ])->header('Cache-Control', 'private, no-store');
     }
@@ -388,6 +386,23 @@ class CrmLeadController extends Controller
                 ->where('branch_id', $branch->id)->lockForUpdate()->findOrFail($crmLead->id);
             $this->validateLeadRelations($validated, $branch);
 
+            $requestedStatus = CrmLead::normalizeStatus($validated['status'] ?? $lead->status);
+            $isFinalized = CrmLead::isFinalStatus($lead->status);
+            if (! $isFinalized && CrmLead::isFinalStatus($requestedStatus)) {
+                throw ValidationException::withMessages([
+                    'status' => 'Adayı sonuçlandırmak için sonuçlandırma işlemini kullanın.',
+                ]);
+            }
+
+            if ($isFinalized) {
+                $resultFields = array_intersect_key($validated, array_flip(['converted_at', 'lost_at', 'lost_reason']));
+                if ($requestedStatus !== $lead->status || $resultFields !== []) {
+                    throw ValidationException::withMessages(['status' => 'Kaydedilen aday sonucu değiştirilemez.']);
+                }
+
+                unset($validated['status']);
+            }
+
             if (array_key_exists('patient_profile_id', $validated)
                 && (int) $validated['patient_profile_id'] !== (int) $lead->patient_profile_id
                 && $lead->conversations()->where('business_id', $branch->business_id)
@@ -401,9 +416,12 @@ class CrmLeadController extends Controller
             $newStageId = array_key_exists('pipeline_stage_id', $validated)
                 ? $validated['pipeline_stage_id']
                 : $oldStageId;
-            $stageChanged = $newStageId !== null && (int) $newStageId !== (int) $oldStageId;
+            $stageChanged = (int) $newStageId !== (int) $oldStageId;
+            if ($stageChanged && $isFinalized) {
+                throw ValidationException::withMessages(['pipeline_stage_id' => 'Sonuçlanan adayın aşaması değiştirilemez.']);
+            }
 
-            if ($stageChanged && ! CrmPipelineStage::query()->whereKey($newStageId)
+            if ($stageChanged && $newStageId !== null && ! CrmPipelineStage::query()->whereKey($newStageId)
                 ->where('business_id', $branch->business_id)->where('is_active', true)->exists()) {
                 return response()->json([
                     'success' => false,
@@ -413,7 +431,7 @@ class CrmLeadController extends Controller
 
             $lead->update($validated);
 
-            if ($stageChanged) {
+            if ($stageChanged && $newStageId !== null) {
                 CrmPipelineStageHistory::create([
                     'crm_lead_id' => $lead->id,
                     'from_stage_id' => $oldStageId,
@@ -435,22 +453,7 @@ class CrmLeadController extends Controller
         Branch $branch,
         CrmLead $crmLead
     ): JsonResponse {
-        if ($crmLead->business_id !== $branch->business_id || $crmLead->branch_id !== $branch->id) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Bu lead belirtilen merkeze ait değil.',
-            ], 404);
-        }
-
-        $crmLead->update([
-            'status' => 'completed',
-            'converted_at' => now(),
-        ]);
-
-        return response()->json([
-            'success' => true,
-            'data' => new CrmLeadResource($crmLead->load($this->leadRelations($branch))),
-        ])->header('Cache-Control', 'private, no-store');
+        return $this->finalizeLead($branch, $crmLead, CrmLead::CONVERTED);
     }
 
     public function markLost(
@@ -473,16 +476,41 @@ class CrmLeadController extends Controller
             ],
         ]);
 
-        $crmLead->update([
-            'status' => 'lost',
-            'lost_at' => now(),
-            'lost_reason' => $validated['lost_reason'],
-        ]);
+        return $this->finalizeLead($branch, $crmLead, CrmLead::LOST, $validated['lost_reason']);
+    }
 
-        return response()->json([
-            'success' => true,
-            'data' => new CrmLeadResource($crmLead->load($this->leadRelations($branch))),
-        ])->header('Cache-Control', 'private, no-store');
+    private function finalizeLead(Branch $branch, CrmLead $crmLead, string $status, ?string $lostReason = null): JsonResponse
+    {
+        if ($crmLead->business_id !== $branch->business_id || $crmLead->branch_id !== $branch->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Bu lead belirtilen merkeze ait değil.',
+            ], 404);
+        }
+
+        return DB::transaction(function () use ($branch, $crmLead, $status, $lostReason): JsonResponse {
+            $lead = CrmLead::query()->where('business_id', $branch->business_id)
+                ->where('branch_id', $branch->id)->lockForUpdate()->findOrFail($crmLead->id);
+
+            if ($lead->status !== $status) {
+                if (CrmLead::isFinalStatus($lead->status)) {
+                    throw ValidationException::withMessages(['status' => 'Bu aday daha önce sonuçlandırıldı.']);
+                }
+
+                $isLost = $status === CrmLead::LOST;
+                $lead->update([
+                    'status' => $status,
+                    'converted_at' => $isLost ? null : now(),
+                    'lost_at' => $isLost ? now() : null,
+                    'lost_reason' => $lostReason,
+                ]);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => new CrmLeadResource($lead->load($this->leadRelations($branch))),
+            ])->header('Cache-Control', 'private, no-store');
+        }, attempts: 3);
     }
 
     private function leadRelations(Branch $branch): array

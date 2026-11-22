@@ -559,7 +559,7 @@ test('can convert crm lead', function () {
         )
         ->assertJsonPath(
             'data.status',
-            'completed'
+            'converted'
         )
         ->assertJsonPath(
             'data.converted_at',
@@ -585,6 +585,46 @@ test('cannot convert lead belonging to another branch', function () {
             'success',
             false
         );
+});
+
+test('lead outcomes agree between the detail, status filter and dashboard for legacy and new records', function () {
+    $attributes = ['business_id' => $this->business->id, 'branch_id' => $this->branch->id];
+    $legacy = CrmLead::create([...$attributes, 'status' => 'completed', 'converted_at' => now()->subDay()]);
+    $open = CrmLead::create([...$attributes, 'status' => 'offer']);
+    $crm = "/api/branches/{$this->branch->id}/crm";
+    $legacyUrl = "{$crm}/leads/{$legacy->id}";
+    $url = "{$crm}/leads/{$open->id}";
+
+    $this->getJson($legacyUrl)->assertOk()->assertJsonPath('data.status', 'converted');
+    $this->putJson($url, ['status' => 'lost'])->assertUnprocessable()->assertJsonValidationErrors('status');
+    $this->postJson($url.'/convert')->assertOk()->assertJsonPath('data.status', 'converted');
+    $this->getJson($crm.'/dashboard')->assertOk()->assertJsonPath('data.summary.converted_leads', 2);
+    $this->getJson($crm.'/leads?status=converted&per_page=12')
+        ->assertOk()->assertJsonPath('data.total', 2)
+        ->assertJsonPath('data.data.0.status', 'converted')
+        ->assertJsonPath('data.data.1.status', 'converted');
+    $this->assertDatabaseHas('crm_leads', ['id' => $legacy->id, 'status' => 'completed']);
+    $this->assertDatabaseHas('crm_leads', ['id' => $open->id, 'status' => 'converted']);
+});
+
+test('retrying finalization retains the original result and does not allow a different outcome', function () {
+    $lead = CrmLead::create(['business_id' => $this->business->id, 'branch_id' => $this->branch->id]);
+    $stage = CrmPipelineStage::create(['business_id' => $this->business->id, 'name' => 'Takip', 'slug' => 'takip']);
+    $url = "/api/branches/{$this->branch->id}/crm/leads/{$lead->id}";
+
+    $first = $this->postJson($url.'/lost', ['lost_reason' => 'Talep geri çekildi.'])->assertOk();
+    $this->travel(2)->minutes();
+    $this->postJson($url.'/lost', ['lost_reason' => 'Daha sonra tekrar gönderildi.'])
+        ->assertOk()
+        ->assertJsonPath('data.lost_at', $first->json('data.lost_at'))
+        ->assertJsonPath('data.lost_reason', 'Talep geri çekildi.');
+    $this->postJson($url.'/convert')->assertUnprocessable()->assertJsonValidationErrors('status');
+    $this->putJson($url, ['status' => 'new'])->assertUnprocessable()->assertJsonValidationErrors('status');
+    $this->putJson($url, ['lost_reason' => 'Değişiklik'])->assertUnprocessable()->assertJsonValidationErrors('status');
+    $this->putJson($url, ['pipeline_stage_id' => $stage->id])
+        ->assertUnprocessable()->assertJsonValidationErrors('pipeline_stage_id');
+    $this->putJson($url, ['phone' => '05550000000'])
+        ->assertOk()->assertJsonPath('data.phone', '05550000000')->assertJsonPath('data.status', 'lost');
 });
 
 test('can mark crm lead as lost', function () {
@@ -765,6 +805,13 @@ test('can record pipeline stage change history', function () {
     $response
         ->assertSuccessful()
         ->assertJsonPath('data.pipeline_stage_id', $toStage->id);
+
+    $this->getJson("/api/branches/{$this->branch->id}/crm/leads/{$lead->id}")
+        ->assertOk()
+        ->assertJsonPath('data.pipeline_stage_histories.0.from_stage.name', $fromStage->name)
+        ->assertJsonPath('data.pipeline_stage_histories.0.to_stage.name', $toStage->name)
+        ->assertJsonPath('data.pipeline_stage_histories.0.changed_by_business_user.user.name', $user->name)
+        ->assertJsonPath('data.pipeline_stage_histories.0.notes', 'Hasta ile ilk görüşme yapıldı.');
 
     $businessUser = BusinessUser::query()
         ->where('business_id', $this->business->id)

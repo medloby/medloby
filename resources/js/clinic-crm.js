@@ -3,6 +3,8 @@ import { mountCrmLeads } from './crm-leads';
 const metricLabels = {
     total_leads: 'Toplam hasta adayı',
     new_leads: 'Yeni hasta adayı',
+    converted_leads: 'Başarılı aday',
+    lost_leads: 'Sonuçsuz aday',
     open_tasks: 'Açık görev',
     pending_follow_ups: 'Bekleyen takip',
 };
@@ -17,9 +19,14 @@ export function mountClinicCrm(section, api) {
     const summary = find('summary');
     const metrics = find('metrics');
     const pipeline = find('pipeline');
-    const leads = mountCrmLeads(find('leads'), { api, onCreated: refreshDashboard });
+    const stageEditor = find('stage-editor');
+    const stageForm = find('stage-form');
+    const stageFields = stageForm.querySelector('fieldset');
+    const stageStatus = find('stage-status');
+    const leads = mountCrmLeads(find('leads'), { api, onChanged: refreshDashboard });
     let businessId = null;
     let request = 0;
+    let stageRequest = 0;
 
     function showStatus(text = '') {
         status.textContent = text;
@@ -30,6 +37,19 @@ export function mountClinicCrm(section, api) {
         summary.hidden = true;
         metrics.replaceChildren();
         pipeline.replaceChildren();
+    }
+
+    function showStageStatus(text = '') {
+        stageStatus.textContent = text;
+        stageStatus.hidden = !text;
+    }
+
+    function resetStageEditor() {
+        stageRequest++;
+        stageEditor.open = false;
+        stageForm.reset();
+        stageFields.disabled = false;
+        showStageStatus();
     }
 
     function setLoading(loading) {
@@ -66,6 +86,7 @@ export function mountClinicCrm(section, api) {
 
     async function loadBusiness(preferredBranch = '') {
         const pending = ++request;
+        resetStageEditor();
         leads.setBranch(null);
         clearSummary();
         title.textContent = '';
@@ -123,8 +144,40 @@ export function mountClinicCrm(section, api) {
 
     refresh.addEventListener('click', () => loadBusiness(branch.value));
     branch.addEventListener('change', () => {
+        resetStageEditor();
         leads.setBranch(branch.value);
         refreshDashboard();
+    });
+
+    stageForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (!branch.value || stageFields.disabled) {
+            return;
+        }
+
+        const name = stageForm.elements.namedItem('name').value.trim();
+        if (!name) {
+            showStageStatus('Aşama adını girin.');
+            return;
+        }
+
+        const pending = ++stageRequest;
+        stageFields.disabled = true;
+        showStageStatus('Aşama kaydediliyor…');
+        try {
+            await api('/branches/' + branch.value + '/crm/pipeline-stages', { name });
+        } catch (error) {
+            if (pending === stageRequest) {
+                stageFields.disabled = false;
+                showStageStatus(error.message);
+            }
+            return;
+        }
+
+        if (pending === stageRequest) {
+            resetStageEditor();
+            refreshDashboard();
+        }
     });
 
     return {
@@ -139,6 +192,7 @@ export function mountClinicCrm(section, api) {
                 loadBusiness();
             } else {
                 request++;
+                resetStageEditor();
                 leads.setBranch(null);
                 clearSummary();
                 title.textContent = '';

@@ -2,12 +2,14 @@ const statusLabels = new Map([
     ['new', 'Yeni'],
     ['contacted', 'Görüşüldü'],
     ['offer', 'Teklif aşamasında'],
-    ['converted', 'Hastaya dönüştü'],
+    ['appointment', 'Randevu aşamasında'],
+    ['converted', 'Başarılı'],
     ['lost', 'Sonuçsuz'],
 ]);
 const leadDate = new Intl.DateTimeFormat('tr-TR', { dateStyle: 'medium', timeZone: 'Europe/Istanbul' });
+const historyDate = new Intl.DateTimeFormat('tr-TR', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Istanbul' });
 
-export function mountCrmLeads(section, { api, onCreated }) {
+export function mountCrmLeads(section, { api, onChanged }) {
     const find = (part, root = section) => root.querySelector('[data-leads-' + part + ']');
     const create = find('new');
     const filter = find('filter');
@@ -26,6 +28,18 @@ export function mountCrmLeads(section, { api, onCreated }) {
     const editorTitle = find('editor-title');
     const editorSummary = find('summary');
     const save = find('save');
+    const stageField = find('stage-field');
+    const stage = form.elements.namedItem('pipeline_stage_id');
+    const stageNoteField = find('stage-note-field');
+    const stageNote = form.elements.namedItem('pipeline_stage_note');
+    const history = find('history');
+    const historyList = find('history-list');
+    const outcome = find('outcome');
+    const outcomeForm = find('outcome-form');
+    const outcomeFields = outcomeForm.querySelector('fieldset');
+    const outcomeStatus = find('outcome-status');
+    const outcomeChoice = outcomeForm.elements.namedItem('outcome');
+    const lostReason = outcomeForm.elements.namedItem('lost_reason');
     let branch = null;
     let listRequest = 0;
     let page = 1;
@@ -105,10 +119,23 @@ export function mountCrmLeads(section, { api, onCreated }) {
         assignment.hidden = true;
         editorTitle.textContent = '';
         editorSummary.hidden = true;
-        for (const part of ['detail-status', 'detail-stage', 'detail-date', 'note-text']) {
+        for (const part of ['detail-status', 'detail-stage', 'detail-date', 'note-text', 'result-text']) {
             find(part).textContent = '';
         }
+        stage.replaceChildren();
+        stage.disabled = true;
+        stageField.hidden = true;
+        syncStageNote();
+        historyList.replaceChildren();
+        history.open = false;
+        history.hidden = true;
+        outcomeForm.reset();
+        syncLostReason();
+        outcome.open = false;
+        outcome.hidden = true;
+        showStatus(outcomeStatus);
         fields.disabled = false;
+        outcomeFields.disabled = false;
         close.disabled = false;
         showStatus(formStatus);
     }
@@ -119,12 +146,45 @@ export function mountCrmLeads(section, { api, onCreated }) {
         );
     }
 
+    function syncStageNote() {
+        const enabled = !stage.disabled && stage.value !== '' && stage.value !== activeEditor?.stageId;
+        stageNote.disabled = !enabled;
+        stageNoteField.hidden = !enabled;
+        if (!enabled) {
+            stageNote.value = '';
+        }
+    }
+
+    function syncLostReason() {
+        const enabled = outcomeChoice.value === 'lost';
+        lostReason.disabled = !enabled;
+        lostReason.required = enabled;
+        find('lost-reason-field').hidden = !enabled;
+    }
+
+    function renderHistory(records) {
+        historyList.replaceChildren(...Array.from(records).reverse().map((record) => {
+            const row = find('history-row').content.firstElementChild.cloneNode(true);
+            const from = record.from_stage?.name ?? (record.from_stage_id ? 'Önceki aşama' : 'Başlangıç');
+            const to = record.to_stage?.name ?? 'Aşama bilgisi yok';
+            find('history-transition', row).textContent = from + ' → ' + to;
+            const changedAt = Date.parse(record.changed_at);
+            const date = Number.isNaN(changedAt) ? '' : historyDate.format(changedAt);
+            find('history-by', row).textContent = [date, record.changed_by_business_user?.user?.name].filter(Boolean).join(' · ');
+            showStatus(find('history-note', row), record.notes ?? '');
+            return row;
+        }));
+        find('no-history').hidden = records.length > 0;
+        history.hidden = false;
+    }
+
     async function openEditor(lead = null) {
         if (!branch || editor.open) {
             return;
         }
 
-        const current = { leadId: lead?.id ?? null, base: '/branches/' + branch + '/crm/leads', original: null, saving: false };
+        const branchCrm = '/branches/' + branch + '/crm';
+        const current = { leadId: lead?.id ?? null, base: branchCrm + '/leads', original: null, stageId: '', saving: false };
         activeEditor = current;
         editorTitle.textContent = lead ? leadName(lead) : 'Yeni hasta adayı';
         assignment.hidden = !lead;
@@ -140,9 +200,10 @@ export function mountCrmLeads(section, { api, onCreated }) {
 
         showStatus(formStatus, 'Aday ayrıntısı yükleniyor…');
         try {
-            const [detail, members] = await Promise.all([
+            const [detail, members, stages] = await Promise.all([
                 api(current.base + '/' + current.leadId),
                 api(current.base + '/assignees'),
+                api(branchCrm + '/pipeline-stages'),
             ]);
             if (activeEditor !== current) {
                 return;
@@ -155,7 +216,13 @@ export function mountCrmLeads(section, { api, onCreated }) {
             find('detail-date').textContent = Number.isNaN(created) ? '—' : leadDate.format(created);
             find('note-text').textContent = detail.notes ?? '';
             find('notes').hidden = !detail.notes;
+            const finalized = detail.status === 'converted' || detail.status === 'lost';
+            const resolved = Date.parse(detail.status === 'lost' ? detail.lost_at : detail.converted_at);
+            const outcomeText = [Number.isNaN(resolved) ? '' : leadDate.format(resolved), detail.lost_reason].filter(Boolean).join(' · ');
+            find('result-text').textContent = outcomeText;
+            find('result').hidden = !finalized || !outcomeText;
             editorSummary.hidden = false;
+            renderHistory(detail.pipeline_stage_histories ?? []);
 
             for (const name of ['first_name', 'last_name', 'phone', 'email']) {
                 form.elements.namedItem(name).value = detail[name] ?? '';
@@ -163,6 +230,20 @@ export function mountCrmLeads(section, { api, onCreated }) {
             assignee.replaceChildren(new Option('Atanmamış', ''), ...members.map((member) => new Option(member.name, member.id)));
             const assignedId = String(detail.assigned_business_user_id ?? '');
             assignee.value = Array.from(assignee.options).some((option) => option.value === assignedId) ? assignedId : '';
+
+            current.stageId = String(detail.pipeline_stage_id ?? '');
+            const placeholder = new Option(stages.length ? 'Aşama seçin' : 'Bu klinikte aktif aşama yok', '');
+            placeholder.disabled = true;
+            stage.replaceChildren(placeholder, ...stages.map((item) => new Option(item.name, item.id)));
+            if (current.stageId && !stages.some((item) => String(item.id) === current.stageId)) {
+                stage.add(new Option((detail.pipeline_stage?.name ?? 'Önceki aşama') + ' (pasif)', current.stageId));
+            }
+            stage.value = current.stageId;
+            stageField.hidden = finalized;
+            stage.disabled = finalized || !stages.length;
+            syncStageNote();
+            outcome.hidden = finalized;
+
             current.original = formValues();
             form.hidden = false;
             showStatus(formStatus);
@@ -184,6 +265,12 @@ export function mountCrmLeads(section, { api, onCreated }) {
     filter.addEventListener('change', () => loadList());
     previous.addEventListener('click', () => loadList(page - 1));
     next.addEventListener('click', () => loadList(page + 1));
+    stage.addEventListener('change', syncStageNote);
+    outcomeChoice.addEventListener('change', syncLostReason);
+
+    function changedValues(current) {
+        return Object.fromEntries(Object.entries(formValues()).filter(([name, value]) => value !== current.original[name]));
+    }
 
     form.addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -193,36 +280,68 @@ export function mountCrmLeads(section, { api, onCreated }) {
         }
 
         const editing = current.leadId !== null;
-        const values = formValues();
-        if (!editing && !Object.values(values).some(Boolean)) {
+        const payload = editing ? changedValues(current) : formValues();
+        if (!editing && !Object.values(payload).some(Boolean)) {
             showStatus(formStatus, 'Ad, soyad, telefon veya e-posta alanlarından en az birini doldurun.');
             return;
         }
 
-        const payload = editing
-            ? Object.fromEntries(Object.entries(values).filter(([name, value]) => value !== current.original[name]))
-            : values;
         if (editing && !Object.keys(payload).length) {
             showStatus(formStatus, 'Kaydedilecek değişiklik yok.');
             return;
         }
 
+        await persist(current, {
+            url: editing ? current.base + '/' + current.leadId : current.base,
+            payload,
+            method: editing ? 'PUT' : 'POST',
+            message: editing ? 'Hasta adayı güncellendi.' : 'Hasta adayı kaydedildi.',
+            feedback: formStatus,
+            refreshSummary: !editing || 'pipeline_stage_id' in payload,
+        });
+    });
+
+    outcomeForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const current = activeEditor;
+        if (!current || current.saving || outcome.hidden) {
+            return;
+        }
+        if (Object.keys(changedValues(current)).length) {
+            showStatus(outcomeStatus, 'Önce aday bilgilerindeki değişiklikleri kaydedin.');
+            return;
+        }
+
+        const lost = outcomeChoice.value === 'lost';
+        await persist(current, {
+            url: current.base + '/' + current.leadId + (lost ? '/lost' : '/convert'),
+            payload: lost ? { lost_reason: lostReason.value.trim() } : {},
+            method: 'POST',
+            message: lost ? 'Aday sonuçsuz kapatıldı.' : 'Aday başarıyla sonuçlandırıldı.',
+            feedback: outcomeStatus,
+            refreshSummary: true,
+        });
+    });
+
+    async function persist(current, { url, payload, method, message, feedback, refreshSummary }) {
         current.saving = true;
         fields.disabled = true;
+        outcomeFields.disabled = true;
         close.disabled = true;
-        showStatus(formStatus, 'Hasta adayı kaydediliyor…');
+        showStatus(feedback, 'Kaydediliyor…');
 
         try {
-            await api(editing ? current.base + '/' + current.leadId : current.base, payload, editing ? 'PUT' : 'POST');
+            await api(url, payload, method);
         } catch (error) {
             if (activeEditor === current) {
-                showStatus(formStatus, error.message);
+                showStatus(feedback, error.message);
             }
             return;
         } finally {
             if (activeEditor === current) {
                 current.saving = false;
                 fields.disabled = false;
+                outcomeFields.disabled = false;
                 close.disabled = false;
             }
         }
@@ -232,14 +351,14 @@ export function mountCrmLeads(section, { api, onCreated }) {
         }
 
         resetEditor();
-        if (editing) {
-            loadList(page, 'Hasta adayı güncellendi.', current.leadId);
-            return;
+        if (current.leadId === null) {
+            filter.value = '';
         }
-        filter.value = '';
-        loadList(1, 'Hasta adayı kaydedildi.');
-        onCreated();
-    });
+        loadList(current.leadId === null ? 1 : page, message, current.leadId);
+        if (refreshSummary) {
+            onChanged();
+        }
+    }
 
     return {
         setBranch(id) {

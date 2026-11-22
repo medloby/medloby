@@ -27,11 +27,11 @@ class CrmDashboardController extends Controller
             ->count();
 
         $convertedLeads = (clone $baseLeadQuery)
-            ->where('status', 'converted')
+            ->withStatus(CrmLead::CONVERTED)
             ->count();
 
         $lostLeads = (clone $baseLeadQuery)
-            ->where('status', 'lost')
+            ->withStatus(CrmLead::LOST)
             ->count();
 
         /*

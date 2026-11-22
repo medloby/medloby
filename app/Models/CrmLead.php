@@ -2,12 +2,21 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class CrmLead extends Model
 {
+    public const CONVERTED = 'converted';
+
+    public const LOST = 'lost';
+
+    private const LEGACY_CONVERTED = 'completed';
+
     protected $fillable = [
         'business_id',
         'branch_id',
@@ -38,6 +47,29 @@ class CrmLead extends Model
             'converted_at' => 'datetime',
             'lost_at' => 'datetime',
         ];
+    }
+
+    protected function status(): Attribute
+    {
+        return Attribute::get(self::normalizeStatus(...));
+    }
+
+    public static function normalizeStatus(string $status): string
+    {
+        return $status === self::LEGACY_CONVERTED ? self::CONVERTED : $status;
+    }
+
+    public static function isFinalStatus(string $status): bool
+    {
+        return in_array(self::normalizeStatus($status), [self::CONVERTED, self::LOST], true);
+    }
+
+    #[Scope]
+    protected function withStatus(Builder $query, string $status): Builder
+    {
+        return self::normalizeStatus($status) === self::CONVERTED
+            ? $query->whereIn('crm_leads.status', [self::CONVERTED, self::LEGACY_CONVERTED])
+            : $query->where('crm_leads.status', $status);
     }
 
     public function business(): BelongsTo
@@ -82,7 +114,7 @@ class CrmLead extends Model
         return $this->hasMany(
             CrmPipelineStageHistory::class,
             'crm_lead_id'
-        )->orderBy('changed_at');
+        )->orderBy('changed_at')->orderBy('id');
     }
 
     public function activities(): HasMany

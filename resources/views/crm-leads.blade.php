@@ -56,7 +56,23 @@
                 <h4 class="font-semibold">Not</h4>
                 <p class="mt-1 break-words whitespace-pre-wrap text-slate-700 dark:text-slate-200" data-leads-note-text></p>
             </div>
+            <div data-leads-result hidden>
+                <h4 class="font-semibold">Sonuç</h4>
+                <p class="mt-1 break-words whitespace-pre-wrap text-slate-700 dark:text-slate-200" data-leads-result-text></p>
+            </div>
         </div>
+        <details class="mt-4 rounded-xl border border-slate-200 px-4 py-3 text-sm dark:border-slate-700" data-leads-history hidden>
+            <summary class="cursor-pointer font-semibold">Aşama geçmişi</summary>
+            <p class="mt-3 text-slate-600 dark:text-slate-300" data-leads-no-history hidden>Henüz aşama kaydı yok.</p>
+            <ol class="mt-3 grid gap-3" data-leads-history-list></ol>
+        </details>
+        <template data-leads-history-row>
+            <li class="grid gap-1 border-s-2 border-teal-700 ps-3 dark:border-teal-400">
+                <p class="break-words font-medium" data-leads-history-transition></p>
+                <p class="break-words text-slate-600 dark:text-slate-300" data-leads-history-by></p>
+                <p class="break-words whitespace-pre-wrap text-slate-700 dark:text-slate-200" data-leads-history-note hidden></p>
+            </li>
+        </template>
         <form class="mt-5" data-leads-form>
             <fieldset class="grid min-w-0 gap-4">
                 <legend class="mb-3 font-semibold">Aday bilgileri</legend>
@@ -82,8 +98,37 @@
                     Sorumlu personel
                     <select class="offer-control" name="assigned_business_user_id" disabled></select>
                 </label>
+                <label class="offer-field" data-leads-stage-field hidden>
+                    Takip aşamasını değiştir
+                    <select class="offer-control" name="pipeline_stage_id" disabled></select>
+                </label>
+                <label class="offer-field" data-leads-stage-note-field hidden>
+                    Aşama değişikliği notu (isteğe bağlı)
+                    <textarea class="offer-control" name="pipeline_stage_note" maxlength="2000" rows="2" disabled></textarea>
+                </label>
                 <button type="submit" class="offer-button justify-self-start" data-leads-save>Hasta adayını kaydet</button>
             </fieldset>
         </form>
+        <details class="mt-5 rounded-xl border border-slate-200 px-4 py-3 text-sm dark:border-slate-700" data-leads-outcome hidden>
+            <summary class="cursor-pointer font-semibold">Adayı sonuçlandır</summary>
+            <p class="mt-3 text-slate-600 dark:text-slate-300" data-leads-outcome-status role="status" hidden></p>
+            <form class="mt-3" data-leads-outcome-form>
+                <fieldset class="grid min-w-0 gap-3">
+                    <label class="offer-field">
+                        Sonuç türü
+                        <select class="offer-control" name="outcome" required>
+                            <option value="">Sonuç seçin</option>
+                            <option value="convert">Başarılı</option>
+                            <option value="lost">Sonuçsuz</option>
+                        </select>
+                    </label>
+                    <label class="offer-field" data-leads-lost-reason-field hidden>
+                        Sonuçsuz kalma nedeni
+                        <textarea class="offer-control" name="lost_reason" maxlength="1000" rows="2" disabled></textarea>
+                    </label>
+                    <button type="submit" class="offer-button justify-self-start">Sonucu kaydet</button>
+                </fieldset>
+            </form>
+        </details>
     </dialog>
 </section>
