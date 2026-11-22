@@ -18,7 +18,7 @@ Uygulama mimarisi, tamamlanan işler, eksikler ve geliştirme sırası proje yol
 - [ ] **Onaylı KVKK metinlerini ve klinik üyelik sözleşmesini yayımla.** Veri işleme ve saklama planı doğrulanıp metinler onaylandığında `MEDLOBY_PRIVACY_PUBLISHED` ayarı hasta ve klinik aydınlatma sayfalarını açar. Klinik üyelik sözleşmesi yönetim ekranından kendi sürümü ve yürürlük tarihiyle yayımlanır. [Klinik üyelik taslağı](resources/contracts/medloby-klinik-uyelik-taslak.txt)
 - [ ] **Üretim yedeklemesini kur ve geri yüklemeyi doğrula.** Seçilen veritabanı ve dosya depolaması için şifreli yedek konumunu, çalışma sıklığını, erişim yetkilerini ve saklama süresini belirle. Geri yükleme, şema değişikliği ve geri dönüşü üretimden ayrı bir kopyada prova et. İlk yönetici ve üretim verisi kurulumunu bu provadan sonra planla. [Yerel SQLite provası](#yerel-sqlite-yedekleme-ve-geri-yükleme)
 - [ ] **Canlı e-posta gönderimini aç.** Site geliştirmesi tamamlandığında yetkili gönderici adresini ve destek adresini belirle. Canlı ortamda SMTP sunucusunu ve portunu yapılandır, gerekiyorsa erişim bilgilerini gizli ayarlara ekle. `APP_URL` değerini Medloby’nin HTTPS adresine ayarla ve e-posta kuyruğunu çalıştır. Klinik onayından sonra gelen giriş bilgilerini, hasta doğrulama e-postasını ve şifre yenileme bağlantısını gerçek bir test gelen kutusunda doğrula. Şifre yenileme kuyruğu, gönderim sırasında süresi dolan veya yeni istekle geçersiz kalan bağlantıları eler. [Şifre yenileme kuyruğu testleri](tests/Feature/AccountPasswordResetTest.php)
-- [ ] **Yayın koşullarında ilk klinik ve hasta akışını prova et.** HTTPS, seçilen veritabanı, dosya depolaması ve bildirim kuyruğu çalışırken deneme hesaplarıyla klinik başvurusunu, onay sonrası geçici şifreyle CRM’e girişi, personel hesabı oluşturmayı, özel teklifi ve her seans için ayrı randevu almayı doğrula. Klinik ve hasta aynı hekimin aynı saatini eşzamanlı seçtiğinde tek kayıt oluştuğunu ve diğer hesabın saat uygunluğu uyarısını aldığını seçilen veritabanıyla sınayıp doğrula. [Klinik hesapları provası](tests/Feature/ClinicAccountOnboardingTest.php) · [Teklif ve randevu provası](tests/Feature/LaunchWorkflowTest.php) · [Eşzamanlı randevu testi](tests/Feature/AppointmentConcurrencyTest.php)
+- [ ] **Yayın koşullarında ilk klinik ve hasta akışını prova et.** HTTPS, seçilen veritabanı, dosya depolaması ve bildirim kuyruğu çalışırken deneme hesaplarıyla klinik başvurusunu, onay sonrası geçici şifreyle CRM’e girişi, personel hesabı oluşturmayı, özel teklifi ve her seans için ayrı randevu almayı doğrula. Klinik ve hasta aynı hekimin aynı saatini eşzamanlı seçtiğinde tek kayıt oluştuğunu ve diğer hesabın saat uygunluğu uyarısını aldığını seçilen veritabanıyla sınayıp doğrula. [Klinik hesapları provası](tests/Feature/ClinicAccountOnboardingTest.php) · [Teklif ve randevu provası](tests/Feature/LaunchWorkflowTest.php) · [PostgreSQL randevu provası](#postgresql-randevu-provası)
 - [ ] **Uygulama ve veritabanı erişimini izle.** HTTPS üzerinden `GET /up` adresini kontrol et. `Accept: application/json` başlığıyla uygulama erişilebiliyorsa ve veritabanı sorgusu başarılıysa `200` ve `{"status":"up"}` döner. Veritabanı bağlantı hatasında `500` ve `{"status":"down"}` döner. Ayrıntılar uygulama kayıtlarında incelenebilir. Yayın ortamında `APP_DEBUG=false` ayarını ve kullanılan izleme aracının kesintiyi algıladığını doğrula. [Erişim kontrolü testi](tests/Feature/ApplicationHealthTest.php)
 - [ ] **CRM ve randevu hatırlatma zamanlayıcısını çalıştır.** Üretim veritabanı şemasını güncelledikten sonra `php artisan schedule:run` komutunu Medloby dizininden her dakika çalıştır. Saati gelen deneme takibinin yetkili personele, son 24 saate giren onaylı randevunun ilgili hastaya bildirim gönderdiğini doğrula. İki bildirimin de kendi kaydını açtığını ve art arda zamanlayıcı çalıştırıldığında birer kez oluştuğunu kontrol et. Aynı senaryo yerel SQLite ve veritabanı önbelleğiyle otomatik olarak sınanıyor. [Zamanlayıcı provası](tests/Feature/ReminderScheduleTest.php)
 
@@ -38,6 +38,14 @@ Otomatik provada geri yüklenen kopyada son migration geri alınıp yeniden uygu
 
 ```bash
 php artisan test --compact tests/Feature/LocalBackupTest.php
+```
+
+### PostgreSQL randevu provası
+
+PHP’de `pdo_pgsql` etkin olan bir ortamda, veritabanı bağlantı ayarlarını ayrı bir PostgreSQL test veritabanına yönelt. Test hesabı şema oluşturabilmeli. Aşağıdaki test, kendi açtığı geçici şemada migration’ları uygular ve iki işlemden aynı saati rezerve etmeyi dener. Test sonunda geçici şemayı kaldırır.
+
+```bash
+DB_CONNECTION=pgsql php artisan test --compact tests/Feature/AppointmentConcurrencyTest.php
 ```
 
 ## About Laravel

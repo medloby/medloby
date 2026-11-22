@@ -19,20 +19,35 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 
-test('a patient and a clinic cannot reserve the same doctor at the same time on SQLite', function () {
+test('a patient and a clinic cannot reserve the same doctor at the same time across branches', function () {
     $directory = sys_get_temp_dir().'/medloby-concurrent-booking-'.Str::uuid();
     File::makeDirectory($directory, 0700);
 
-    $databaseConfig = [
-        'database.default' => 'sqlite',
-        'database.connections.sqlite.url' => null,
-        'database.connections.sqlite.database' => $directory.'/appointments.sqlite',
-    ];
+    $postgres = DB::getDefaultConnection() === 'pgsql' ? DB::connection('pgsql') : null;
+    $connectionName = $postgres ? 'appointment_test' : 'sqlite';
+    $databaseConfig = ['database.default' => $connectionName];
+    $schema = null;
 
     try {
-        File::put($directory.'/appointments.sqlite', '');
+        if ($postgres) {
+            $schemaName = 'medloby_appointment_test_'.bin2hex(random_bytes(8));
+            $postgres->statement('create schema "'.$schemaName.'"');
+            $schema = $schemaName;
+            $databaseConfig['database.connections.appointment_test'] = [
+                ...$postgres->getConfig(), 'name' => $connectionName, 'search_path' => $schema,
+            ];
+        } else {
+            File::put($directory.'/appointments.sqlite', '');
+            $databaseConfig += [
+                'database.connections.sqlite.url' => null,
+                'database.connections.sqlite.database' => $directory.'/appointments.sqlite',
+            ];
+        }
         config($databaseConfig);
-        DB::purge('sqlite');
+        DB::purge($connectionName);
+        if ($schema !== null) {
+            expect(DB::scalar('select current_schema()'))->toBe($schema);
+        }
         $this->artisan('migrate')->assertSuccessful();
 
         $business = Business::factory()->create();
@@ -79,7 +94,10 @@ test('a patient and a clinic cannot reserve the same doctor at the same time on 
         ]);
         $this->assertDatabaseCount('appointment_status_histories', 1);
     } finally {
-        DB::purge('sqlite');
+        DB::purge($connectionName);
+        if ($schema !== null) {
+            $postgres->statement('drop schema "'.$schema.'" cascade');
+        }
         File::deleteDirectory($directory);
     }
 });
@@ -102,7 +120,7 @@ function runAppointmentBookingRace(
             'queue.default' => 'sync',
             'session.driver' => 'array',
         ]);
-        DB::purge('sqlite');
+        DB::purge($databaseConfig['database.default']);
     };
 
     $waitForFile = static function (string $path, float $seconds): bool {

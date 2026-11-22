@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\DoctorWorkingHourResource;
 use App\Models\Branch;
 use App\Models\Doctor;
 use App\Models\DoctorWorkingHour;
@@ -37,7 +38,7 @@ class DoctorWorkingHourController extends Controller
             'data' => [
                 'branch_id' => $branch->id,
                 'doctor_id' => $doctor->id,
-                'working_hours' => $workingHours,
+                'working_hours' => DoctorWorkingHourResource::collection($workingHours),
             ],
         ]);
     }
@@ -120,7 +121,7 @@ class DoctorWorkingHourController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Doktor çalışma saati başarıyla eklendi.',
-            'data' => $workingHour,
+            'data' => $workingHour->toResource(DoctorWorkingHourResource::class),
         ], 201);
     }
 
@@ -213,7 +214,7 @@ class DoctorWorkingHourController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Doktor çalışma saati başarıyla güncellendi.',
-            'data' => $doctorWorkingHour->fresh(),
+            'data' => $doctorWorkingHour->fresh()?->toResource(DoctorWorkingHourResource::class),
         ]);
     }
 
@@ -260,7 +261,7 @@ class DoctorWorkingHourController extends Controller
             'message' => $newStatus
                 ? 'Doktor çalışma saati aktif hale getirildi.'
                 : 'Doktor çalışma saati pasif hale getirildi.',
-            'data' => $doctorWorkingHour->fresh(),
+            'data' => $doctorWorkingHour->fresh()?->toResource(DoctorWorkingHourResource::class),
         ]);
     }
 

@@ -91,8 +91,8 @@ test('business owner can list doctor working hours', function () {
         'doctor_id' => $this->doctor->id,
         'branch_id' => $this->branch->id,
         'day_of_week' => 1,
-        'start_time' => '09:00',
-        'end_time' => '17:00',
+        'start_time' => '09:00:00',
+        'end_time' => '17:00:00',
         'is_active' => true,
     ]);
 
@@ -105,7 +105,9 @@ test('business owner can list doctor working hours', function () {
         ->assertSuccessful()
         ->assertJsonPath('success', true)
         ->assertJsonCount(1, 'data.working_hours')
-        ->assertJsonPath('data.working_hours.0.day_of_week', 1);
+        ->assertJsonPath('data.working_hours.0.day_of_week', 1)
+        ->assertJsonPath('data.working_hours.0.start_time', '09:00')
+        ->assertJsonPath('data.working_hours.0.end_time', '17:00');
 });
 
 test('staff can list doctor working hours for assigned branch', function () {
@@ -291,8 +293,8 @@ test('business owner can toggle doctor working hour', function () {
         'doctor_id' => $this->doctor->id,
         'branch_id' => $this->branch->id,
         'day_of_week' => 1,
-        'start_time' => '09:00',
-        'end_time' => '13:00',
+        'start_time' => '09:00:00',
+        'end_time' => '13:00:00',
         'is_active' => true,
     ]);
 
@@ -303,6 +305,8 @@ test('business owner can toggle doctor working hour', function () {
 
     $response
         ->assertSuccessful()
+        ->assertJsonPath('data.start_time', '09:00')
+        ->assertJsonPath('data.end_time', '13:00')
         ->assertJsonPath('data.is_active', false);
 
     $this->assertDatabaseHas('doctor_working_hours', [
