@@ -8,6 +8,7 @@ use App\Models\CrmFollowUp;
 use App\Models\CrmLead;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class CrmFollowUpController extends Controller
@@ -118,8 +119,7 @@ class CrmFollowUpController extends Controller
 
         if ($assignedBusinessUserId !== null) {
             $assignedBusinessUser = $this->resolveBusinessUserForBranch(
-                $branch->business_id,
-                $branch->id,
+                $branch,
                 $assignedBusinessUserId
             );
 
@@ -257,8 +257,7 @@ class CrmFollowUpController extends Controller
         ) {
             $assignedBusinessUser =
                 $this->resolveBusinessUserForBranch(
-                    $branch->business_id,
-                    $branch->id,
+                    $branch,
                     $validated['assigned_business_user_id']
                 );
 
@@ -270,7 +269,16 @@ class CrmFollowUpController extends Controller
             }
         }
 
-        $crmFollowUp->update($validated);
+        $crmFollowUp = DB::transaction(function () use ($crmFollowUp, $validated): CrmFollowUp {
+            $followUp = CrmFollowUp::query()->lockForUpdate()->findOrFail($crmFollowUp->id);
+            $followUp->fill($validated);
+            if ($followUp->isDirty(['scheduled_at', 'assigned_business_user_id', 'crm_lead_id'])) {
+                $followUp->reminded_at = null;
+            }
+            $followUp->save();
+
+            return $followUp;
+        }, attempts: 3);
 
         return response()->json([
             'success' => true,
@@ -352,22 +360,9 @@ class CrmFollowUpController extends Controller
     }
 
     private function resolveBusinessUserForBranch(
-        int $businessId,
-        int $branchId,
+        Branch $branch,
         int $businessUserId
     ): ?BusinessUser {
-        return BusinessUser::query()
-            ->where('id', $businessUserId)
-            ->where('business_id', $businessId)
-            ->where('is_active', true)
-            ->whereHas('branches', function ($query) use ($branchId) {
-                $query
-                    ->where('branches.id', $branchId)
-                    ->where(
-                        'business_user_branch.is_active',
-                        true
-                    );
-            })
-            ->first();
+        return BusinessUser::query()->activeForBranch($branch)->find($businessUserId);
     }
 }

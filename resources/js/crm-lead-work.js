@@ -24,6 +24,7 @@ export function mountCrmLeadWork(panel, { api, onChanged }) {
     const form = find('form');
     const fields = form.querySelector('fieldset');
     const input = (name) => form.elements.namedItem(name);
+    const assignee = input('assigned_business_user_id');
     const linkForm = find('link');
     const linkFields = linkForm.querySelector('fieldset');
     const conversation = linkForm.elements.namedItem('conversation');
@@ -42,13 +43,25 @@ export function mountCrmLeadWork(panel, { api, onChanged }) {
         const settings = kindSettings[kind];
         input('type').replaceChildren(...settings.types.map((type) => new Option(typeLabels[type], type)));
         input('when').required = kind === 'follow-ups' || (kind === 'activities' && editing !== null);
+        assignee.disabled = kind !== 'follow-ups';
+        find('assignee').hidden = assignee.disabled;
         find('time-label').textContent = settings.label + (input('when').required ? '' : ' (isteğe bağlı)');
+    }
+
+    function fillAssignees(id = '') {
+        const options = (lead?.members ?? []).map((member) => new Option(member.name, member.id));
+        assignee.replaceChildren(new Option('Klinik sahibine', ''), ...options);
+        if (id && !Array.from(assignee.options).some((option) => option.value === id)) {
+            assignee.add(new Option('Önceki atama', id));
+        }
+        assignee.value = id;
     }
 
     function resetForm() {
         editing = null;
         form.reset();
         input('kind').disabled = false;
+        fillAssignees();
         find('edit-title').textContent = 'Yeni kayıt';
         find('save').textContent = 'Kaydı ekle';
         find('discard').hidden = true;
@@ -57,12 +70,17 @@ export function mountCrmLeadWork(panel, { api, onChanged }) {
 
     function payload() {
         const settings = kindSettings[input('kind').value];
-        return {
+        const data = {
             title: input('title').value.trim(),
             type: input('type').value,
             [settings.text]: input('description').value.trim() || null,
             [settings.date]: input('when').value ? new Date(input('when').value).toISOString() : null,
         };
+        if (input('kind').value === 'follow-ups') {
+            data.assigned_business_user_id = assignee.value ? Number(assignee.value) : null;
+        }
+
+        return data;
     }
 
     function edit(kind, record) {
@@ -75,6 +93,9 @@ export function mountCrmLeadWork(panel, { api, onChanged }) {
         input('title').value = record.title;
         input('description').value = record[settings.text] ?? '';
         input('when').value = localDateInput(record[settings.date]);
+        if (kind === 'follow-ups') {
+            fillAssignees(String(record.assigned_business_user_id ?? ''));
+        }
         editing.original = payload();
         find('edit-title').textContent = 'Kaydı düzenle';
         find('save').textContent = 'Kaydı güncelle';
@@ -96,9 +117,17 @@ export function mountCrmLeadWork(panel, { api, onChanged }) {
         const settings = kindSettings[kind];
         const rows = records.map((record) => {
             const row = find('row').content.firstElementChild.cloneNode(true);
-            find('row-title', row).textContent = record.title;
+            const title = find('row-title', row);
+            title.textContent = record.title;
             const date = record[settings.date] ? workDate.format(new Date(record[settings.date])) : '';
-            find('row-meta', row).textContent = [typeLabels[record.type], statusLabels[record.status], date].filter(Boolean).join(' · ');
+            const assigneeName = kind === 'follow-ups'
+                ? current.members.find((member) => String(member.id) === String(record.assigned_business_user_id))?.name ?? 'Klinik sahibi'
+                : null;
+            find('row-meta', row).textContent = [typeLabels[record.type], statusLabels[record.status], date, assigneeName].filter(Boolean).join(' · ');
+            if (kind === 'follow-ups') {
+                title.dataset.followUpId = record.id;
+                title.tabIndex = -1;
+            }
             const description = find('row-description', row);
             description.textContent = record[settings.text] ?? '';
             description.hidden = !record[settings.text];
@@ -153,6 +182,10 @@ export function mountCrmLeadWork(panel, { api, onChanged }) {
             renderConversations(current, records.at(-1));
             current.loaded = true;
             content.hidden = false;
+            if (current.followUpId) {
+                panel.querySelector('[data-follow-up-id="' + current.followUpId + '"]')?.focus();
+                current.followUpId = null;
+            }
             showStatus(confirmation);
         } catch (error) {
             if (lead === current) {
@@ -240,12 +273,12 @@ export function mountCrmLeadWork(panel, { api, onChanged }) {
     });
 
     return {
-        setLead(detail, branchCrm = '') {
+        setLead(detail, { branchCrm = '', members = [], followUpId = null } = {}) {
             lead = detail ? {
-                id: detail.id, hasPatient: detail.patient_profile_id !== null, branchCrm,
+                id: detail.id, hasPatient: detail.patient_profile_id !== null, branchCrm, members, followUpId,
                 conversationPath: branchCrm + '/leads/' + detail.id + '/conversations', loading: false, loaded: false, saving: false,
             } : null;
-            panel.open = false;
+            panel.open = Boolean(lead?.followUpId);
             panel.hidden = !lead;
             content.hidden = true;
             resetForm();

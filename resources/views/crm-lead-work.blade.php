@@ -27,6 +27,10 @@
                     <span data-work-time-label></span>
                     <input class="offer-control" name="when" type="datetime-local">
                 </label>
+                <label class="offer-field" data-work-assignee hidden>
+                    Hatırlatma kime gitsin?
+                    <select class="offer-control" name="assigned_business_user_id" disabled></select>
+                </label>
                 <label class="offer-field">
                     Açıklama
                     <textarea class="offer-control" name="description" rows="2"></textarea>

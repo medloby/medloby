@@ -34,6 +34,7 @@ export function mountClinicCrm(section, api, appointmentDialogs) {
         branch.selectedOptions[0].textContent = saved.branch.name;
     });
     let businessId = null;
+    let businessLoad;
     let canManageOperations = false;
     let request = 0;
     let stageRequest = 0;
@@ -161,7 +162,9 @@ export function mountClinicCrm(section, api, appointmentDialogs) {
         }
     }
 
-    refresh.addEventListener('click', () => loadBusiness(branch.value));
+    refresh.addEventListener('click', () => {
+        businessLoad = loadBusiness(branch.value);
+    });
     branch.addEventListener('change', () => {
         resetStageEditor();
         setBranchPanels(branch.value);
@@ -200,6 +203,19 @@ export function mountClinicCrm(section, api, appointmentDialogs) {
     });
 
     return {
+        async openFollowUp(followUp) {
+            await businessLoad;
+            const targetBranch = String(followUp.branch_id);
+            if (String(followUp.business_id) !== businessId || !Array.from(branch.options).some((option) => option.value === targetBranch)) {
+                return;
+            }
+            if (branch.value !== targetBranch) {
+                branch.value = targetBranch;
+                branch.dispatchEvent(new Event('change'));
+            }
+
+            await leads.openFollowUp(followUp.crm_lead_id, followUp.id);
+        },
         setBusiness(id) {
             if (businessId === id) {
                 return;
@@ -208,7 +224,7 @@ export function mountClinicCrm(section, api, appointmentDialogs) {
             section.hidden = !id;
 
             if (id) {
-                loadBusiness();
+                businessLoad = loadBusiness();
             } else {
                 request++;
                 resetStageEditor();

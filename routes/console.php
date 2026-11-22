@@ -1,9 +1,19 @@
 <?php
 
+use App\Services\CrmFollowUpReminderService;
 use App\Services\LocalBackup;
 use Illuminate\Console\Command;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Schedule;
+
+Artisan::command('medloby:remind-crm-follow-ups', function (CrmFollowUpReminderService $reminders): int {
+    $this->info('Hatırlatma oluşturulan takip sayısı · '.$reminders->sendDue());
+
+    return Command::SUCCESS;
+})->purpose('Saati gelen CRM takipleri için uygulama içi bildirim oluştur');
+
+Schedule::command('medloby:remind-crm-follow-ups')->everyMinute()->withoutOverlapping(5);
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());

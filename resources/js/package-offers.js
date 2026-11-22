@@ -227,7 +227,7 @@ export function mountPackageOffers(root) {
         const openingCatalogue = browsing && discoverySection.hidden;
         const verified = Boolean(user?.email_verified_at || user?.staff_business_id);
         const crmBusiness = /^#klinik-crm\/([1-9][0-9]*)$/.exec(window.location.hash)?.[1];
-        const inCrm = verified && (crmBusiness === String(user.owner_crm_business_id)
+        const inCrm = verified && (ownedBusinesses().some((item) => String(item.id) === crmBusiness && item.status === 'active' && item.is_verified)
             || clinicApplications.canOpenCrm(crmBusiness) || staffCrmIds.has(crmBusiness));
         const requestingPackage = !browsing && !inCrm && verified && user.patient_profile_exists && pendingPackage;
 
@@ -323,6 +323,11 @@ export function mountPackageOffers(root) {
 
     async function openNotificationTarget(data) {
         const actor = user;
+        const followUpId = Number(data.crm_follow_up_id);
+        if (Number.isSafeInteger(followUpId) && followUpId > 0) {
+            const followUp = await api('/branches/' + Number(data.branch_id) + '/crm/follow-ups/' + followUpId);
+            return user === actor ? { followUp } : null;
+        }
         const applicationId = Number(data.clinic_application_id);
         if (Number.isSafeInteger(applicationId) && applicationId > 0) {
             if (data.notification_type === 'clinic_application_submitted') {
@@ -366,6 +371,12 @@ export function mountPackageOffers(root) {
     }
 
     function focusNotificationTarget(target) {
+        if (target.followUp) {
+            window.location.hash = 'klinik-crm/' + target.followUp.business_id;
+            syncPage();
+            clinicCrm.openFollowUp(target.followUp);
+            return;
+        }
         if (target.applicationReviewId) {
             clinicReview.open(target.applicationReviewId);
             return;

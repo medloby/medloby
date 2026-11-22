@@ -68,14 +68,16 @@ export function mountWorkspaceNotifications(dialog, button, badge, { api, openTa
         const data = notification.data ?? {};
         row.dataset.unread = String(!notification.read_at);
         row.querySelector('[data-notification-title]').textContent = data.title ?? 'Bildirim';
-        row.querySelector('[data-notification-message]').textContent = data.message ?? '';
+        row.querySelector('[data-notification-message]').textContent = [
+            data.message, data.scheduled_at && timeLabel(data.scheduled_at),
+        ].filter(Boolean).join(' · ');
         const time = row.querySelector('[data-notification-time]');
         time.dateTime = notification.created_at;
         time.textContent = timeLabel(notification.created_at);
 
         const open = row.querySelector('[data-notification-open]');
         const read = row.querySelector('[data-notification-read]');
-        open.hidden = !data.conversation_id && !data.appointment_id && !data.clinic_application_id;
+        open.hidden = !data.conversation_id && !data.appointment_id && !data.clinic_application_id && !data.crm_follow_up_id;
         read.hidden = Boolean(notification.read_at);
 
         async function act(task) {

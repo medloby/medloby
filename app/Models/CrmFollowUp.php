@@ -27,6 +27,7 @@ class CrmFollowUp extends Model
             'scheduled_at' => 'datetime',
             'completed_at' => 'datetime',
             'cancelled_at' => 'datetime',
+            'reminded_at' => 'datetime',
         ];
     }
 

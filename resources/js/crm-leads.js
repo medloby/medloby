@@ -182,7 +182,7 @@ export function mountCrmLeads(section, { api, onChanged }) {
         history.hidden = false;
     }
 
-    async function openEditor(lead = null) {
+    async function openEditor(lead = null, followUpId = null) {
         if (!branch || editor.open) {
             return;
         }
@@ -247,7 +247,7 @@ export function mountCrmLeads(section, { api, onChanged }) {
             stage.disabled = finalized || !stages.length;
             syncStageNote();
             outcome.hidden = finalized;
-            leadWork.setLead(detail, branchCrm);
+            leadWork.setLead(detail, { branchCrm, members, followUpId });
 
             current.original = formValues();
             form.hidden = false;
@@ -366,6 +366,9 @@ export function mountCrmLeads(section, { api, onChanged }) {
     }
 
     return {
+        openFollowUp(leadId, followUpId) {
+            return openEditor({ id: leadId }, followUpId);
+        },
         setBranch(id) {
             if (branch === id) {
                 return;

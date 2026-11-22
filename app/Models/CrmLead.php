@@ -65,6 +65,12 @@ class CrmLead extends Model
     }
 
     #[Scope]
+    protected function openForFollowUp(Builder $query): Builder
+    {
+        return $query->whereNotIn('crm_leads.status', [self::CONVERTED, self::LEGACY_CONVERTED, self::LOST]);
+    }
+
+    #[Scope]
     protected function withStatus(Builder $query, string $status): Builder
     {
         return self::normalizeStatus($status) === self::CONVERTED
