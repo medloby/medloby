@@ -47,6 +47,49 @@ function clinicAppointmentFixture(): array
     return [$business, $owner, $branch, $other, $doctor, $treatment, $calendar, $otherCalendar];
 }
 
+test('the appointment buffer reserves doctor time without changing the visit duration', function () {
+    $this->travelTo(Carbon::parse('2026-12-01 00:00:00', 'UTC'));
+    [, $owner, $branch, , $doctor, $treatment, $calendar, $otherCalendar] = clinicAppointmentFixture();
+    $this->actingAs($owner, 'sanctum')->putJson($calendar.'/appointment-settings', [
+        'slot_interval_minutes' => 10, 'buffer_before_minutes' => 10, 'buffer_after_minutes' => 20,
+    ])->assertOk();
+    $this->putJson($otherCalendar.'/appointment-settings', [
+        'slot_interval_minutes' => 10, 'buffer_before_minutes' => 10,
+    ])->assertOk();
+    $query = '?date=2026-12-04&treatment_id='.$treatment->id;
+    $clinicSlots = $calendar.'/appointment-options'.$query;
+    $otherSlots = $otherCalendar.'/appointment-options'.$query;
+    $booking = [
+        'patient_name' => 'Deneme Hasta', 'doctor_id' => $doctor->id, 'treatment_id' => $treatment->id,
+    ];
+
+    $slots = $this->getJson($clinicSlots)->assertOk()->json('data.doctors.0.slots');
+    expect($slots[0])->toBe('2026-12-04 09:10:00')
+        ->and($slots[array_key_last($slots)])->toBe('2026-12-04 11:10:00');
+    $this->postJson($calendar.'/appointments', [...$booking, 'starts_at' => '2026-12-04 09:00:00'])
+        ->assertUnprocessable()->assertJsonValidationErrors('starts_at');
+    $first = $this->postJson($calendar.'/appointments', [...$booking, 'starts_at' => '2026-12-04 09:10:00'])
+        ->assertCreated()->json('data.id');
+    $this->assertDatabaseHas('appointments', [
+        'id' => $first, 'branch_id' => $branch->id, 'starts_at' => '2026-12-04 09:10:00', 'ends_at' => '2026-12-04 09:40:00',
+    ]);
+    $this->getJson($otherSlots)->assertOk()->assertJsonPath('data.doctors.0.slots.0', '2026-12-04 10:10:00');
+    $this->postJson($otherCalendar.'/appointments', [...$booking, 'starts_at' => '2026-12-04 10:00:00'])
+        ->assertUnprocessable()->assertJsonValidationErrors('starts_at');
+
+    $this->postJson($calendar.'/blocks', [
+        'starts_at' => '2026-12-04 10:10:00', 'ends_at' => '2026-12-04 10:20:00', 'doctor_id' => $doctor->id,
+    ])->assertCreated();
+    $this->getJson($clinicSlots)->assertOk()->assertJsonPath('data.doctors.0.slots.0', '2026-12-04 10:30:00');
+    $this->assertDatabaseCount('appointments', 1);
+
+    $moved = $this->postJson($calendar.'/appointments/'.$first.'/reschedule', ['starts_at' => '2026-12-04 09:20:00'])
+        ->assertOk()->json('data.id');
+    $this->assertDatabaseHas('appointments', ['id' => $moved, 'ends_at' => '2026-12-04 09:50:00']);
+    $this->postJson($calendar.'/appointments/'.$moved.'/cancel', ['cancellation_reason' => 'Prova iptali'])->assertOk();
+    $this->getJson($otherSlots)->assertOk()->assertJsonPath('data.doctors.0.slots.0', '2026-12-04 09:10:00');
+});
+
 test('the active branch slot interval controls the available start times and preserves treatment duration', function () {
     $this->travelTo(Carbon::parse('2026-12-01 00:00:00', 'UTC'));
     [$business, $owner, $branch, , $doctor, $treatment, $calendar, $otherCalendar] = clinicAppointmentFixture();

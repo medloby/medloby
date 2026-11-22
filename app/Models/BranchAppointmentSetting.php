@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class BranchAppointmentSetting extends Model
 {
+    public const int MAX_BUFFER_MINUTES = 1440;
+
     protected $fillable = [
         'branch_id',
         'slot_interval_minutes',

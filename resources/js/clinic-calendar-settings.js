@@ -10,6 +10,8 @@ export function mountClinicCalendarSettings(panel, api, onSaved) {
     const notice = form.elements.namedItem('minimum_booking_notice_minutes');
     const days = form.elements.namedItem('maximum_booking_days');
     const interval = form.elements.namedItem('slot_interval_minutes');
+    const bufferBefore = form.elements.namedItem('buffer_before_minutes');
+    const bufferAfter = form.elements.namedItem('buffer_after_minutes');
     let scope = null;
 
     function showStatus(message = '') {
@@ -23,6 +25,8 @@ export function mountClinicCalendarSettings(panel, api, onSaved) {
         notice.value = settings.minimum_booking_notice_minutes;
         days.value = settings.maximum_booking_days;
         interval.value = settings.slot_interval_minutes;
+        bufferBefore.value = settings.buffer_before_minutes;
+        bufferAfter.value = settings.buffer_after_minutes;
         inactive.hidden = settings.is_active;
         save.textContent = settings.is_active ? 'Ayarları kaydet' : 'Etkinleştir ve kaydet';
         form.hidden = false;
@@ -68,6 +72,8 @@ export function mountClinicCalendarSettings(panel, api, onSaved) {
                 minimum_booking_notice_minutes: notice.valueAsNumber,
                 maximum_booking_days: days.valueAsNumber,
                 slot_interval_minutes: interval.valueAsNumber,
+                buffer_before_minutes: bufferBefore.valueAsNumber,
+                buffer_after_minutes: bufferAfter.valueAsNumber,
                 is_active: true,
             }, 'PUT');
             if (scope === current) {

@@ -217,14 +217,14 @@ class BranchAppointmentSettingController extends Controller
                 $prefix,
                 'integer',
                 'min:0',
-                'max:1440',
+                'max:'.BranchAppointmentSetting::MAX_BUFFER_MINUTES,
             ],
 
             'buffer_after_minutes' => [
                 $prefix,
                 'integer',
                 'min:0',
-                'max:1440',
+                'max:'.BranchAppointmentSetting::MAX_BUFFER_MINUTES,
             ],
 
             'is_active' => [

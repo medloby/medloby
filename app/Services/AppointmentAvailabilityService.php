@@ -71,10 +71,15 @@ class AppointmentAvailabilityService
             return false;
         }
 
+        $settings = BranchAppointmentSetting::query()->where('branch_id', $branchId)->where('is_active', true)->first([
+            'online_booking_enabled', 'minimum_booking_notice_minutes', 'same_day_booking_enabled', 'maximum_booking_days',
+            'buffer_before_minutes', 'buffer_after_minutes',
+        ]);
+
         // 4. Çevrimiçi randevu için şubenin rezervasyon kurallarını kontrol et.
         if (
             $requireOnlineBookable &&
-            ! $this->allowsOnlineBooking($branchId, $treatment->id, $startsAt, $now)
+            ! $this->allowsOnlineBooking($branchId, $treatment->id, $startsAt, $now, $settings)
         ) {
             return false;
         }
@@ -94,12 +99,15 @@ class AppointmentAvailabilityService
             return false;
         }
 
-        // 6. Doktorun çalışma saatleri uygun mu?
-        if (! $this->isWithinWorkingHours(
+        $occupiedStart = $startsAt->copy()->subMinutes($settings?->buffer_before_minutes ?? 0);
+        $occupiedEnd = $endsAt->copy()->addMinutes($settings?->buffer_after_minutes ?? 0);
+
+        // 6. Hekimin çalışma saatleri hazırlık ve temizlik süresini de kapsamalı.
+        if ($occupiedStart->lt($now) || ! $this->isWithinWorkingHours(
             $doctor->id,
             $branchId,
-            $startsAt,
-            $endsAt
+            $occupiedStart,
+            $occupiedEnd
         )) {
             return false;
         }
@@ -108,8 +116,8 @@ class AppointmentAvailabilityService
         if ($this->isOnLeave(
             $doctor->id,
             $branchId,
-            $startsAt,
-            $endsAt
+            $occupiedStart,
+            $occupiedEnd
         )) {
             return false;
         }
@@ -118,8 +126,8 @@ class AppointmentAvailabilityService
         if ($this->hasCalendarBlock(
             $branchId,
             $doctor->id,
-            $startsAt,
-            $endsAt
+            $occupiedStart,
+            $occupiedEnd
         )) {
             return false;
         }
@@ -127,8 +135,8 @@ class AppointmentAvailabilityService
         // 9. Başka aktif randevuyla çakışıyor mu?
         if ($this->hasAppointmentConflict(
             $doctor->id,
-            $startsAt,
-            $endsAt,
+            $occupiedStart,
+            $occupiedEnd,
             $ignoreAppointmentId
         )) {
             return false;
@@ -235,7 +243,8 @@ class AppointmentAvailabilityService
         int $branchId,
         int $treatmentId,
         Carbon $startsAt,
-        Carbon $now
+        Carbon $now,
+        ?BranchAppointmentSetting $settings
     ): bool {
         $bookableTreatment = DB::table('branch_treatment')
             ->where('branch_id', $branchId)
@@ -248,9 +257,6 @@ class AppointmentAvailabilityService
             return false;
         }
 
-        $settings = BranchAppointmentSetting::query()->where('branch_id', $branchId)->where('is_active', true)->first([
-            'online_booking_enabled', 'minimum_booking_notice_minutes', 'same_day_booking_enabled', 'maximum_booking_days',
-        ]);
         if (! $settings) {
             return true;
         }
@@ -365,8 +371,11 @@ class AppointmentAvailabilityService
         ?int $ignoreAppointmentId = null
     ): bool {
         return Appointment::query()
-            ->where('doctor_id', $doctorId)
-            ->whereNotIn('status', [
+            ->leftJoin('branch_appointment_settings as booking_settings', fn ($join) => $join
+                ->on('booking_settings.branch_id', '=', 'appointments.branch_id')
+                ->where('booking_settings.is_active', true))
+            ->where('appointments.doctor_id', $doctorId)
+            ->whereNotIn('appointments.status', [
                 'cancelled',
                 'completed',
                 'rescheduled',
@@ -375,13 +384,16 @@ class AppointmentAvailabilityService
             ->when(
                 $ignoreAppointmentId !== null,
                 fn ($query) => $query->where(
-                    'id',
+                    'appointments.id',
                     '!=',
                     $ignoreAppointmentId
                 )
             )
-            ->where('starts_at', '<', $endsAt)
-            ->where('ends_at', '>', $startsAt)
-            ->exists();
+            // Yalnızca şube ayarlarının genişletebileceği randevuları getir.
+            ->where('appointments.starts_at', '<', $endsAt->copy()->addMinutes(BranchAppointmentSetting::MAX_BUFFER_MINUTES))
+            ->where('appointments.ends_at', '>', $startsAt->copy()->subMinutes(BranchAppointmentSetting::MAX_BUFFER_MINUTES))
+            ->get(['appointments.starts_at', 'appointments.ends_at', 'booking_settings.buffer_before_minutes', 'booking_settings.buffer_after_minutes'])
+            ->contains(fn (Appointment $appointment): bool => $appointment->starts_at->copy()->subMinutes((int) $appointment->buffer_before_minutes)->lt($endsAt)
+                && $appointment->ends_at->copy()->addMinutes((int) $appointment->buffer_after_minutes)->gt($startsAt));
     }
 }
