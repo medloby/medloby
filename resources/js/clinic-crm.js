@@ -2,6 +2,7 @@ import { mountCrmLeads } from './crm-leads';
 import { mountClinicOperations } from './clinic-operations';
 import { mountClinicCalendar } from './clinic-calendar';
 import { mountClinicProfile } from './clinic-profile';
+import { mountClinicTreatmentPrices } from './clinic-treatment-prices';
 
 const metricLabels = {
     total_leads: 'Toplam hasta adayı',
@@ -27,6 +28,7 @@ export function mountClinicCrm(section, api, appointmentDialogs) {
     const stageFields = stageForm.querySelector('fieldset');
     const stageStatus = find('stage-status');
     const operations = mountClinicOperations(find('operations'), api);
+    const treatmentPrices = mountClinicTreatmentPrices(find('prices'), api);
     const calendar = mountClinicCalendar(find('calendar'), api, appointmentDialogs);
     const leads = mountCrmLeads(find('leads'), {
         api, onChanged: refreshDashboard,
@@ -74,6 +76,7 @@ export function mountClinicCrm(section, api, appointmentDialogs) {
     function setBranchPanels(id) {
         leads.setBranch(id);
         operations.setBranch(canManageOperations ? id : null);
+        treatmentPrices.setBranch(id, businessId);
         calendar.setBranch(id, canManageOperations);
         profile.setBranch(canManageOperations ? businessId : null, id);
     }

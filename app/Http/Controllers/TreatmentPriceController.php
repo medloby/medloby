@@ -7,6 +7,7 @@ use App\Models\Doctor;
 use App\Models\Treatment;
 use App\Models\TreatmentPrice;
 use App\Services\CatalogManagementAccess;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -72,6 +73,34 @@ class TreatmentPriceController extends Controller
             'success' => true,
             'data' => [
                 'prices' => $prices,
+            ],
+        ])->header('Cache-Control', 'private, no-store');
+    }
+
+    public function workspace(Request $request, Branch $branch): JsonResponse
+    {
+        $filters = $request->validate(['scope' => ['sometimes', 'in:branch,clinic']]);
+        $branchId = ($filters['scope'] ?? 'branch') === 'clinic' ? null : $branch->id;
+        $canManage = $this->catalogAccess->canManage($request->user(), $branch->business_id, $branchId);
+        $prices = TreatmentPrice::query()->visibleTo($request->user())
+            ->where('business_id', $branch->business_id)->where('branch_id', $branchId)
+            ->with(['treatment:id,name', 'doctor:id,person_id', 'doctor.person:id,first_name,last_name'])
+            ->latest('id')->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'prices' => $prices,
+                'can_manage' => $canManage,
+                'treatments' => $canManage ? Treatment::query()->where('is_active', true)
+                    ->when($branchId !== null, fn (Builder $treatments) => $treatments->whereHas('branches', fn (Builder $branches) => $branches
+                        ->whereKey($branchId)->where('branch_treatment.is_active', true)))
+                    ->orderBy('name')->get(['id', 'name']) : [],
+                'doctors' => $canManage ? Doctor::query()
+                    ->whereHas('branches', fn (Builder $branches) => $branches->where('branches.business_id', $branch->business_id)
+                        ->when($branchId !== null, fn (Builder $branches) => $branches->whereKey($branchId))
+                        ->where('doctor_branch.status', 'active'))
+                    ->with('person:id,first_name,last_name')->orderBy('id')->get(['id', 'person_id']) : [],
             ],
         ])->header('Cache-Control', 'private, no-store');
     }

@@ -1087,6 +1087,8 @@ Route::middleware(['auth:sanctum', 'verified', EnsureClinicCrmAccess::class])
 Route::middleware(['auth:sanctum', 'verified', EnsureClinicCrmAccess::class])
     ->prefix('branches/{branch}/crm')
     ->group(function () {
+        Route::get('/treatment-prices', [TreatmentPriceController::class, 'workspace']);
+
         Route::prefix('leads')->group(function () {
             Route::get('/', [
                 CrmLeadController::class,

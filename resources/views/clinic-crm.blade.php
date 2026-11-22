@@ -35,6 +35,7 @@
     </div>
 
     @include('clinic-operations')
+    @include('clinic-treatment-prices')
     @include('clinic-calendar')
     @include('crm-leads')
 
