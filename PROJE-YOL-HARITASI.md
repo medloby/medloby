@@ -10,7 +10,7 @@ Envanter, Git'in izlediği 476 dosyayı kapsadı. Depoda 152 uygulama dosyası, 
 
 - Kilitli PHP ortam gereksinimleri, 371 PHP dosyasının sözdizimi ve Vite derlemesi geçti.
 - Envanterin dayandığı sürümde SQLite ve PostgreSQL 17 yapılandırmalarıyla **879’ar test** geçti. Sonraki uygulama sonuçları geliştirme sırasındaki ilgili maddede yer alır.
-- Güncel fiyat, teklif ve randevu doğrulamalarından sonra SQLite ve PostgreSQL 17.12 üzerinde **915’er test** geçti.
+- İlk yönetici kurulumu ve klinik onay kuyruğu doğrulamalarından sonra SQLite ve PostgreSQL 17.12 üzerinde **925’er test** geçti.
 - Klinik üyeliği için `0.2-draft` hazırlandı. Başvuru formu, geçerli ve yayımlanmış zorunlu sözleşme olduğunda açılır.
 - npm taramasında ve kilitli 133 PHP paket sürümü için GitHub Advisory Database taramasında eşleşen bildirim bulunmadı.
 
@@ -159,6 +159,8 @@ Kamuya açılış için içeriğin uygunluğu, onaylı sözleşme ve kişisel ve
 21. **5.21 Kayıt ve randevu e-postaları arka planda gönderiliyor.** Hesap doğrulaması ve yeni randevu e-postaları mevcut kuyruğa şifreli işler olarak ekleniyor. E-posta kanalı kesildiğinde hasta kaydı, randevu ve uygulama içi randevu bildirimleri tamamlanıyor. Kuyruk işçisinin geçici hatadan sonra e-postayı yeniden gönderebildiği ve doğrulama bağlantısının çalıştığı sınandı. SQLite ve PostgreSQL yapılandırmalarıyla 896’şar test ve Vite derlemesi geçti. [Kayıt testi](tests/Feature/PatientRegistrationTest.php) · [Randevu bildirim testi](tests/Feature/AppointmentNotificationTest.php)
 22. **5.22 PostgreSQL 17 otomatik testlere eklendi.** GitHub Actions, aynı iş akışında tam test paketini önce SQLite, ardından kendisi için açılan PostgreSQL 17.12 test veritabanında çalıştırır. Bu adımlar şema kurulumunu ve eşzamanlı randevu kaydını her iki veritabanıyla sınar. Canlı veritabanı seçimi yayın hazırlığında. [CI iş akışı](.github/workflows/ci.yml)
 23. **5.23 PostgreSQL yedekleme ve geri yükleme provası tamamlandı.** PostgreSQL 17.12’nin test veritabanı ve özel görüşme eki ayrı bir kopyaya geri yüklendi. Yedek doğrulama toplamları, yetkili hesabın eki açması, başka hesabın erişiminin reddedilmesi ve son migration’ın geri alınıp yeniden uygulanması sınandı. [PostgreSQL yedekleme provası](README.md#postgresql-ve-özel-dosya-yedekleme-provası)
+24. **5.24 İlk platform yöneticisi kurulumu hazır.** Yetkili sunucu operatörü ilk yönetici hesabını terminalde şifreyi gizli girerek oluşturur. Deneme hesabıyla giriş ve yönetim API’si doğrulandı. Tekrar kurulum, eşzamanlı kurulum ve mevcut bir hesabın adresini kullanma istekleri reddedilir. Gerçek hesabın oluşturulması yayın öncesi kontrol listesinde. [İlk yönetici kurulumu](README.md#ilk-platform-yöneticisi)
+25. **5.25 Klinik onayı ve geçici şifre kuyruğu doğrulandı.** Veritabanı kuyruğu uygulamayla aynı bağlantıyı kullandığında onay ve şifreli e-posta işi birlikte kaydedilir. Kuyruk işi kaydedilemezse onay beklemede kalır ve yeniden denenebilir. Kuyruk işçisi gönderimden önce kliniğin durumunu ve alıcının o klinikteki sahipliğini kontrol eder. Geçici e-posta hatasından sonra ikinci gönderim ve klinik sahibinin CRM’e girişi sınandı. [Klinik onay testleri](tests/Feature/ClinicAccountOnboardingTest.php)
 
 ## Uygulama düzeni
 

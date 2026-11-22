@@ -1,32 +1,44 @@
 <?php
 
 use App\Models\Branch;
+use App\Models\Business;
 use App\Models\PlatformContract;
 use App\Models\User;
 use App\Notifications\ClinicOwnerCredentialsNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Mail\Events\MessageSending;
+use Illuminate\Queue\Events\JobQueueing;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
+use Symfony\Component\Mailer\Exception\TransportException;
+use Tests\TestCase;
 
 uses(RefreshDatabase::class);
 
-test('the clinic owner gets credentials only after approval and completes the clinic profile in CRM', function () {
-    config(['app.url' => 'https://medloby.example.test', 'mail.default' => 'array', 'queue.default' => 'database']);
-    $admin = User::factory()->create(['is_admin' => true]);
+function submitClinicAccountApplication(TestCase $test, string $email): User
+{
     $contract = PlatformContract::create([
         'contract_type' => 'clinic_membership', 'title' => 'Test sözleşmesi', 'version' => 'pilot',
         'content' => 'Test sözleşmesi metni.', 'status' => 'published', 'is_required' => true, 'published_at' => now(),
     ]);
-    $email = 'yeni-klinik@example.test';
-    $this->postJson('/api/register/business/application', [
+    $test->postJson('/api/register/business/application', [
         'owner_email' => $email, 'business_name' => 'Örnek Klinik', 'business_phone' => '+90 312 555 01 01',
         'platform_contract_id' => $contract->id, 'contract_accepted' => true,
     ])->assertCreated()->assertJsonPath('data.approval_status', 'pending')->assertJsonMissingPath('data.token');
 
-    $owner = User::query()->where('email', $email)->sole();
+    return User::query()->where('email', $email)->sole();
+}
+
+test('the clinic owner gets credentials only after approval and completes the clinic profile in CRM', function () {
+    config(['app.url' => 'https://medloby.example.test', 'mail.default' => 'array', 'queue.default' => 'database']);
+    $admin = User::factory()->create(['is_admin' => true]);
+    $email = 'yeni-klinik@example.test';
+    $owner = submitClinicAccountApplication($this, $email);
     $business = $owner->businessMemberships()->sole()->business;
     $branch = $business->branches()->sole();
     expect($owner->login_code)->toBeNull();
@@ -41,7 +53,21 @@ test('the clinic owner gets credentials only after approval and completes the cl
     $loginCode = 'klinik-'.$business->id;
     $job = json_decode(DB::table('jobs')->sole()->payload, true, flags: JSON_THROW_ON_ERROR);
     expect(decrypt($job['data']['command']))->toContain(ClinicOwnerCredentialsNotification::class);
-    $this->artisan('queue:work', ['--once' => true])->assertExitCode(0);
+    Exceptions::fake();
+    $transportUnavailable = true;
+    Event::listen(MessageSending::class, function () use (&$transportUnavailable): void {
+        if ($transportUnavailable) {
+            throw new TransportException('Test mail transport unavailable');
+        }
+    });
+    $workerOptions = ['--once' => true, '--tries' => 2, '--backoff' => 0];
+    $this->artisan('queue:work', $workerOptions)->assertSuccessful();
+    Exceptions::assertReported(TransportException::class);
+    $this->assertDatabaseHas('jobs', ['attempts' => 1]);
+
+    $transportUnavailable = false;
+    $this->artisan('queue:work', $workerOptions)->assertSuccessful();
+    $this->assertDatabaseCount('jobs', 0);
     $mail = Mail::mailer('array')->getSymfonyTransport()->messages()->sole()->getOriginalMessage();
     expect($mail->getTo()[0]->getAddress())->toBe($email);
     expect($mail->getTextBody())->toContain($loginCode);
@@ -83,6 +109,59 @@ test('the clinic owner gets credentials only after approval and completes the cl
     $this->postJson('/api/login', ['identifier' => $loginCode, 'password' => $newPassword])
         ->assertOk()->assertJsonPath('data.user.id', $owner->id);
 });
+
+test('clinic approval can be retried if its database queue cannot accept the credentials job', function () {
+    config(['mail.default' => 'array', 'queue.default' => 'database']);
+    $owner = submitClinicAccountApplication($this, 'bekleyen-klinik@example.test');
+    $business = $owner->businessMemberships()->sole()->business;
+    $admin = User::factory()->create(['is_admin' => true]);
+    Exceptions::fake();
+    $queueAvailable = false;
+    Event::listen(JobQueueing::class, function () use (&$queueAvailable): void {
+        if (! $queueAvailable) {
+            throw new RuntimeException('Test database queue unavailable');
+        }
+    });
+
+    $url = "/api/admin/businesses/{$business->id}/approve";
+    $this->actingAs($admin, 'sanctum')->postJson($url)->assertServerError();
+
+    expect($owner->refresh()->clinic_onboarding_pending)->toBeTrue()->and($owner->login_code)->toBeNull();
+    expect($business->refresh()->status)->toBe('pending');
+    $this->assertDatabaseCount('business_reviews', 0);
+    $this->assertDatabaseCount('notifications', 0);
+    $this->assertDatabaseCount('jobs', 0);
+
+    $queueAvailable = true;
+    $this->postJson($url)->assertOk();
+    $this->assertDatabaseCount('business_reviews', 1);
+    $this->assertDatabaseCount('notifications', 1);
+    $this->assertDatabaseCount('jobs', 1);
+});
+
+test('a queued clinic credential message checks the owners current access before sending', function (array $businessChanges, array $membershipChanges) {
+    config(['mail.default' => 'array', 'queue.default' => 'database']);
+    $owner = submitClinicAccountApplication($this, 'bekleyen-bildirim@example.test');
+    $membership = $owner->businessMemberships()->sole();
+    $business = $membership->business;
+    $admin = User::factory()->create(['is_admin' => true]);
+    $this->actingAs($admin, 'sanctum')->postJson("/api/admin/businesses/{$business->id}/approve")->assertOk();
+    $this->assertDatabaseCount('jobs', 1);
+
+    $business->update($businessChanges);
+    $membership->update($membershipChanges);
+    Business::factory()->create()->memberships()->create([
+        'user_id' => $owner->id, 'role' => 'business_owner', 'is_active' => true,
+    ]);
+
+    $this->artisan('queue:work', ['--once' => true])->assertSuccessful();
+    $this->assertDatabaseCount('jobs', 0);
+    expect(Mail::mailer('array')->getSymfonyTransport()->messages())->toBeEmpty();
+})->with([
+    'the clinic was suspended' => [['status' => 'suspended'], []],
+    'the ownership was deactivated' => [[], ['is_active' => false]],
+    'the owner became staff' => [[], ['role' => 'staff']],
+]);
 
 test('a clinic owner creates and manages a branch-scoped staff login without an email address', function () {
     $branch = Branch::factory()->create();

@@ -2,6 +2,8 @@
 
 namespace App\Notifications;
 
+use App\Models\BusinessUser;
+use App\Models\User;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeEncrypted;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -20,10 +22,18 @@ class ClinicOwnerCredentialsNotification extends Notification implements ShouldB
         return ['mail'];
     }
 
-    public function shouldSend(object $notifiable, string $channel): bool
+    public function shouldSend(User $notifiable, string $channel): bool
     {
-        return $notifiable->temporary_password_expires_at?->isFuture()
-            && Hash::check($this->temporaryPassword, $notifiable->password);
+        if (! $notifiable->temporary_password_expires_at?->isFuture()
+            || ! Hash::check($this->temporaryPassword, $notifiable->password)) {
+            return false;
+        }
+
+        return $notifiable->businessMemberships()
+            ->where('role', 'business_owner')->where('is_active', true)
+            ->with('business:id,status,is_verified')->get()
+            ->contains(fn (BusinessUser $membership): bool => $notifiable->login_code === 'klinik-'.$membership->business_id
+                && $membership->business?->allowsCrmAccess());
     }
 
     public function toMail(object $notifiable): MailMessage

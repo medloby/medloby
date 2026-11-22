@@ -10,8 +10,10 @@ use App\Notifications\ClinicOwnerCredentialsNotification;
 use App\Notifications\NotificationType;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Queue\DatabaseQueue;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -261,6 +263,15 @@ class AdminBusinessController extends Controller
             'clinic_onboarding_pending' => false,
             'temporary_password_expires_at' => now()->addHours(48),
         ])->save();
-        $owner->notify((new ClinicOwnerCredentialsNotification($temporaryPassword))->afterCommit());
+        $notification = new ClinicOwnerCredentialsNotification($temporaryPassword);
+        $queue = Queue::connection();
+        if ($queue instanceof DatabaseQueue && $queue->getDatabase() === DB::connection()) {
+            // The approval and the encrypted queue record share the same transaction.
+            $notification->beforeCommit();
+        } else {
+            $notification->afterCommit();
+        }
+
+        $owner->notify($notification);
     }
 }
