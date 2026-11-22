@@ -1009,6 +1009,7 @@ Route::middleware(['auth:sanctum', 'verified', EnsureClinicCrmAccess::class, Ens
         Route::put('/treatments/{treatment}', [BranchTreatmentController::class, 'update']);
         Route::post('/doctors', 'addDoctor');
         Route::put('/doctors/{doctor}', 'updateDoctorBranch');
+        Route::put('/doctors/{doctor}/online-booking', 'updateDoctorOnlineBooking');
         Route::put('/doctors/{doctor}/treatments/{treatment}', 'updateDoctorTreatment');
     });
 

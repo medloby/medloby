@@ -51,6 +51,7 @@ class ClinicBranchOperationsController extends Controller
                 'specialty' => $doctor->specialty,
                 'license_number' => $doctor->license_number,
                 'is_active' => $doctor->status === 'active',
+                'is_public' => $doctor->is_public,
                 'in_branch' => $doctor->branches->first()?->pivot->status === 'active',
                 'treatment_ids' => $doctor->treatments->filter(fn (Treatment $treatment) => $treatment->pivot->is_active)
                     ->pluck('id')->values(),
@@ -211,6 +212,24 @@ class ClinicBranchOperationsController extends Controller
         }, attempts: 3);
 
         return $this->saved('Hekim–tedavi bağlantısı kaydedildi.');
+    }
+
+    public function updateDoctorOnlineBooking(Request $request, Branch $branch, Doctor $doctor): JsonResponse
+    {
+        $validated = $request->validate(['is_public' => ['required', 'boolean']]);
+
+        DB::transaction(function () use ($branch, $doctor, $validated): void {
+            $doctor = $this->clinicDoctors($branch)->lockForUpdate()->findOrFail($doctor->id);
+            if ($validated['is_public']) {
+                abort_unless($doctor->status === 'active'
+                    && $doctor->branches()->whereKey($branch->id)->wherePivot('status', 'active')->exists(),
+                    422, 'Çevrimiçi randevu için hekim seçili şubede aktif olmalıdır.');
+            }
+
+            $doctor->update(['is_public' => $validated['is_public']]);
+        }, attempts: 3);
+
+        return $this->saved('Hekimin çevrimiçi randevu ayarı kaydedildi.');
     }
 
     private function clinicDoctors(Branch $branch): Builder

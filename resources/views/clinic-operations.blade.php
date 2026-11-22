@@ -66,6 +66,10 @@
                 <div class="grid gap-3" data-operations-doctor-detail hidden>
                     <p class="break-words text-sm text-slate-600 dark:text-slate-300" data-operations-doctor-meta></p>
                     <button type="button" class="offer-button offer-button-secondary justify-self-start" data-operations-doctor-branch></button>
+                    <div class="grid gap-2">
+                        <button type="button" class="offer-button offer-button-secondary justify-self-start" aria-describedby="doctor-online-booking-scope" data-operations-doctor-online-booking></button>
+                        <p id="doctor-online-booking-scope" class="text-sm text-slate-600 dark:text-slate-300">Hekimin çevrimiçi randevu ayarı bağlı olduğu tüm şubelerde geçerlidir.</p>
+                    </div>
                     <div class="grid gap-2 text-sm" data-operations-doctor-links hidden>
                         <h4 class="font-semibold">Hekim–tedavi bağlantıları</h4>
                         <p class="text-slate-600 dark:text-slate-300">Hekimin tedavi bağlantısı, kliniğin bu tedaviyi sunduğu diğer şubelerde de geçerlidir.</p>

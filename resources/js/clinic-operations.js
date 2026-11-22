@@ -7,6 +7,7 @@ export function mountClinicOperations(panel, api) {
     const doctorForm = find('doctor-form');
     const doctorSelect = find('doctors');
     const doctorBranch = find('doctor-branch');
+    const doctorOnlineBooking = find('doctor-online-booking');
     let scope = null;
 
     function showStatus(text = '') {
@@ -53,9 +54,12 @@ export function mountClinicOperations(panel, api) {
         find('doctor-meta').textContent = [
             doctor.specialty, doctor.license_number && 'Ruhsat ' + doctor.license_number,
             doctor.in_branch ? 'Şubeye bağlı' : 'Şubeye bağlı değil',
+            doctor.is_public ? 'Hekime çevrimiçi randevu açık' : 'Hekime çevrimiçi randevu kapalı',
         ].filter(Boolean).join(' · ');
         doctorBranch.textContent = doctor.in_branch ? 'Hekimi şubeden çıkar' : 'Hekimi şubeye ekle';
         doctorBranch.disabled = !doctor.in_branch && !doctor.is_active;
+        doctorOnlineBooking.textContent = doctor.is_public ? 'Hekimi çevrimiçi randevuya kapat' : 'Hekimi çevrimiçi randevuya aç';
+        doctorOnlineBooking.disabled = !doctor.is_public && (!doctor.in_branch || !doctor.is_active);
         find('doctor-links').hidden = !doctor.in_branch;
 
         const items = current.data.branch_treatments.filter((treatment) =>
@@ -210,6 +214,12 @@ export function mountClinicOperations(panel, api) {
         const doctor = selectedDoctor(scope);
         write(scope, scope.operations + '/doctors/' + doctor.id, { is_active: !doctor.in_branch }, 'PUT',
             doctor.in_branch ? 'Hekim şubeden çıkarıldı.' : 'Hekim şubeye eklendi.');
+    });
+
+    doctorOnlineBooking.addEventListener('click', () => {
+        const doctor = selectedDoctor(scope);
+        write(scope, scope.operations + '/doctors/' + doctor.id + '/online-booking', { is_public: !doctor.is_public }, 'PUT',
+            'Hekimin çevrimiçi randevu ayarı kaydedildi.');
     });
 
     return {

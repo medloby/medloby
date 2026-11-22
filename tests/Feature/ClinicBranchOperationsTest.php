@@ -86,6 +86,8 @@ test('an owner can register a private doctor and connect active branch treatment
     $doctor = Doctor::findOrFail($created->json('data.id'));
     expect($doctor->is_public)->toBeFalse();
     expect($doctor->person->business_id)->toBe($this->business->id);
+    $this->putJson("/api/branches/{$this->second->id}/operations/doctors/{$doctor->id}/online-booking", ['is_public' => true])
+        ->assertUnprocessable();
     $this->postJson("/api/branches/{$this->second->id}/operations/doctors", $profile)
         ->assertUnprocessable()->assertJsonValidationErrors('license_number');
 
@@ -123,4 +125,6 @@ test('an owner can register a private doctor and connect active branch treatment
     ]);
     $this->actingAs($foreignOwner, 'sanctum')
         ->putJson("/api/branches/{$foreignBranch->id}/operations/doctors/{$doctor->id}", ['is_active' => true])->assertNotFound();
+    $this->putJson("/api/branches/{$foreignBranch->id}/operations/doctors/{$doctor->id}/online-booking", ['is_public' => true])
+        ->assertNotFound();
 });
