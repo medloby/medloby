@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Appointment;
 use App\Models\Branch;
+use App\Models\BranchAppointmentSetting;
 use App\Models\Doctor;
 use App\Models\Treatment;
 use Carbon\Carbon;
@@ -26,6 +27,8 @@ class AppointmentService
     {
         return DB::transaction(function () use ($data) {
             $startsAt = Carbon::parse($data['starts_at']);
+            $source = $data['source'] ?? 'medloby';
+            $requireOnlineBookable = $data['require_online_bookable'] ?? true;
 
             $doctor = Doctor::query()
                 ->lockForUpdate()->find($data['doctor_id'] ?? null);
@@ -40,7 +43,7 @@ class AppointmentService
                     'Geçerli bir doktor seçilmelidir.'
                 );
             }
-            if (($data['source'] ?? 'medloby') === 'medloby' && ! $doctor->is_public) {
+            if ($source === 'medloby' && ! $doctor->is_public) {
                 throw new RuntimeException('Seçilen doktor çevrimiçi randevuya açık değil.');
             }
 
@@ -72,7 +75,7 @@ class AppointmentService
                 branchId: (int) $data['branch_id'],
                 treatment: $treatment,
                 startsAt: $startsAt,
-                requireOnlineBookable: $data['require_online_bookable'] ?? true
+                requireOnlineBookable: $requireOnlineBookable
             );
 
             if (! $available) {
@@ -80,6 +83,10 @@ class AppointmentService
                     'Seçilen tarih ve saat için randevu uygun değil.'
                 );
             }
+
+            $status = $data['status'] ?? ($source === 'medloby' && $requireOnlineBookable
+                ? BranchAppointmentSetting::initialStatusForOnlineBooking($branch->id)
+                : 'pending');
 
             $appointmentData = [
                 'business_id' => $data['business_id'],
@@ -89,8 +96,8 @@ class AppointmentService
                 'treatment_id' => $data['treatment_id'],
                 'starts_at' => $startsAt,
                 'ends_at' => $endsAt,
-                'status' => $data['status'] ?? 'pending',
-                'source' => $data['source'] ?? 'medloby',
+                'status' => $status,
+                'source' => $source,
                 'patient_name' => $data['patient_name'] ?? null,
                 'patient_phone' => $data['patient_phone'] ?? null,
                 'patient_email' => $data['patient_email'] ?? null,

@@ -346,7 +346,7 @@ class AppointmentController extends Controller
         }
         if ($isPatient && ! $isBusinessUser) {
             $validated['require_online_bookable'] = true;
-            $validated['status'] = 'pending';
+            unset($validated['status']);
             $validated['source'] = 'medloby';
         }
         $validated['created_by_user_id'] = $user->id;

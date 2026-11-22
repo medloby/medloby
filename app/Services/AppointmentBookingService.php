@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Appointment;
 use App\Models\AppointmentStatusHistory;
+use App\Models\BranchAppointmentSetting;
 use App\Models\Doctor;
 use App\Models\Offer;
 use App\Models\PatientProfile;
@@ -51,9 +52,11 @@ class AppointmentBookingService
                 }
             }
 
+            $status = $requireOnlineBookable ? BranchAppointmentSetting::initialStatusForOnlineBooking($branchId) : 'pending';
+
             return $this->createBooking(
-                $businessId, $branchId, $patient, $doctor, $treatment,
-                $startsAt, $source, $requireOnlineBookable, $notes, $offer
+                $businessId, $branchId, $patient, $doctor, $treatment, $startsAt, $status,
+                source: $source, requireOnlineBookable: $requireOnlineBookable, notes: $notes, offer: $offer,
             );
         }, 3);
     }
@@ -65,6 +68,7 @@ class AppointmentBookingService
         Doctor $doctor,
         Treatment $treatment,
         Carbon $startsAt,
+        string $status,
         string $source = 'medloby',
         bool $requireOnlineBookable = true,
         ?string $notes = null,
@@ -124,7 +128,7 @@ class AppointmentBookingService
             'offer_id' => $offer?->id,
             'starts_at' => $startsAt,
             'ends_at' => $endsAt,
-            'status' => 'pending',
+            'status' => $status,
             'source' => $source,
             'patient_name' => trim(
                 $patient->first_name.' '.$patient->last_name
@@ -138,7 +142,7 @@ class AppointmentBookingService
             'appointment_id' => $appointment->id,
             'changed_by_user_id' => $changedBy,
             'old_status' => null,
-            'new_status' => 'pending',
+            'new_status' => $appointment->status,
             'reason' => 'Randevu oluşturuldu.',
             'changed_at' => now(),
         ]);
@@ -191,6 +195,7 @@ class AppointmentBookingService
                 throw new RuntimeException('Teklife bağlı hasta profili bulunamadı.');
             }
 
+            $status = $clinicUserId === null ? BranchAppointmentSetting::initialStatusForOnlineBooking($branchId) : 'pending';
             $appointments = [];
             foreach ($sessions as $session) {
                 $appointment = $this->createBooking(
@@ -200,6 +205,7 @@ class AppointmentBookingService
                     $doctors->get($session['doctor_id']) ?? throw new RuntimeException('Geçerli bir doktor seçilmelidir.'),
                     Treatment::findOrFail($session['treatment_id']),
                     Carbon::parse($session['starts_at']),
+                    $status,
                     source: $clinicUserId ? 'clinic' : 'medloby',
                     requireOnlineBookable: $clinicUserId === null,
                     notes: $session['notes'] ?? null,

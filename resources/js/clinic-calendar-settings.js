@@ -7,6 +7,7 @@ export function mountClinicCalendarSettings(panel, api, onSaved) {
     const save = find('save');
     const online = form.elements.namedItem('online_booking_enabled');
     const sameDay = form.elements.namedItem('same_day_booking_enabled');
+    const initialStatus = form.elements.namedItem('default_appointment_status');
     const notice = form.elements.namedItem('minimum_booking_notice_minutes');
     const days = form.elements.namedItem('maximum_booking_days');
     const interval = form.elements.namedItem('slot_interval_minutes');
@@ -22,6 +23,7 @@ export function mountClinicCalendarSettings(panel, api, onSaved) {
     function render(settings) {
         online.checked = settings.online_booking_enabled;
         sameDay.checked = settings.same_day_booking_enabled;
+        initialStatus.value = settings.default_appointment_status;
         notice.value = settings.minimum_booking_notice_minutes;
         days.value = settings.maximum_booking_days;
         interval.value = settings.slot_interval_minutes;
@@ -69,6 +71,7 @@ export function mountClinicCalendarSettings(panel, api, onSaved) {
             const settings = await api(current.path, {
                 online_booking_enabled: online.checked,
                 same_day_booking_enabled: sameDay.checked,
+                default_appointment_status: initialStatus.value,
                 minimum_booking_notice_minutes: notice.valueAsNumber,
                 maximum_booking_days: days.valueAsNumber,
                 slot_interval_minutes: interval.valueAsNumber,

@@ -12,6 +12,13 @@
                 <input class="mt-0.5 h-4 w-4 accent-teal-700" type="checkbox" name="same_day_booking_enabled">
                 Aynı gün randevu alınabilsin
             </label>
+            <label class="offer-field w-full sm:max-w-sm">
+                Çevrimiçi randevu onayı
+                <select class="offer-control" name="default_appointment_status" required>
+                    <option value="pending">Klinik onayı beklensin</option>
+                    <option value="confirmed">Otomatik onaylansın</option>
+                </select>
+            </label>
             <div class="grid gap-4 sm:grid-cols-2">
                 <label class="offer-field">
                     En az kaç dakika önce randevu alınabilir?

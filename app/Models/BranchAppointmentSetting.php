@@ -45,6 +45,17 @@ class BranchAppointmentSetting extends Model
         ];
     }
 
+    public static function initialStatusForOnlineBooking(int $branchId): string
+    {
+        $automaticallyConfirms = static::query()
+            ->where('branch_id', $branchId)
+            ->where('is_active', true)
+            ->where('default_appointment_status', 'confirmed')
+            ->exists();
+
+        return $automaticallyConfirms ? 'confirmed' : 'pending';
+    }
+
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);

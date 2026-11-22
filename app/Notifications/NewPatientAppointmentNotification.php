@@ -12,8 +12,7 @@ class NewPatientAppointmentNotification extends Notification
 
     public function __construct(
         public Appointment $appointment
-    ) {
-    }
+    ) {}
 
     /**
      * Bildirim sadece Medloby uygulama içinde gösterilir.
@@ -30,10 +29,12 @@ class NewPatientAppointmentNotification extends Notification
      */
     public function toArray(object $notifiable): array
     {
+        $confirmed = $this->appointment->status === 'confirmed';
+
         return [
             'notification_type' => NotificationType::NEW_APPOINTMENT,
-            'title' => 'Randevunuz oluşturuldu',
-            'message' => 'Randevunuz başarıyla oluşturuldu.',
+            'title' => $confirmed ? 'Randevunuz onaylandı' : 'Randevunuz oluşturuldu',
+            'message' => $confirmed ? 'Randevunuz otomatik olarak onaylandı.' : 'Randevunuz başarıyla oluşturuldu.',
             'appointment_id' => $this->appointment->id,
             'business_id' => $this->appointment->business_id,
             'branch_id' => $this->appointment->branch_id,

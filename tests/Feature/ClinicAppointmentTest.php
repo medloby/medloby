@@ -1,5 +1,6 @@
 <?php
 
+use App\Mail\NewPatientAppointmentMail;
 use App\Models\Branch;
 use App\Models\BranchAppointmentSetting;
 use App\Models\Business;
@@ -10,9 +11,11 @@ use App\Models\Person;
 use App\Models\Treatment;
 use App\Models\TreatmentCategory;
 use App\Models\User;
+use App\Notifications\NewPatientAppointmentNotification;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Notification;
 
 uses(RefreshDatabase::class);
 
@@ -46,6 +49,73 @@ function clinicAppointmentFixture(): array
 
     return [$business, $owner, $branch, $other, $doctor, $treatment, $calendar, $otherCalendar];
 }
+
+test('online package sessions use the branch confirmation setting and clinic bookings still start pending', function () {
+    $this->travelTo(Carbon::parse('2026-12-01 00:00:00', 'UTC'));
+    Mail::fake();
+    Notification::fake();
+    [$business, $owner, $branch, , $doctor, $treatment, $calendar] = clinicAppointmentFixture();
+    $doctor->update(['is_public' => true]);
+    $branch->treatments()->updateExistingPivot($treatment->id, ['is_online_bookable' => true]);
+    $this->actingAs($owner, 'sanctum')->putJson($calendar.'/appointment-settings', [
+        'online_booking_enabled' => true, 'default_appointment_status' => 'confirmed',
+    ])->assertOk()->assertJsonPath('data.default_appointment_status', 'confirmed');
+    $patientUser = User::factory()->create();
+    $patient = $patientUser->patientProfile()->create(['first_name' => 'Deneme', 'last_name' => 'Hastası']);
+    $conversation = $patient->conversations()->create(['business_id' => $business->id, 'branch_id' => $branch->id, 'status' => 'open']);
+    $offer = $conversation->offers()->create([
+        'business_id' => $business->id, 'branch_id' => $branch->id, 'patient_profile_id' => $patient->id,
+        'created_by' => $owner->id, 'title' => 'İki seanslık paket', 'status' => 'accepted', 'amount' => 100, 'currency' => 'TRY',
+        'package_snapshot' => ['branch_id' => $branch->id, 'treatments' => [
+            ['treatment_id' => $treatment->id, 'name' => $treatment->name, 'quantity' => 2],
+        ]],
+    ]);
+    $session = ['treatment_id' => $treatment->id, 'doctor_id' => $doctor->id, 'starts_at' => '2026-12-04 09:00:00'];
+
+    $booked = $this->actingAs($patientUser, 'sanctum')->postJson('/api/offers/'.$offer->id.'/appointments', [
+        'branch_id' => $branch->id,
+        'sessions' => [$session, [...$session, 'starts_at' => '2026-12-04 10:00:00']],
+    ])->assertCreated()->assertJsonPath('data.appointments.0.status', 'confirmed')
+        ->assertJsonPath('data.appointments.1.status', 'confirmed')->json('data.appointments');
+
+    $this->assertDatabaseHas('appointment_status_histories', [
+        'appointment_id' => $booked[0]['id'], 'old_status' => null, 'new_status' => 'confirmed',
+    ]);
+    $this->getJson('/api/offers/'.$offer->id.'/appointments')->assertOk()->assertJsonPath('data.0.status', 'confirmed');
+    Notification::assertSentTo($patientUser, NewPatientAppointmentNotification::class,
+        fn (NewPatientAppointmentNotification $notification): bool => $notification->toArray($patientUser)['title'] === 'Randevunuz onaylandı');
+    Mail::assertSent(NewPatientAppointmentMail::class, 2);
+
+    $clinicAppointment = $this->actingAs($owner, 'sanctum')->postJson($calendar.'/appointments', [
+        ...$session, 'starts_at' => '2026-12-04 11:00:00', 'patient_name' => 'Danışma Hastası',
+    ])->assertCreated()->json('data.id');
+    $this->getJson($calendar.'?date=2026-12-04')->assertOk()
+        ->assertJsonPath('data.appointments.0.status', 'confirmed')
+        ->assertJsonPath('data.appointments.2.id', $clinicAppointment)
+        ->assertJsonPath('data.appointments.2.status', 'pending');
+});
+
+test('patients cannot override the active branch setting when booking a single appointment', function () {
+    $this->travelTo(Carbon::parse('2026-12-01 00:00:00', 'UTC'));
+    [$business, , $branch, $other, $doctor, $treatment] = clinicAppointmentFixture();
+    $doctor->update(['is_public' => true]);
+    $branch->treatments()->updateExistingPivot($treatment->id, ['is_online_bookable' => true]);
+    $other->treatments()->updateExistingPivot($treatment->id, ['is_online_bookable' => true]);
+    $branch->appointmentSetting()->update(['online_booking_enabled' => true, 'default_appointment_status' => 'confirmed']);
+    $other->appointmentSetting()->create(['is_active' => false, 'default_appointment_status' => 'confirmed']);
+    $patient = User::factory()->create()->patientProfile()->create(['first_name' => 'Deneme', 'last_name' => 'Hastası']);
+    $booking = [
+        'business_id' => $business->id, 'branch_id' => $branch->id, 'patient_profile_id' => $patient->id,
+        'doctor_id' => $doctor->id, 'treatment_id' => $treatment->id, 'starts_at' => '2026-12-04 09:00:00',
+    ];
+
+    $this->actingAs($patient->user, 'sanctum')->postJson('/api/appointments', [
+        ...$booking, 'status' => 'pending', 'source' => 'clinic',
+    ])->assertCreated()->assertJsonPath('data.status', 'confirmed');
+    $this->postJson('/api/appointments', [
+        ...$booking, 'branch_id' => $other->id, 'starts_at' => '2026-12-04 10:00:00', 'status' => 'confirmed',
+    ])->assertCreated()->assertJsonPath('data.status', 'pending');
+});
 
 test('the appointment buffer reserves doctor time without changing the visit duration', function () {
     $this->travelTo(Carbon::parse('2026-12-01 00:00:00', 'UTC'));
@@ -380,6 +450,7 @@ test('an accepted package becomes a complete set of calendar sessions and stays 
     $this->travelTo(now()->setDate(2026, 12, 1)->startOfDay());
     Mail::fake();
     [$business, $owner, $branch, , $doctor, $treatment, $calendar, $otherCalendar] = clinicAppointmentFixture();
+    $branch->appointmentSetting()->update(['default_appointment_status' => 'confirmed']);
     $patient = User::factory()->create(['email' => 'paket@example.test'])->patientProfile()->create([
         'first_name' => 'Paket', 'last_name' => 'Hastası', 'phone' => '+90 555 222 33 44',
     ]);
