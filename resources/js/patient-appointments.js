@@ -93,8 +93,5 @@ export function mountPatientAppointments(panel, { api, renderAppointment }) {
             back.hidden = id === null;
             load(1, preparedAppointment);
         },
-        reload() {
-            return load(appointmentId === null ? page : 1);
-        },
     };
 }

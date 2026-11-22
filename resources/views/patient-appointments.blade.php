@@ -1,5 +1,4 @@
 <section id="patient-appointments" class="mt-6 grid max-w-4xl gap-4" aria-labelledby="page-title" hidden>
-    <button id="patient-booking-button" type="button" class="offer-button justify-self-start">Yeni randevu al</button>
     <div class="flex flex-wrap items-center gap-2" data-appointment-views role="group" aria-label="Randevu listesi">
         <button type="button" data-appointment-view="upcoming" aria-pressed="true" class="offer-button offer-button-secondary aria-pressed:border-teal-700 aria-pressed:bg-teal-50 aria-pressed:text-teal-900 dark:aria-pressed:bg-teal-950 dark:aria-pressed:text-teal-100">Yaklaşan</button>
         <button type="button" data-appointment-view="history" aria-pressed="false" class="offer-button offer-button-secondary aria-pressed:border-teal-700 aria-pressed:bg-teal-50 aria-pressed:text-teal-900 dark:aria-pressed:bg-teal-950 dark:aria-pressed:text-teal-100">Geçmiş ve iptaller</button>

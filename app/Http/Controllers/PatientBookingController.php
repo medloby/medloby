@@ -20,7 +20,7 @@ class PatientBookingController extends Controller
     public function branches(Request $request): JsonResponse
     {
         $this->patient($request);
-        $branches = $this->onlineBranches()->with('business:id,name')->orderBy('city')->orderBy('name')->orderBy('id')
+        $branches = Branch::query()->bookableOnline()->with('business:id,name')->orderBy('city')->orderBy('name')->orderBy('id')
             ->get(['id', 'business_id', 'name', 'city'])
             ->map(fn (Branch $branch): array => [
                 'id' => $branch->id, 'name' => $branch->name, 'clinic' => $branch->business->name, 'city' => $branch->city,
@@ -32,7 +32,7 @@ class PatientBookingController extends Controller
     public function treatments(Request $request, int $branch): JsonResponse
     {
         $this->patient($request);
-        $branch = $this->onlineBranches()->findOrFail($branch);
+        $branch = Branch::query()->bookableOnline()->with('business:id,name')->findOrFail($branch);
         $doctorIds = $this->publicDoctors($branch)->select('doctors.id')->getQuery();
         $treatments = $this->bookableTreatments($branch)->with(['doctors' => fn (BelongsToMany $doctors) => $doctors
             ->wherePivot('is_active', true)->whereIn('doctors.id', $doctorIds)
@@ -46,7 +46,10 @@ class PatientBookingController extends Controller
                 ]),
             ])->values();
 
-        return $this->data(['treatments' => $treatments]);
+        return $this->data([
+            'branch' => ['name' => $branch->name, 'clinic' => $branch->business->name, 'city' => $branch->city, 'district' => $branch->district],
+            'treatments' => $treatments,
+        ]);
     }
 
     public function slots(Request $request, int $branch, AppointmentSlotAvailabilityService $availability): JsonResponse
@@ -56,7 +59,7 @@ class PatientBookingController extends Controller
             'treatment_id' => ['required', 'integer'], 'doctor_id' => ['required', 'integer'],
             'date' => ['required', 'date_format:Y-m-d'],
         ]);
-        $branch = $this->onlineBranches()->findOrFail($branch);
+        $branch = Branch::query()->bookableOnline()->findOrFail($branch);
         [$treatment, $doctor] = $this->selection($branch, (int) $data['treatment_id'], (int) $data['doctor_id']);
         $slots = $availability->getAvailableSlots($doctor, $branch->id, $treatment, Carbon::parse($data['date']));
 
@@ -70,7 +73,7 @@ class PatientBookingController extends Controller
             'treatment_id' => ['required', 'integer'], 'doctor_id' => ['required', 'integer'],
             'starts_at' => ['required', 'date_format:Y-m-d H:i:s'], 'notes' => ['nullable', 'string', 'max:2000'],
         ]);
-        $branch = $this->onlineBranches()->findOrFail($branch);
+        $branch = Branch::query()->bookableOnline()->findOrFail($branch);
         [$treatment, $doctor] = $this->selection($branch, (int) $data['treatment_id'], (int) $data['doctor_id']);
 
         try {
@@ -93,20 +96,6 @@ class PatientBookingController extends Controller
         abort_unless($patient && $request->user()->hasVerifiedEmail(), 403);
 
         return $patient;
-    }
-
-    private function onlineBranches(): Builder
-    {
-        return Branch::query()->where('status', 'active')
-            ->whereHas('business', fn (Builder $business) => $business->where('status', 'active')->where('is_verified', true))
-            ->whereDoesntHave('appointmentSetting', fn (Builder $settings) => $settings->where('is_active', true)->where('online_booking_enabled', false))
-            ->whereHas('treatments', fn (Builder $treatments) => $treatments->where('treatments.is_active', true)
-                ->where('branch_treatment.is_active', true)->where('branch_treatment.is_online_bookable', true)
-                ->whereHas('doctors', fn (Builder $doctors) => $doctors
-                    ->join('doctor_branch', 'doctor_branch.doctor_id', '=', 'doctors.id')
-                    ->whereColumn('doctor_branch.branch_id', 'branches.id')->where('doctor_branch.status', 'active')
-                    ->where('doctors.status', 'active')->where('doctors.is_public', true)->where('doctor_treatment.is_active', true)
-                    ->whereHas('person', fn (Builder $person) => $person->whereColumn('people.business_id', 'branches.business_id'))));
     }
 
     private function publicDoctors(Branch $branch): BelongsToMany

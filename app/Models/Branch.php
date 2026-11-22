@@ -2,7 +2,8 @@
 
 namespace App\Models;
 
-use App\Models\BranchTreatment;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -36,6 +37,21 @@ class Branch extends Model
             'latitude' => 'decimal:7',
             'longitude' => 'decimal:7',
         ];
+    }
+
+    #[Scope]
+    protected function bookableOnline(Builder $query): Builder
+    {
+        return $query->where('branches.status', 'active')
+            ->whereHas('business', fn (Builder $business) => $business->where('status', 'active')->where('is_verified', true))
+            ->whereDoesntHave('appointmentSetting', fn (Builder $settings) => $settings->where('is_active', true)->where('online_booking_enabled', false))
+            ->whereHas('treatments', fn (Builder $treatments) => $treatments->where('treatments.is_active', true)
+                ->where('branch_treatment.is_active', true)->where('branch_treatment.is_online_bookable', true)
+                ->whereHas('doctors', fn (Builder $doctors) => $doctors
+                    ->join('doctor_branch', 'doctor_branch.doctor_id', '=', 'doctors.id')
+                    ->whereColumn('doctor_branch.branch_id', 'branches.id')->where('doctor_branch.status', 'active')
+                    ->where('doctors.status', 'active')->where('doctors.is_public', true)->where('doctor_treatment.is_active', true)
+                    ->whereHas('person', fn (Builder $person) => $person->whereColumn('people.business_id', 'branches.business_id'))));
     }
 
     public function business(): BelongsTo

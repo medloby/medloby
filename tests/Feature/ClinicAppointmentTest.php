@@ -79,7 +79,9 @@ test('a verified patient can book a standalone visit through the online branch a
     $this->actingAs($owner, 'sanctum')->getJson($endpoint)->assertForbidden();
     $this->actingAs($patient->user, 'sanctum')->getJson($endpoint)->assertOk()->assertJsonCount(1, 'data.branches')
         ->assertJsonPath('data.branches.0.id', $branch->id)->assertJsonMissingPath('data.branches.0.email');
-    $this->getJson($selectedBranch.'/treatments')->assertOk()->assertJsonPath('data.treatments.0.id', $treatment->id)
+    $this->getJson($selectedBranch.'/treatments')->assertOk()
+        ->assertJsonPath('data.branch.clinic', $business->name)->assertJsonPath('data.branch.name', $branch->name)
+        ->assertJsonPath('data.treatments.0.id', $treatment->id)
         ->assertJsonCount(1, 'data.treatments.0.doctors')->assertJsonPath('data.treatments.0.doctors.0.id', $doctor->id);
     $this->getJson($endpoint.'/'.$closed->id.'/treatments')->assertNotFound();
     $this->getJson($slots)->assertOk()->assertJsonPath('data.slots.0', '2026-12-04 09:00:00');

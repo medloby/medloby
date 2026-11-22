@@ -3,7 +3,7 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <meta name="description" content="Medloby kataloğunda tedavi paketlerinin içeriğini inceleyin. Klinik görüşmelerinizi, özel tekliflerinizi ve paket randevularınızı hesabınızdan takip edin.">
+        <meta name="description" content="Medloby’de klinik arayın, şubeleri ve tedavileri inceleyin, uygun şubeden randevu alın. Tedavi paketlerini ve size gönderilen teklifleri keşfedin.">
         <title>Medloby | Tedavi paketleri ve klinik bilgileri</title>
         @fonts
         @vite('resources/css/app.css')
@@ -18,6 +18,7 @@
                     Medloby
                 </a>
                 <nav aria-label="Ana menü" class="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm font-medium">
+                    <a href="#klinikler" class="rounded-sm underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-teal-700">Klinik ara</a>
                     <a href="{{ route('package-offers') }}#katalog" class="rounded-sm underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-teal-700">Tedavi paketleri</a>
                     <a href="{{ route('package-offers') }}#clinic-registration" class="rounded-sm underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-teal-700">Klinik başvurusu</a>
                     <a href="{{ route('package-offers') }}#gorusmeler" class="offer-button offer-button-secondary">Hesabıma giriş</a>
@@ -43,6 +44,8 @@
 
                 <img src="{{ asset('images/medloby-catalog.webp') }}" alt="" width="1320" height="990" fetchpriority="high" class="aspect-[4/3] w-full rounded-[1.75rem] bg-[#d8e2d7] object-cover">
             </section>
+
+            @include('clinic-directory.search')
 
             <section class="border-t border-[#dbe3dc] bg-[#edf1e8] dark:border-slate-800 dark:bg-slate-900" aria-labelledby="account-entry-title">
                 <div class="mx-auto grid max-w-7xl gap-6 px-5 py-10 sm:px-8 sm:py-12 lg:grid-cols-[minmax(12rem,0.7fr)_1fr_1fr] lg:gap-9 lg:px-12">

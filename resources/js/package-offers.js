@@ -133,16 +133,17 @@ export function mountPackageOffers(root) {
         onChanged: syncPage,
     });
     const clinicCrm = mountClinicCrm(get('clinic-crm'), api, { openBookingDialog, openAppointmentAction, appointmentActionLabels });
-    const patientAppointmentPanel = get('patient-appointments');
-    const patientAppointments = mountPatientAppointments(patientAppointmentPanel, {
+    const patientAppointments = mountPatientAppointments(get('patient-appointments'), {
         api,
-        renderAppointment: (appointment) => renderScheduledAppointment(appointment, true, refreshPatientAppointment),
+        renderAppointment: (appointment) => renderScheduledAppointment(appointment),
     });
-    const patientBooking = mountPatientBooking(get('patient-booking-dialog'), get('patient-booking-button'), {
+    const patientBooking = mountPatientBooking(get('patient-booking'), {
         api, today: clinicToday, setOptions,
         onBooked(appointment) {
             showStatus(notice, appointment.status === 'confirmed' ? 'Randevunuz onaylandı.' : 'Randevu talebiniz alındı. Klinik onayı bekleniyor.');
-            refreshPatientAppointment(appointment);
+            window.location.hash = 'randevular/' + appointment.id;
+            syncPage();
+            get('page-title').focus();
         },
     });
     const discoverySection = get('package-discovery');
@@ -256,29 +257,34 @@ export function mountPackageOffers(root) {
         const appointmentsTarget = /^#randevular(?:\/([1-9][0-9]*))?$/.exec(window.location.hash);
         const canSeeAppointments = Boolean(user?.email_verified_at && user.patient_profile_exists);
         const inAppointments = Boolean(canSeeAppointments && appointmentsTarget);
-        const requestingPackage = !browsing && !inCrm && !inAppointments && verified && user.patient_profile_exists && pendingPackage;
+        const bookingBranch = clinicBookingBranch();
+        const outsideConversations = browsing || inCrm || inAppointments || bookingBranch !== null;
+        const requestingPackage = !outsideConversations && verified && user.patient_profile_exists && pendingPackage;
 
         discoverySection.hidden = !browsing;
         get('package-request').hidden = !requestingPackage;
         get('package-request-name').textContent = requestingPackage ? pendingPackage.name : '';
-        get('page-title').textContent = inCrm ? 'Klinik CRM' : browsing ? 'Tedavi paketleri' : inAppointments ? 'Randevularım' : 'Paket teklifleri';
+        get('page-title').textContent = inCrm ? 'Klinik CRM' : browsing ? 'Tedavi paketleri' : inAppointments ? 'Randevularım' : bookingBranch ? 'Randevu al' : 'Paket teklifleri';
         document.title = get('page-title').textContent + ' | Medloby';
         get('discovery-link').setAttribute('aria-current', browsing ? 'page' : 'false');
-        get('offers-link').setAttribute('aria-current', browsing || inCrm || inAppointments ? 'false' : 'page');
+        get('offers-link').setAttribute('aria-current', outsideConversations ? 'false' : 'page');
         get('patient-appointments-link').hidden = !canSeeAppointments;
         get('patient-appointments-link').setAttribute('aria-current', inAppointments ? 'page' : 'false');
         get('sign-in').hidden = browsing || Boolean(user);
+        get('sign-in-description').textContent = bookingBranch
+            ? 'Seçtiğiniz şubede randevu almak için hasta hesabınızla giriş yapın.'
+            : 'Klinik veya hasta hesabınızla görüşmelerinizdeki paket tekliflerine erişin.';
         get('email-verification').hidden = browsing || !user || verified;
         get('verification-address').textContent = user?.email ?? '';
-        get('workspace').hidden = browsing || inCrm || inAppointments || !verified;
+        get('booking-return').hidden = bookingBranch === null;
+        get('booking-account-required').hidden = !bookingBranch || !user || user.patient_profile_exists;
+        get('workspace').hidden = outsideConversations || !verified;
 
-        clinicApplications.setVisible(!browsing && !inCrm && !inAppointments && Boolean(user));
-        get('staff-crm').hidden = browsing || inCrm || inAppointments || !verified || staffCrmIds.size === 0;
+        clinicApplications.setVisible(!outsideConversations && Boolean(user));
+        get('staff-crm').hidden = outsideConversations || !verified || staffCrmIds.size === 0;
         clinicCrm.setBusiness(inCrm ? crmBusiness : null);
         patientAppointments.setView(inAppointments, appointmentsTarget?.[1] ?? null, preparedAppointment);
-        if (!inAppointments) {
-            patientBooking.close();
-        }
+        patientBooking.setBranch(canSeeAppointments ? bookingBranch : null);
 
         if (openingCatalogue) {
             discovery.open();
@@ -287,18 +293,8 @@ export function mountPackageOffers(root) {
 
     window.addEventListener('hashchange', () => syncPage());
 
-    function refreshPatientAppointment({ id }) {
-        if (patientAppointmentPanel.hidden) {
-            return;
-        }
-
-        const hash = '#randevular/' + id;
-        if (window.location.hash === hash) {
-            return patientAppointments.reload();
-        }
-
-        window.location.hash = hash;
-        get('page-title').focus();
+    function clinicBookingBranch() {
+        return /^#randevu-al\/([1-9][0-9]*)$/.exec(window.location.hash)?.[1] ?? null;
     }
 
     function rememberPackage(pkg) {
@@ -544,7 +540,9 @@ export function mountPackageOffers(root) {
 
     async function loadConversations(page, preferred) {
         const request = ++pageRequest;
-        showStatus(notice, 'Görüşmeler yükleniyor…');
+        if (!get('workspace').hidden) {
+            showStatus(notice, 'Görüşmeler yükleniyor…');
+        }
         const result = await api('/conversations?page=' + page);
         if (request !== pageRequest) {
             return;
@@ -569,7 +567,9 @@ export function mountPackageOffers(root) {
             return button;
         }));
 
-        showStatus(notice);
+        if (!get('workspace').hidden) {
+            showStatus(notice);
+        }
         if (items.length) {
             await showConversation(items.find((item) => item.id === preferred?.id) ?? items[0]);
         } else {
@@ -707,7 +707,9 @@ export function mountPackageOffers(root) {
 
             try {
                 const appointments = await api('/offers/' + offer.id + '/appointments' + (patient ? '?include_patient_actions=1' : ''));
-                list.replaceChildren(...appointments.map((appointment) => renderScheduledAppointment(appointment, patient, refresh)));
+                list.replaceChildren(...appointments.map((appointment) => renderScheduledAppointment(appointment, {
+                    actions: patient ? appointment.patient_actions : appointment.actions, patient, refresh,
+                })));
                 showStatus(status, appointments.length ? '' : 'Bu teklife ait randevu bulunamadı.');
             } catch (error) {
                 showStatus(status, error.message);
@@ -719,7 +721,7 @@ export function mountPackageOffers(root) {
         details.addEventListener('toggle', refresh);
     }
 
-    function renderScheduledAppointment(appointment, patient, refresh) {
+    function renderScheduledAppointment(appointment, { actions, patient, refresh } = {}) {
         const row = element('li', '', 'grid min-w-0 gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-900');
         const date = element('time', appointmentDateLabel(appointment.starts_at, appointment.ends_at));
         date.dateTime = appointment.starts_at.replace(' ', 'T');
@@ -736,7 +738,6 @@ export function mountPackageOffers(root) {
         }
         row.append(element('span', appointmentStatusLabels[appointment.status] ?? appointment.status, 'text-xs font-semibold text-slate-600 dark:text-slate-300'));
 
-        const actions = patient ? appointment.patient_actions : appointment.actions;
         if (actions?.length) {
             const controls = element('div', '', 'mt-2 flex flex-wrap gap-2');
             for (const action of actions) {
@@ -1045,7 +1046,7 @@ export function mountPackageOffers(root) {
         get('account-name').textContent = user.name;
         get('account').hidden = false;
         showStatus(notice);
-        if (openOwnerCrm && user.owner_crm_business_id) {
+        if (openOwnerCrm && user.owner_crm_business_id && clinicBookingBranch() === null) {
             window.location.hash = 'klinik-crm/' + user.owner_crm_business_id;
         }
         syncPage();

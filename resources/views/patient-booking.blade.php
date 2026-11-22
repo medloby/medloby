@@ -1,15 +1,11 @@
-<dialog id="patient-booking-dialog" class="offer-dialog" aria-labelledby="patient-booking-title">
-    <div class="flex flex-wrap items-start justify-between gap-3">
-        <h2 id="patient-booking-title" class="text-2xl font-semibold tracking-tight">Yeni randevu al</h2>
-        <button type="button" class="offer-button offer-button-secondary" data-close>Vazgeç</button>
+<section id="patient-booking" class="mt-6 grid max-w-2xl gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7 dark:border-slate-800 dark:bg-slate-900" aria-labelledby="page-title" hidden>
+    <div class="grid gap-1" data-booking-context hidden>
+        <h2 class="break-words text-xl font-semibold tracking-tight" data-booking-clinic></h2>
+        <p class="break-words text-sm text-slate-600 dark:text-slate-300" data-booking-branch></p>
     </div>
-    <p class="mt-3 text-sm text-slate-600 dark:text-slate-300" data-status role="status" hidden></p>
-    <form method="post" class="mt-4" hidden>
+    <p class="text-sm text-slate-600 dark:text-slate-300" data-status role="status" hidden></p>
+    <form method="post" hidden>
         <fieldset class="grid min-w-0 gap-3 sm:grid-cols-2">
-            <label class="offer-field sm:col-span-2">
-                Klinik ve şube
-                <select class="offer-control" name="branch" required></select>
-            </label>
             <label class="offer-field">
                 Tedavi
                 <select class="offer-control" name="treatment" required></select>
@@ -33,4 +29,4 @@
             <button type="submit" class="offer-button justify-self-start" disabled>Randevuyu kaydet</button>
         </fieldset>
     </form>
-</dialog>
+</section>

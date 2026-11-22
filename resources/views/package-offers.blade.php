@@ -38,6 +38,8 @@
             <main class="mx-auto max-w-7xl px-4 py-8 sm:px-8 sm:py-12">
                 <h1 id="page-title" tabindex="-1" class="text-3xl font-semibold tracking-tight sm:text-4xl">Paket teklifleri</h1>
                 <p id="page-message" class="mt-4 max-w-2xl text-sm text-slate-700 dark:text-slate-200" role="status" hidden></p>
+                <a href="{{ route('home') }}#klinikler" id="booking-return" class="offer-button offer-button-secondary mt-4" hidden>Klinik aramasına dön</a>
+                <p id="booking-account-required" class="mt-4 text-sm text-slate-700 dark:text-slate-200" hidden>Seçtiğiniz şubede randevu almak için hasta hesabınızla giriş yapın.</p>
                 @include('clinic-applications')
                 <section id="staff-crm" class="mt-5 grid gap-3" aria-labelledby="staff-crm-title" hidden>
                     <h2 id="staff-crm-title" class="text-lg font-semibold">Personel çalışma alanları</h2>
@@ -47,10 +49,11 @@
 
                 @include('package-discovery')
                 @include('patient-appointments')
+                @include('patient-booking')
 
                 <section id="sign-in" class="mt-6 max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 dark:border-slate-800 dark:bg-slate-900" aria-labelledby="sign-in-title">
                     <h2 id="sign-in-title" class="text-xl font-semibold">Hesabınıza giriş yapın</h2>
-                    <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">Klinik veya hasta hesabınızla görüşmelerinizdeki paket tekliflerine erişin.</p>
+                    <p id="sign-in-description" class="mt-2 text-sm text-slate-600 dark:text-slate-300">Klinik veya hasta hesabınızla görüşmelerinizdeki paket tekliflerine erişin.</p>
                     @if (session('password_reset'))
                         <p class="mt-4 text-sm font-medium text-teal-800 dark:text-teal-300" role="status">{{ session('password_reset') }}</p>
                     @endif
@@ -128,7 +131,6 @@
             </main>
 
             @include('workspace-registration')
-            @include('patient-booking')
             @include('package-catalog-dialog')
             @include('workspace-notifications')
             @include('clinic-review-dialog')
