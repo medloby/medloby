@@ -18,6 +18,7 @@
                     <nav class="flex flex-wrap items-center gap-2 text-sm" aria-label="Medloby">
                         <a href="#gorusmeler" id="offers-link" class="rounded-lg px-3 py-2 hover:bg-slate-800 aria-[current=page]:bg-slate-800">Paket teklifleri</a>
                         <a href="#katalog" id="discovery-link" class="rounded-lg px-3 py-2 hover:bg-slate-800 aria-[current=page]:bg-slate-800">Tedavi paketleri</a>
+                        <a href="#randevular" id="patient-appointments-link" class="rounded-lg px-3 py-2 hover:bg-slate-800 aria-[current=page]:bg-slate-800" hidden>Randevularım</a>
                     </nav>
                     <div id="account" class="flex flex-wrap items-center gap-3" hidden>
                         <span id="account-name" class="text-sm text-slate-200"></span>
@@ -35,7 +36,7 @@
             </header>
 
             <main class="mx-auto max-w-7xl px-4 py-8 sm:px-8 sm:py-12">
-                <h1 id="page-title" class="text-3xl font-semibold tracking-tight sm:text-4xl">Paket teklifleri</h1>
+                <h1 id="page-title" tabindex="-1" class="text-3xl font-semibold tracking-tight sm:text-4xl">Paket teklifleri</h1>
                 <p id="page-message" class="mt-4 max-w-2xl text-sm text-slate-700 dark:text-slate-200" role="status" hidden></p>
                 @include('clinic-applications')
                 <section id="staff-crm" class="mt-5 grid gap-3" aria-labelledby="staff-crm-title" hidden>
@@ -45,6 +46,7 @@
                 @include('clinic-crm')
 
                 @include('package-discovery')
+                @include('patient-appointments')
 
                 <section id="sign-in" class="mt-6 max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 dark:border-slate-800 dark:bg-slate-900" aria-labelledby="sign-in-title">
                     <h2 id="sign-in-title" class="text-xl font-semibold">Hesabınıza giriş yapın</h2>

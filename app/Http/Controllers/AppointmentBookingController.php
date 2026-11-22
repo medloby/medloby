@@ -71,7 +71,7 @@ class AppointmentBookingController extends Controller
             ->get();
 
         if ($offer->package_snapshot === null) {
-            $appointments = $appointments->map($this->currentSingleAppointment(...));
+            $appointments = $appointments->map(fn (Appointment $appointment): Appointment => $appointment->currentVersion());
         }
 
         $summaries = $appointments->loadMissing($relations)
@@ -105,25 +105,6 @@ class AppointmentBookingController extends Controller
 
         return response()->json(['success' => true, 'data' => $summaries])
             ->header('Cache-Control', 'private, no-store');
-    }
-
-    private function currentSingleAppointment(Appointment $appointment): Appointment
-    {
-        while ($appointment->status === 'rescheduled') {
-            $replacement = $appointment->rescheduledAppointments()
-                ->where('id', '>', $appointment->id)
-                ->where('business_id', $appointment->business_id)
-                ->where('branch_id', $appointment->branch_id)
-                ->where('patient_profile_id', $appointment->patient_profile_id)
-                ->whereNull('offer_id')->latest('id')->first();
-            if (! $replacement) {
-                break;
-            }
-
-            $appointment = $replacement;
-        }
-
-        return $appointment;
     }
 
     public function store(

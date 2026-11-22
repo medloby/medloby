@@ -600,10 +600,12 @@ Route::prefix('notifications')->group(function () {
             'index',
         ]);
 
-        Route::controller(PatientAppointmentController::class)->prefix('patient/appointments/{appointment}')->group(function () {
-            Route::post('/cancel', 'cancel');
-            Route::get('/reschedule-options', 'options');
-            Route::post('/reschedule', 'reschedule');
+        Route::controller(PatientAppointmentController::class)->prefix('patient/appointments')->group(function () {
+            Route::get('/', 'index');
+            Route::get('/{appointment}', 'show');
+            Route::post('/{appointment}/cancel', 'cancel');
+            Route::get('/{appointment}/reschedule-options', 'options');
+            Route::post('/{appointment}/reschedule', 'reschedule');
         });
 
         Route::post('/offers/{offer}/appointments', [

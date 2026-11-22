@@ -53,6 +53,68 @@ function clinicAppointmentFixture(): array
     return [$business, $owner, $branch, $other, $doctor, $treatment, $calendar, $otherCalendar];
 }
 
+test('the patient appointment list combines standalone and package visits and protects patient details', function () {
+    $this->travelTo(Carbon::parse('2026-12-04 05:00:00', 'UTC'));
+    [$business, $owner, $branch, , $doctor, $treatment] = clinicAppointmentFixture();
+    $patient = User::factory()->create()->patientProfile()->create(['first_name' => 'Deneme', 'last_name' => 'Hastası']);
+    $otherPatient = User::factory()->create()->patientProfile()->create(['first_name' => 'Başka', 'last_name' => 'Hasta']);
+    $conversation = $patient->conversations()->create(['business_id' => $business->id, 'branch_id' => $branch->id]);
+    $offer = $conversation->offers()->create([
+        'business_id' => $business->id, 'branch_id' => $branch->id, 'patient_profile_id' => $patient->id,
+        'created_by' => $owner->id, 'title' => 'Deneme tedavi paketi', 'status' => 'accepted', 'amount' => 100,
+        'package_snapshot' => ['branch_id' => $branch->id, 'treatments' => [['treatment_id' => $treatment->id, 'quantity' => 1]]],
+    ]);
+    $visit = [
+        'business_id' => $business->id, 'branch_id' => $branch->id, 'doctor_id' => $doctor->id, 'treatment_id' => $treatment->id,
+        'starts_at' => '2026-12-04 10:00:00', 'ends_at' => '2026-12-04 10:30:00', 'status' => 'confirmed',
+        'notes' => 'Özel randevu notu', 'patient_phone' => '+905550000000', 'patient_email' => 'hasta@example.test',
+    ];
+    $standalone = $patient->appointments()->create($visit);
+    $previous = $patient->appointments()->create([...$visit, 'offer_id' => $offer->id, 'status' => 'rescheduled']);
+    $package = $patient->appointments()->create([
+        ...$visit, 'offer_id' => $offer->id, 'rescheduled_from_appointment_id' => $previous->id,
+        'starts_at' => '2026-12-04 11:00:00', 'ends_at' => '2026-12-04 11:30:00',
+    ]);
+    $past = $patient->appointments()->create([...$visit, 'starts_at' => '2026-12-04 08:00:00', 'ends_at' => '2026-12-04 08:30:00']);
+    $cancelled = $patient->appointments()->create([...$visit, 'status' => 'cancelled']);
+    $otherVisit = $otherPatient->appointments()->create($visit);
+    $path = '/api/patient/appointments';
+
+    $this->getJson($path)->assertUnauthorized();
+    $this->actingAs(User::factory()->unverified()->create(), 'sanctum')->getJson($path)->assertForbidden();
+    $this->actingAs($owner, 'sanctum')->getJson($path)->assertForbidden();
+    $this->actingAs($patient->user, 'sanctum')->getJson($path.'/'.$otherVisit->id)->assertNotFound();
+    $this->getJson($path.'?view=unknown')->assertUnprocessable()->assertJsonValidationErrors('view');
+
+    $this->getJson($path.'?patient_profile_id='.$otherPatient->id)->assertOk()->assertHeader('Cache-Control', 'no-store, private')
+        ->assertJsonCount(2, 'data.appointments')->assertJsonPath('data.appointments.0.id', $standalone->id)
+        ->assertJsonPath('data.appointments.0.business_name', $business->name)->assertJsonPath('data.appointments.0.offer_title', null)
+        ->assertJsonPath('data.appointments.0.patient_actions', ['cancel'])
+        ->assertJsonPath('data.appointments.1.id', $package->id)->assertJsonPath('data.appointments.1.offer_title', $offer->title)
+        ->assertJsonMissingPath('data.appointments.0.notes')->assertJsonMissingPath('data.appointments.0.patient_phone');
+    $this->getJson($path.'?view=history')->assertOk()->assertJsonCount(2, 'data.appointments')
+        ->assertJsonPath('data.appointments.0.id', $cancelled->id)->assertJsonPath('data.appointments.0.patient_actions', [])
+        ->assertJsonPath('data.appointments.1.id', $past->id);
+    $this->getJson($path.'/'.$previous->id)->assertOk()->assertJsonPath('data.id', $package->id)
+        ->assertJsonPath('data.starts_at', '2026-12-04 11:00:00')->assertJsonMissingPath('data.patient_email');
+});
+
+test('patient appointment history is paginated in a stable order', function () {
+    $this->travelTo(Carbon::parse('2026-12-04 05:00:00', 'UTC'));
+    [$business, , $branch] = clinicAppointmentFixture();
+    $patient = User::factory()->create()->patientProfile()->create(['first_name' => 'Deneme', 'last_name' => 'Hastası']);
+    $visit = [
+        'business_id' => $business->id, 'branch_id' => $branch->id, 'status' => 'completed',
+        'starts_at' => '2026-12-03 10:00:00', 'ends_at' => '2026-12-03 10:30:00',
+    ];
+    $oldest = $patient->appointments()->create($visit);
+    $patient->appointments()->createMany(array_fill(0, 12, $visit));
+
+    $this->actingAs($patient->user, 'sanctum')->getJson('/api/patient/appointments?view=history&page=2')
+        ->assertOk()->assertJsonPath('data.current_page', 2)->assertJsonPath('data.last_page', 2)
+        ->assertJsonCount(1, 'data.appointments')->assertJsonPath('data.appointments.0.id', $oldest->id);
+});
+
 test('patients can move and cancel their own package session from the offered schedule', function () {
     $this->travelTo(Carbon::parse('2026-12-01 00:00:00', 'UTC'));
     Notification::fake();

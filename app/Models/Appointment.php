@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -150,6 +151,29 @@ class Appointment extends Model
             self::class,
             'rescheduled_from_appointment_id'
         );
+    }
+
+    public function currentVersion(): self
+    {
+        $appointment = $this;
+
+        while ($appointment->status === 'rescheduled') {
+            $replacement = $appointment->rescheduledAppointments()
+                ->where('id', '>', $appointment->id)
+                ->where('business_id', $appointment->business_id)
+                ->where('branch_id', $appointment->branch_id)
+                ->where('patient_profile_id', $appointment->patient_profile_id)
+                ->where(fn (Builder $query) => $query->whereNull('offer_id')->orWhere('offer_id', $appointment->offer_id))
+                ->latest('id')->first();
+
+            if (! $replacement) {
+                break;
+            }
+
+            $appointment = $replacement;
+        }
+
+        return $appointment;
     }
 
     public function statusHistories(): HasMany
