@@ -2,7 +2,7 @@
 
 **İnceleme tarihi** 22 Kasım 2026 · **İncelenen sürüm** `main / 668980d`
 
-**Sıradaki iş 3.1** Klinik personeli, şube yetkileri, hekim ve tedavi ilişkilendirme akışlarını ekrana bağlamak.
+**Sıradaki iş 3.2** Klinik takvimi, hekim çalışma saatleri, izinler ve kapalı gün ekranlarını tamamlamak.
 
 ## Kapsam ve doğrulama
 
@@ -56,7 +56,7 @@ flowchart LR
 | Sözleşmeler ve platform yönetimi | Yönetici taslak listesi, düzenleme ve sürüm oluşturma, eşzamanlı değişiklik denetimi. Yayımlama, pasife alma, klinik askıya alma ve üyelik yetki işlemleri için sunucu uç noktaları | Yayımlama koşulları, geçmiş sözleşme ve kabul görünümü, klinik durum geçmişi ve üyelik yönetimi ekranları |
 | CRM hasta adayları | Şube seçimi ve özet, aday listeleme, durum filtresi, sayfalama, iletişim bilgilerini düzenleme ve personele atama. Takip aşaması ekleme, aşama geçmişi ve aday sonuçlandırma | Klinik takvimi ve operasyon ekranlarıyla birlikte doğrulama |
 | CRM görevleri ve takip | Adaya bağlı görev, planlı takip ve aktivite kayıtları. Görev ve takiplerin tamamlanması ve iptali. Yetkili şube görüşmesini ve hastayı adaya bağlama | Süresi gelen takipler için hatırlatma kuralları |
-| Klinik operasyonları | Şube, şube tedavileri, hekim çalışma saatleri/izinleri, takvim kuralları, istisnalar ve bloklar için sunucu işlevleri | Operasyon ekranlarını mevcut uç noktalara bağlama, personel/şube yetkilerini ve hekim kurulum akışını doğrulama |
+| Klinik operasyonları | Personel şube yetkisi, personelin şube CRM’i, hekim kaydı ve şube/tedavi bağlantıları. Takvim, çalışma saatleri, izin, istisna ve bloklar için sunucu işlevleri | Takvim, çalışma saati, izin ve kapalı gün ekranlarını eklemek |
 | Katalog ve fiyat | Tedavi, kategori ve fiyat kayıtları. Klinik paketleri, seans ve ek hizmet yönetimi. Fiyatsız kamu kataloğu, yetkili kliniğe açık fiyat kayıtları ve hastaya özel paket teklifi | Türkiye yayını için içerik incelemesi |
 | Görüşme ve teklif | Paketle görüşme başlatma, mesaj ve özel ek, teklif oluşturma, kabul/ret ve paket içeriği kaydı | Farklı şube ve rollerin görmesi gereken verileri tutarlı hale getirme, geçmiş kayıt ve dosya saklama kurallarını belirleme |
 | Randevu | Uygun saat arama, doktor ve şube kontrolleri, kabul edilen paketin seanslarını ayrı ayrı ayırma, durum ve geçmiş. Teklif ekranında hasta ve klinik için randevu özeti ve işlemleri | Klinik takvimini tek ekranda kullanılır hale getirme, seçilecek üretim veritabanında eşzamanlı rezervasyon testi |
@@ -88,7 +88,7 @@ Kabul senaryosu e-posta doğrulama ve klinik onayıyla başlar. Klinik sahibi ya
 
 ### 3. Klinik operasyonu ve randevu
 
-1. Klinik personeli ve şubeye yetki verme akışı, hekim ve tedavi ilişkilendirmesi.
+1. **3.1 Tamamlandı.** Klinik sahibi doğrulanmış bir Medloby hesabına seçili şube için personel yetkisi verebiliyor ve bu yetkiyi kaldırabiliyor. Personel kendi yetkili şubelerinin CRM’ine girebiliyor. Klinik sahibi hekim oluşturabiliyor, hekimi şubeye ve aktif şube tedavilerine bağlayabiliyor, şube tedavisinin çevrimiçi randevu ayarını yönetebiliyor. Hekim–tedavi bağlantısı kliniğin o tedaviyi sunduğu bağlı şubelerde geçerli. 802 test, Vite derlemesi ve mobil Chromium akışları geçti. [Klinik operasyonları](https://github.com/medloby/medloby/commit/e8c3c284bf5ed34dc8c624000aefb7825f6d1122)
 2. Takvim, çalışma saatleri, izin ve kapalı gün ekranları.
 3. Paket ve kişi bazlı randevu akışlarını klinik takvimiyle birleştir. Teklif dışındaki randevu işlemlerinde klinik durumunu ve hasta bağlantısını doğrula. Seansların tamamını kaydetme, çakışma, iptal ve yeniden planlamayı doğrula.
 
