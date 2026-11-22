@@ -257,34 +257,34 @@ export function mountPackageOffers(root) {
         const appointmentsTarget = /^#randevular(?:\/([1-9][0-9]*))?$/.exec(window.location.hash);
         const canSeeAppointments = Boolean(user?.email_verified_at && user.patient_profile_exists);
         const inAppointments = Boolean(canSeeAppointments && appointmentsTarget);
-        const bookingBranch = clinicBookingBranch();
-        const outsideConversations = browsing || inCrm || inAppointments || bookingBranch !== null;
+        const bookingSelection = clinicBookingSelection();
+        const outsideConversations = browsing || inCrm || inAppointments || bookingSelection !== null;
         const requestingPackage = !outsideConversations && verified && user.patient_profile_exists && pendingPackage;
 
         discoverySection.hidden = !browsing;
         get('package-request').hidden = !requestingPackage;
         get('package-request-name').textContent = requestingPackage ? pendingPackage.name : '';
-        get('page-title').textContent = inCrm ? 'Klinik CRM' : browsing ? 'Tedavi paketleri' : inAppointments ? 'Randevularım' : bookingBranch ? 'Randevu al' : 'Paket teklifleri';
+        get('page-title').textContent = inCrm ? 'Klinik CRM' : browsing ? 'Tedavi paketleri' : inAppointments ? 'Randevularım' : bookingSelection ? 'Randevu al' : 'Paket teklifleri';
         document.title = get('page-title').textContent + ' | Medloby';
         get('discovery-link').setAttribute('aria-current', browsing ? 'page' : 'false');
         get('offers-link').setAttribute('aria-current', outsideConversations ? 'false' : 'page');
         get('patient-appointments-link').hidden = !canSeeAppointments;
         get('patient-appointments-link').setAttribute('aria-current', inAppointments ? 'page' : 'false');
         get('sign-in').hidden = browsing || Boolean(user);
-        get('sign-in-description').textContent = bookingBranch
+        get('sign-in-description').textContent = bookingSelection
             ? 'Seçtiğiniz şubede randevu almak için hasta hesabınızla giriş yapın.'
             : 'Klinik veya hasta hesabınızla görüşmelerinizdeki paket tekliflerine erişin.';
         get('email-verification').hidden = browsing || !user || verified;
         get('verification-address').textContent = user?.email ?? '';
-        get('booking-return').hidden = bookingBranch === null;
-        get('booking-account-required').hidden = !bookingBranch || !user || user.patient_profile_exists;
+        get('booking-return').hidden = bookingSelection === null;
+        get('booking-account-required').hidden = !bookingSelection || !user || user.patient_profile_exists;
         get('workspace').hidden = outsideConversations || !verified;
 
         clinicApplications.setVisible(!outsideConversations && Boolean(user));
         get('staff-crm').hidden = outsideConversations || !verified || staffCrmIds.size === 0;
         clinicCrm.setBusiness(inCrm ? crmBusiness : null);
         patientAppointments.setView(inAppointments, appointmentsTarget?.[1] ?? null, preparedAppointment);
-        patientBooking.setBranch(canSeeAppointments ? bookingBranch : null);
+        patientBooking.setSelection(canSeeAppointments ? bookingSelection : null);
 
         if (openingCatalogue) {
             discovery.open();
@@ -293,8 +293,9 @@ export function mountPackageOffers(root) {
 
     window.addEventListener('hashchange', () => syncPage());
 
-    function clinicBookingBranch() {
-        return /^#randevu-al\/([1-9][0-9]*)$/.exec(window.location.hash)?.[1] ?? null;
+    function clinicBookingSelection() {
+        const match = /^#randevu-al\/([1-9][0-9]*)(?:\/([1-9][0-9]*))?$/.exec(window.location.hash);
+        return match ? { branch: match[1], doctor: match[2] ?? null } : null;
     }
 
     function rememberPackage(pkg) {
@@ -1046,7 +1047,7 @@ export function mountPackageOffers(root) {
         get('account-name').textContent = user.name;
         get('account').hidden = false;
         showStatus(notice);
-        if (openOwnerCrm && user.owner_crm_business_id && clinicBookingBranch() === null) {
+        if (openOwnerCrm && user.owner_crm_business_id && clinicBookingSelection() === null) {
             window.location.hash = 'klinik-crm/' + user.owner_crm_business_id;
         }
         syncPage();

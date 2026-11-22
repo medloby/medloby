@@ -39,6 +39,29 @@
                                     <p class="text-sm text-slate-600 dark:text-slate-300">{{ $branch->treatments->pluck('name')->join(', ') }}</p>
                                 </div>
                             @endif
+                            @if ($roster[$branch->id]->isNotEmpty())
+                                <div class="grid gap-2">
+                                    <h4 class="text-sm font-semibold">Hekimler</h4>
+                                    <ul class="grid divide-y divide-slate-200 rounded-xl border border-slate-200 px-3 dark:divide-slate-700 dark:border-slate-700">
+                                        @foreach ($roster[$branch->id] as $doctor)
+                                            <li class="grid min-w-0 gap-2 py-3">
+                                                <div class="grid gap-1 break-words text-sm">
+                                                    <p class="font-semibold">{{ $doctor['name'] }}</p>
+                                                    @if ($doctor['specialty'])
+                                                        <p class="text-slate-600 dark:text-slate-300">{{ $doctor['specialty'] }}</p>
+                                                    @endif
+                                                    @if ($doctor['treatments'] !== '')
+                                                        <p class="text-slate-600 dark:text-slate-300">{{ $doctor['treatments'] }}</p>
+                                                    @endif
+                                                </div>
+                                                @if ($doctor['bookable'])
+                                                    <a href="{{ route('package-offers') }}#randevu-al/{{ $branch->id }}/{{ $doctor['id'] }}" aria-label="{{ $branch->name }} · {{ $doctor['name'] }} için randevu al" class="offer-button offer-button-secondary justify-self-start">Bu hekimden randevu al</a>
+                                                @endif
+                                            </li>
+                                        @endforeach
+                                    </ul>
+                                </div>
+                            @endif
                             @if ($bookable->contains($branch->id))
                                 <a href="{{ route('package-offers') }}#randevu-al/{{ $branch->id }}" aria-label="{{ $branch->name }} için randevu al" class="offer-button justify-self-start">Randevu al</a>
                             @else

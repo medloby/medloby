@@ -14,7 +14,8 @@ export function mountPatientBooking(panel, { api, today, setOptions, onBooked })
     const date = form.elements.namedItem('date');
     const time = form.elements.namedItem('time');
     const notes = form.elements.namedItem('notes');
-    let branch = null;
+    let selection = null;
+    let selectedDoctor = null;
     let treatments = [];
     let request = 0;
     let activeSave = null;
@@ -35,21 +36,32 @@ export function mountPatientBooking(panel, { api, today, setOptions, onBooked })
     }
 
     function isCurrent(pending) {
-        return branch !== null && request === pending;
+        return selection !== null && request === pending;
+    }
+
+    function renderDoctors() {
+        const selectedTreatment = treatments.find(({ id }) => String(id) === treatment.value);
+        const doctors = selectedDoctor ? [selectedDoctor] : (selectedTreatment?.doctors ?? []);
+        options(doctor, 'Hekim seçin', doctors.map(({ id, name }) => [id, name]));
+        if (selectedDoctor) {
+            doctor.value = String(selectedDoctor.id);
+            doctor.disabled = true;
+        }
+        date.disabled = !treatment.value || !doctor.value;
     }
 
     async function loadSlots() {
         const pending = ++request;
         resetSlots();
         showStatus();
-        if (!branch || !treatment.value || !doctor.value || !date.value || !date.checkValidity()) {
+        if (!selection || !treatment.value || !doctor.value || !date.value || !date.checkValidity()) {
             return;
         }
 
         showStatus('Uygun saatler yükleniyor…');
         try {
             const query = new URLSearchParams({ treatment_id: treatment.value, doctor_id: doctor.value, date: date.value });
-            const { slots } = await api(`${path}/${branch}/slots?${query}`);
+            const { slots } = await api(`${path}/${selection.branch}/slots?${query}`);
             if (isCurrent(pending)) {
                 options(time, 'Saat seçin', slots.map((slot) => [slot, slot.slice(11, 16)]));
                 showStatus(slots.length ? '' : 'Bu gün için uygun saat yok. Başka bir gün seçin.');
@@ -64,15 +76,25 @@ export function mountPatientBooking(panel, { api, today, setOptions, onBooked })
     async function loadTreatments(pending) {
         showStatus('Tedaviler yükleniyor…');
         try {
-            const result = await api(`${path}/${branch}/treatments`);
+            const result = await api(`${path}/${selection.branch}/treatments`);
             if (isCurrent(pending)) {
                 clinicName.textContent = result.branch.clinic;
                 branchName.textContent = [result.branch.name, result.branch.district, result.branch.city].filter(Boolean).join(' · ');
                 context.hidden = false;
-                treatments = result.treatments;
+                const requestedDoctor = selection.doctor;
+                selectedDoctor = requestedDoctor === null ? null : result.treatments.flatMap((item) => item.doctors)
+                    .find(({ id }) => String(id) === requestedDoctor) ?? null;
+                treatments = selectedDoctor ? result.treatments.filter((item) => item.doctors.some(({ id }) => id === selectedDoctor.id)) : result.treatments;
                 options(treatment, 'Tedavi seçin', treatments.map(({ id, name }) => [id, name]));
+                renderDoctors();
                 form.hidden = treatments.length === 0;
-                showStatus(treatments.length ? '' : 'Bu şubede çevrimiçi randevuya açık tedavi bulunamadı.');
+                if (treatments.length === 0) {
+                    showStatus('Bu şubede çevrimiçi randevuya açık tedavi bulunamadı.');
+                } else if (requestedDoctor && !selectedDoctor) {
+                    showStatus('Seçtiğiniz hekim şu anda çevrimiçi randevuya kapalı. Bu şubeden başka bir hekim seçebilirsiniz.');
+                } else {
+                    showStatus();
+                }
             }
         } catch (error) {
             if (isCurrent(pending)) {
@@ -82,9 +104,7 @@ export function mountPatientBooking(panel, { api, today, setOptions, onBooked })
     }
 
     treatment.addEventListener('change', () => {
-        const selected = treatments.find(({ id }) => String(id) === treatment.value);
-        options(doctor, 'Hekim seçin', (selected?.doctors ?? []).map(({ id, name }) => [id, name]));
-        date.disabled = true;
+        renderDoctors();
         loadSlots();
     });
     doctor.addEventListener('change', () => {
@@ -96,7 +116,7 @@ export function mountPatientBooking(panel, { api, today, setOptions, onBooked })
 
     form.addEventListener('submit', async (event) => {
         event.preventDefault();
-        if (!branch || !time.value || fields.disabled) {
+        if (!selection || !time.value || fields.disabled) {
             return;
         }
 
@@ -105,7 +125,7 @@ export function mountPatientBooking(panel, { api, today, setOptions, onBooked })
         fields.disabled = true;
         showStatus('Randevu kaydediliyor…');
         try {
-            const appointment = await api(`${path}/${branch}`, {
+            const appointment = await api(`${path}/${selection.branch}`, {
                 treatment_id: Number(treatment.value), doctor_id: Number(doctor.value),
                 starts_at: time.value, notes: notes.value.trim() || null,
             });
@@ -132,19 +152,20 @@ export function mountPatientBooking(panel, { api, today, setOptions, onBooked })
     });
 
     return {
-        setBranch(nextBranch) {
-            if (branch === nextBranch) {
+        setSelection(next) {
+            if (selection?.branch === next?.branch && selection?.doctor === next?.doctor) {
                 return;
             }
 
             const pending = ++request;
-            branch = nextBranch;
+            selection = next;
+            selectedDoctor = null;
             activeSave = null;
             treatments = [];
             form.reset();
             form.hidden = true;
             context.hidden = true;
-            panel.hidden = branch === null;
+            panel.hidden = selection === null;
             fields.disabled = false;
             showStatus();
             options(treatment, 'Tedavi seçin');
@@ -152,7 +173,7 @@ export function mountPatientBooking(panel, { api, today, setOptions, onBooked })
             date.min = today();
             date.disabled = true;
             resetSlots();
-            if (branch) {
+            if (selection) {
                 loadTreatments(pending);
             }
         },
