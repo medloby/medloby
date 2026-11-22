@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\BookedAppointmentResource;
+use App\Http\Resources\OfferResource;
 use App\Models\Appointment;
 use App\Models\Branch;
 use App\Models\Doctor;
@@ -175,17 +177,10 @@ class AppointmentBookingController extends Controller
                 'success' => true,
                 'message' => 'Randevu başarıyla oluşturuldu.',
                 'data' => [
-                    'appointment' => $appointment,
-                    'offer' => $offer->fresh()->load([
-                        'business',
-                        'branch',
-                        'patientProfile',
-                        'treatment',
-                        'creator',
-                        'appointment',
-                    ]),
+                    'appointment' => new BookedAppointmentResource($appointment),
+                    'offer' => new OfferResource($offer->fresh(OfferResource::DISPLAY_RELATIONS)->setRelation('appointment', $appointment)),
                 ],
-            ], 201);
+            ], 201)->header('Cache-Control', 'private, no-store');
         } catch (RuntimeException $exception) {
             return response()->json([
                 'success' => false,
@@ -375,9 +370,9 @@ class AppointmentBookingController extends Controller
             'success' => true,
             'message' => 'Paket randevuları başarıyla oluşturuldu.',
             'data' => [
-                'appointments' => $appointments,
-                'offer' => $offer->fresh(['appointments']),
+                'appointments' => BookedAppointmentResource::collection($appointments),
+                'offer' => new OfferResource($offer->fresh()->setRelation('appointments', collect($appointments))),
             ],
-        ], 201);
+        ], 201)->header('Cache-Control', 'private, no-store');
     }
 }

@@ -147,7 +147,10 @@ test('authorized business user can attach conversation to crm lead', function ()
         ->assertJsonPath(
             'data.crm_lead.id',
             $lead->id
-        );
+        )
+        ->assertJsonPath('data.crm_lead_id', $lead->id)
+        ->assertJsonPath('data.patient_profile.id', $patient->id)
+        ->assertJsonMissingPath('data.patient_profile.phone');
 
     expect($conversation->fresh()->crm_lead_id)
         ->toBe($lead->id);

@@ -4,6 +4,7 @@ use App\Models\Branch;
 use App\Models\Business;
 use App\Models\BusinessUser;
 use App\Models\Conversation;
+use App\Models\CrmLead;
 use App\Models\PatientProfile;
 use App\Models\Treatment;
 use App\Models\TreatmentCategory;
@@ -48,7 +49,7 @@ function createConversationTestData(): array
     $businessBranch = Branch::create([
         'business_id' => $business->id,
         'name' => 'Test İşletme Şubesi',
-        'slug' => 'test-isletme-subesi-' . uniqid(),
+        'slug' => 'test-isletme-subesi-'.uniqid(),
         'country_code' => 'TR',
         'city' => 'Istanbul',
         'district' => 'Kadikoy',
@@ -58,7 +59,7 @@ function createConversationTestData(): array
     $otherBusinessBranch = Branch::create([
         'business_id' => $otherBusiness->id,
         'name' => 'Başka İşletme Şubesi',
-        'slug' => 'baska-isletme-subesi-' . uniqid(),
+        'slug' => 'baska-isletme-subesi-'.uniqid(),
         'country_code' => 'TR',
         'city' => 'Istanbul',
         'district' => 'Besiktas',
@@ -91,6 +92,49 @@ function createConversation(
         'status' => $status,
     ]);
 }
+
+test('conversation participants receive display names and attachment details without private profile or storage fields', function () {
+    Storage::fake('private');
+    $data = createConversationTestData();
+    $data['patientProfile']->update(['birth_date' => '1990-01-01']);
+    $data['business']->update(['email' => 'basvuru@example.test']);
+    $data['businessBranch']->update(['phone' => '05551112233']);
+    $lead = CrmLead::create([
+        'business_id' => $data['business']->id, 'branch_id' => $data['businessBranch']->id,
+        'patient_profile_id' => $data['patientProfile']->id, 'first_name' => 'Test',
+    ]);
+    $conversation = createConversation($data);
+    $conversation->update(['crm_lead_id' => $lead->id]);
+    $url = "/api/conversations/{$conversation->id}";
+
+    $response = $this->actingAs($data['businessUser'])->post($url.'/messages', [
+        'body' => 'Belgeyi paylaşıyorum.',
+        'attachment' => UploadedFile::fake()->create('belge.pdf', 5, 'application/pdf'),
+    ], ['Accept' => 'application/json']);
+    $response->assertCreated()->assertHeader('Cache-Control', 'no-store, private')
+        ->assertJsonPath('data.sender', ['id' => $data['businessUser']->id, 'name' => $data['businessUser']->name])
+        ->assertJsonPath('data.attachments.0.original_name', 'belge.pdf')
+        ->assertJsonMissingPath('data.attachments.0.path')->assertJsonMissingPath('data.attachments.0.disk');
+    $attachmentId = $response->json('data.attachments.0.id');
+
+    foreach ([$data['patientUser'], $data['businessUser']] as $viewer) {
+        $this->actingAs($viewer)->getJson('/api/conversations')->assertOk()
+            ->assertJsonPath('data.data.0.patient_profile.user_id', $data['patientUser']->id)
+            ->assertJsonPath('data.data.0.patient_profile.first_name', 'Test')
+            ->assertJsonPath('data.data.0.branch.name', $data['businessBranch']->name)
+            ->assertJsonMissingPath('data.data.0.patient_profile.phone')
+            ->assertJsonMissingPath('data.data.0.patient_profile.birth_date')
+            ->assertJsonMissingPath('data.data.0.crm_lead_id');
+        $this->getJson($url)->assertOk()->assertHeader('Cache-Control', 'no-store, private')
+            ->assertJsonPath('data.conversation.business.name', $data['business']->name)
+            ->assertJsonPath('data.messages.data.0.body', 'Belgeyi paylaşıyorum.')
+            ->assertJsonPath('data.messages.data.0.attachments.0.id', $attachmentId)
+            ->assertJsonMissingPath('data.conversation.business.email')->assertJsonMissingPath('data.conversation.branch.phone')
+            ->assertJsonMissingPath('data.messages.data.0.sender.email')
+            ->assertJsonMissingPath('data.messages.data.0.attachments.0.path');
+        $this->get("/api/attachments/{$attachmentId}/view")->assertOk();
+    }
+});
 
 test('patient can create conversation for business without selecting branch', function () {
     $data = createConversationTestData();
@@ -752,6 +796,7 @@ test('guests can discover eligible packages and patients can open one conversati
         ->assertJsonPath('data.business_id', $data['business']->id)
         ->assertJsonPath('data.treatment_package.id', $package->id)
         ->assertJsonPath('data.subject', $package->name)
+        ->assertJsonMissingPath('data.patient_profile.phone')
         ->json('data.id');
     $this->postJson('/api/conversations', $payload)->assertOk()->assertJsonPath('data.id', $id);
     $this->assertDatabaseCount('conversations', 1);

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\OfferResource;
 use App\Models\Conversation;
 use App\Models\Offer;
 use App\Models\Treatment;
@@ -49,13 +50,7 @@ class OfferController extends Controller
                 ->whereNull('offers.branch_id')
                 ->orWhereHas('branch', fn ($branches) => $branches->whereKey($branchIds)
                     ->where('business_id', $conversation->business_id)->where('status', 'active'))))
-            ->with([
-                'business',
-                'branch',
-                'patientProfile',
-                'treatment',
-                'creator',
-            ])
+            ->with(OfferResource::DISPLAY_RELATIONS)
             ->withExists(['appointments' => fn ($query) => $query
                 ->whereColumn('appointments.business_id', 'offers.business_id')
                 ->whereColumn('appointments.patient_profile_id', 'offers.patient_profile_id')
@@ -65,7 +60,7 @@ class OfferController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $offers,
+            'data' => OfferResource::collection($offers),
         ])->header('Cache-Control', 'private, no-store');
     }
 
@@ -202,14 +197,8 @@ class OfferController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Teklif başarıyla oluşturuldu.',
-            'data' => $offer->load([
-                'business',
-                'branch',
-                'patientProfile',
-                'treatment',
-                'creator',
-            ]),
-        ], 201);
+            'data' => new OfferResource($offer->load(OfferResource::DISPLAY_RELATIONS)),
+        ], 201)->header('Cache-Control', 'private, no-store');
     }
 
     public function accept(
@@ -295,14 +284,8 @@ class OfferController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Teklif kabul edildi.',
-            'data' => $freshOffer->load([
-                'business',
-                'branch',
-                'patientProfile',
-                'treatment',
-                'creator',
-            ]),
-        ]);
+            'data' => new OfferResource($freshOffer->load(OfferResource::DISPLAY_RELATIONS)),
+        ])->header('Cache-Control', 'private, no-store');
     }
 
     public function reject(
@@ -400,14 +383,8 @@ class OfferController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Teklif reddedildi.',
-            'data' => $freshOffer->load([
-                'business',
-                'branch',
-                'patientProfile',
-                'treatment',
-                'creator',
-            ]),
-        ]);
+            'data' => new OfferResource($freshOffer->load(OfferResource::DISPLAY_RELATIONS)),
+        ])->header('Cache-Control', 'private, no-store');
     }
 
     private function packageSnapshot(TreatmentPackage $package, Conversation $conversation, ?int $branchId): array

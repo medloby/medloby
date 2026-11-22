@@ -289,6 +289,9 @@ test('patient can accept their own offer', function () {
         'success' => true,
         'message' => 'Teklif kabul edildi.',
     ]);
+    $response->assertHeader('Cache-Control', 'no-store, private')
+        ->assertJsonPath('data.status', 'accepted')
+        ->assertJsonMissingPath('data.creator.email');
 
     $this->assertDatabaseHas('offers', [
         'id' => $offer->id,
@@ -417,6 +420,11 @@ test('patient can create appointment from accepted offer', function () {
         'success' => true,
         'message' => 'Randevu başarıyla oluşturuldu.',
     ]);
+    $response->assertHeader('Cache-Control', 'no-store, private')
+        ->assertJsonPath('data.appointment.doctor_id', $data['doctor']->id)
+        ->assertJsonPath('data.offer.appointment.offer_id', $data['offer']->id)
+        ->assertJsonMissingPath('data.appointment.doctor.license_number')
+        ->assertJsonMissingPath('data.offer.creator.email');
 
     $this->assertDatabaseHas('appointments', [
         'business_id' => $data['business']->id,
@@ -847,6 +855,8 @@ test('a patient can accept a package offer and book all sessions only once', fun
         ->assertJsonCount(2, 'data.appointments')
         ->assertJsonPath('data.appointments.0.offer_id', $offerId)
         ->assertJsonPath('data.appointments.1.offer_id', $offerId)
+        ->assertJsonMissingPath('data.appointments.0.patient_email')
+        ->assertJsonMissingPath('data.offer.appointments.0.patient_phone')
         ->assertJsonPath('data.offer.package_snapshot.treatments.0.quantity', 2);
 
     $this->postJson($url, $payload)->assertUnprocessable();

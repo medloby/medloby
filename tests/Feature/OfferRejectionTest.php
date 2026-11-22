@@ -97,6 +97,9 @@ test('patient can reject their own offer', function () {
         'success' => true,
         'message' => 'Teklif reddedildi.',
     ]);
+    $response->assertHeader('Cache-Control', 'no-store, private')
+        ->assertJsonPath('data.rejection_reason', 'Fiyat benim için uygun değil.')
+        ->assertJsonMissingPath('data.creator.email');
 
     $this->assertDatabaseHas('offers', [
         'id' => $data['offer']->id,

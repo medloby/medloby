@@ -106,6 +106,10 @@ test('business user can create offer for conversation', function () {
         'success' => true,
         'message' => 'Teklif başarıyla oluşturuldu.',
     ]);
+    $response->assertHeader('Cache-Control', 'no-store, private')
+        ->assertJsonPath('data.patient_profile.id', $data['patientProfile']->id)
+        ->assertJsonMissingPath('data.patient_profile.phone')
+        ->assertJsonMissingPath('data.creator.email');
 
     $this->assertDatabaseHas('offers', [
         'conversation_id' => $data['conversation']->id,

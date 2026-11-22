@@ -113,6 +113,10 @@ test('patient can list offers from their own conversation', function () {
         'id' => $data['offer']->id,
         'title' => 'Test Teklifi',
     ]);
+    $response->assertJsonPath('data.0.creator.name', $data['businessUser']->name)
+        ->assertJsonPath('data.0.amount', '25000.00')
+        ->assertJsonMissingPath('data.0.creator.email')
+        ->assertJsonMissingPath('data.0.patient_profile.phone');
 });
 
 test('business user can list offers from their business conversation', function () {

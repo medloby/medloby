@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\ConversationMessageResource;
+use App\Http\Resources\ConversationResource;
 use App\Models\Business;
 use App\Models\Conversation;
+use App\Models\Message;
 use App\Models\MessageAttachment;
 use App\Models\PatientProfile;
 use App\Models\TreatmentPackage;
@@ -16,21 +19,21 @@ use Illuminate\Validation\ValidationException;
 
 class ConversationController extends Controller
 {
+    private const array MESSAGE_RELATIONS = [
+        'sender:id,name', 'attachments:id,message_id,original_name,mime_type,size',
+    ];
+
     public function __construct(private PackageConversationNotificationService $packageNotifications) {}
 
     public function index(Request $request): JsonResponse
     {
         $conversations = Conversation::query()
             ->visibleTo($request->user())
-            ->with([
-                'business',
-                'branch',
-                'patientProfile',
-                'treatmentPackage:id,name',
-            ])
+            ->with(ConversationResource::DISPLAY_RELATIONS)
             ->orderByDesc('last_message_at')
             ->orderByDesc('id')
-            ->paginate(20);
+            ->paginate(20)
+            ->through(fn (Conversation $conversation) => new ConversationResource($conversation));
 
         return response()->json([
             'success' => true,
@@ -108,8 +111,8 @@ class ConversationController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Görüşme başarıyla oluşturuldu.',
-            'data' => $conversation,
-        ], 201);
+            'data' => new ConversationResource($conversation),
+        ], 201)->header('Cache-Control', 'private, no-store');
     }
 
     private function startPackageConversation(PatientProfile $patient, array $input): JsonResponse
@@ -154,8 +157,8 @@ class ConversationController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Paket görüşmesi açıldı.',
-            'data' => $conversation->load(['business', 'branch', 'patientProfile', 'treatmentPackage:id,name']),
-        ], $conversation->wasRecentlyCreated ? 201 : 200);
+            'data' => new ConversationResource($conversation->load(ConversationResource::DISPLAY_RELATIONS)),
+        ], $conversation->wasRecentlyCreated ? 201 : 200)->header('Cache-Control', 'private, no-store');
     }
 
     public function show(
@@ -168,17 +171,15 @@ class ConversationController extends Controller
         );
 
         $messages = $conversation->messages()
-            ->with([
-                'sender',
-                'attachments',
-            ])
+            ->with(self::MESSAGE_RELATIONS)
             ->latest('id')
-            ->paginate(50);
+            ->paginate(50)
+            ->through(fn (Message $message) => new ConversationMessageResource($message));
 
         return response()->json([
             'success' => true,
             'data' => [
-                'conversation' => $conversation->load(['business', 'branch', 'patientProfile', 'treatmentPackage:id,name']),
+                'conversation' => new ConversationResource($conversation->load(ConversationResource::DISPLAY_RELATIONS)),
                 'messages' => $messages,
             ],
         ])->header('Cache-Control', 'private, no-store');
@@ -274,11 +275,8 @@ class ConversationController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Mesaj başarıyla gönderildi.',
-            'data' => $message->load([
-                'sender',
-                'attachments',
-            ]),
-        ], 201);
+            'data' => new ConversationMessageResource($message->load(self::MESSAGE_RELATIONS)),
+        ], 201)->header('Cache-Control', 'private, no-store');
     }
 
     private function ensureCanAccess(

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\ConversationResource;
 use App\Models\Branch;
 use App\Models\Conversation;
 use App\Models\CrmLead;
@@ -108,16 +109,16 @@ class CrmConversationController extends Controller
             $conversation->update([
                 'crm_lead_id' => $crmLead->id,
             ]);
+            $summary = new ConversationResource($conversation->load(ConversationResource::DISPLAY_RELATIONS));
 
             return response()->json([
                 'success' => true,
                 'message' => 'Görüşme CRM leadine bağlandı.',
-                'data' => $conversation->load([
-                    'crmLead:id,business_id,branch_id',
-                    'patientProfile',
-                    'business',
-                    'branch',
-                ]),
+                'data' => [
+                    ...$summary->resolve($request),
+                    'crm_lead_id' => $crmLead->id,
+                    'crm_lead' => $crmLead->only('id', 'business_id', 'branch_id'),
+                ],
             ])->header('Cache-Control', 'private, no-store');
         }, attempts: 3);
     }

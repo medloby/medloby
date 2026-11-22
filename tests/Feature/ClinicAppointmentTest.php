@@ -207,7 +207,9 @@ test('an accepted package becomes a complete set of calendar sessions and stays 
     $this->postJson($calendar.$path, ['sessions' => [$session, $session]])->assertUnprocessable();
     expect($offer->appointments()->count())->toBe(0);
     $this->postJson($calendar.$path, ['sessions' => [$session, [...$session, 'starts_at' => '2026-12-04 11:00:00']]])
-        ->assertCreated()->assertJsonCount(2, 'data.appointments');
+        ->assertCreated()->assertJsonCount(2, 'data.appointments')
+        ->assertJsonMissingPath('data.appointments.0.patient_profile.phone')
+        ->assertJsonMissingPath('data.appointments.0.patient_email');
     $first = $offer->appointments()->orderBy('starts_at')->firstOrFail();
     $this->assertDatabaseHas('appointment_status_histories', [
         'appointment_id' => $first->id, 'changed_by_user_id' => $owner->id, 'new_status' => 'pending',
