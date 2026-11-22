@@ -30,7 +30,7 @@ class PasswordResetController extends Controller
             'email.max' => 'E-posta adresi en fazla 255 karakter olabilir.',
         ])['email'];
 
-        DB::transaction(function () use ($email): void {
+        rescue(fn () => DB::transaction(function () use ($email): void {
             $accountEmail = User::query()->where('email', $email)->lockForUpdate()->value('email');
             $lowercaseEmail = Str::lower($email);
             if ($accountEmail === null && $email !== $lowercaseEmail) {
@@ -38,9 +38,9 @@ class PasswordResetController extends Controller
             }
 
             Password::sendResetLink(['email' => $accountEmail ?? $email, 'clinic_onboarding_pending' => false], function (User $user, string $token): void {
-                $user->notify((new AccountPasswordResetNotification($token))->afterCommit());
+                $user->notify((new AccountPasswordResetNotification($token))->withApplicationTransaction());
             });
-        }, attempts: 3);
+        }, attempts: 3));
 
         return redirect()->route('password.request')
             ->with('status', 'Bu adresle bir Medloby hesabı varsa şifre yenileme bağlantısı e-posta ile gönderilecek.');

@@ -422,9 +422,40 @@ test('attachment view uses attachment original name and mime type', function () 
         )
         ->assertHeader(
             'Content-Disposition',
-            'inline; filename="hasta-fotografi.jpg"'
-        );
+            'inline; filename=hasta-fotografi.jpg'
+        )->assertHeader('X-Content-Type-Options', 'nosniff');
 
     expect($response->streamedContent())
         ->toBe('fake-image-content');
+});
+
+test('a legacy attachment with an unknown preview type is served as a download', function (?string $mimeType) {
+    Storage::fake('local');
+    $data = createMessageAttachmentTestData();
+    $attachment = createTestAttachment($data['message']);
+    $attachment->update(['mime_type' => $mimeType, 'original_name' => 'deneme-dosyasi.dat']);
+    Storage::disk('local')->put($attachment->path, 'Legacy test document');
+
+    $response = $this->actingAs($data['patientUser'])->get("/api/attachments/{$attachment->id}/view");
+
+    $response->assertOk()->assertHeader('Content-Type', 'application/octet-stream')
+        ->assertHeader('Content-Disposition', 'attachment; filename=deneme-dosyasi.dat')
+        ->assertHeader('X-Content-Type-Options', 'nosniff');
+    expect($response->streamedContent())->toBe('Legacy test document');
+})->with([
+    'legacy document type' => ['text/html'],
+    'missing MIME type' => [null],
+]);
+
+test('attachment headers preserve the Unicode filename for a legacy path-style name', function () {
+    Storage::fake('local');
+    $data = createMessageAttachmentTestData();
+    $attachment = createTestAttachment($data['message']);
+    $attachment->update(['original_name' => "Belgeler\\Örnek dosya.txt\r\n"]);
+    Storage::disk('local')->put($attachment->path, 'Test document');
+
+    $response = $this->actingAs($data['patientUser'])->get("/api/attachments/{$attachment->id}/view")->assertOk();
+
+    expect($response->headers->get('Content-Disposition'))->toStartWith('inline;')
+        ->toContain("filename*=utf-8''%C3%96rnek%20dosya.txt")->not->toContain('Belgeler');
 });

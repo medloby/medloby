@@ -4,7 +4,6 @@ namespace App\Notifications;
 
 use App\Models\BusinessUser;
 use App\Models\User;
-use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeEncrypted;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -13,7 +12,7 @@ use Illuminate\Support\Facades\Hash;
 
 class ClinicOwnerCredentialsNotification extends Notification implements ShouldBeEncrypted, ShouldQueue
 {
-    use Queueable;
+    use QueuesWithApplicationTransaction;
 
     public function __construct(private string $temporaryPassword) {}
 

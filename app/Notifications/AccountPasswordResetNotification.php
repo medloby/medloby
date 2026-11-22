@@ -3,7 +3,6 @@
 namespace App\Notifications;
 
 use Illuminate\Auth\Notifications\ResetPassword;
-use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Auth\CanResetPassword;
 use Illuminate\Contracts\Queue\ShouldBeEncrypted;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -12,7 +11,7 @@ use Illuminate\Support\Facades\Password;
 
 class AccountPasswordResetNotification extends ResetPassword implements ShouldBeEncrypted, ShouldQueue
 {
-    use Queueable;
+    use QueuesWithApplicationTransaction;
 
     public function shouldSend(CanResetPassword $notifiable, string $channel): bool
     {

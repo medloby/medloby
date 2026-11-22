@@ -3,11 +3,16 @@
 use App\Models\User;
 use App\Notifications\AccountPasswordResetNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Mail\Events\MessageSending;
+use Illuminate\Queue\Events\JobQueueing;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Password;
+use Symfony\Component\Mailer\Exception\TransportException;
 
 uses(RefreshDatabase::class);
 
@@ -88,6 +93,53 @@ test('the database queue encrypts the reset link before delivery', function () {
     $this->artisan('queue:work', ['--once' => true])->assertExitCode(0);
     expect(Mail::mailer('array')->getSymfonyTransport()->messages())->toHaveCount(1);
     $this->assertDatabaseCount('jobs', 0);
+});
+
+test('account recovery keeps its response private and can be retried after a database queue failure', function () {
+    config(['queue.default' => 'database', 'mail.default' => 'array']);
+    $user = User::factory()->create();
+    Exceptions::fake();
+    $queueAvailable = false;
+    Event::listen(JobQueueing::class, function () use (&$queueAvailable): void {
+        if (! $queueAvailable) {
+            throw new RuntimeException('Test database queue unavailable');
+        }
+    });
+
+    $this->post(route('password.email'), ['email' => 'bilinmeyen@example.test'])->assertRedirectToRoute('password.request');
+    $message = session('status');
+    $this->post(route('password.email'), ['email' => $user->email])
+        ->assertRedirectToRoute('password.request')->assertSessionHas('status', $message);
+
+    Exceptions::assertReported(RuntimeException::class);
+    $this->assertDatabaseMissing('password_reset_tokens', ['email' => $user->email]);
+    $this->assertDatabaseCount('jobs', 0);
+
+    $queueAvailable = true;
+    $this->post(route('password.email'), ['email' => $user->email])
+        ->assertRedirectToRoute('password.request')->assertSessionHas('status', $message);
+    $this->assertDatabaseHas('password_reset_tokens', ['email' => $user->email]);
+    $this->assertDatabaseCount('jobs', 1);
+
+    $this->artisan('queue:work', ['--once' => true])->assertSuccessful();
+    $email = Mail::mailer('array')->getSymfonyTransport()->messages()->sole()->getOriginalMessage();
+    expect($email->getTo()[0]->getAddress())->toBe($user->email);
+});
+
+test('a synchronous mail outage keeps the same recovery response for every address', function () {
+    config(['queue.default' => 'sync', 'mail.default' => 'array']);
+    $user = User::factory()->create();
+    Exceptions::fake();
+    Event::listen(MessageSending::class, function (): never {
+        throw new TransportException('Test mail transport unavailable');
+    });
+
+    $this->post(route('password.email'), ['email' => 'bilinmeyen@example.test'])->assertRedirectToRoute('password.request');
+    $message = session('status');
+    $this->post(route('password.email'), ['email' => $user->email])
+        ->assertRedirectToRoute('password.request')->assertSessionHas('status', $message);
+
+    Exceptions::assertReported(TransportException::class);
 });
 
 test('the queue discards a password reset email after the link expires', function () {

@@ -6,6 +6,7 @@ use App\Models\Conversation;
 use App\Models\MessageAttachment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class MessageAttachmentController extends Controller
@@ -35,16 +36,17 @@ class MessageAttachmentController extends Controller
             );
         }
 
-        return $disk->response(
-            $attachment->path,
-            $attachment->original_name,
-            [
-                'Cache-Control' => 'private, no-store',
-                'Content-Type' => $attachment->mime_type,
-                'Content-Disposition' => 'inline; filename="'.
-                    addslashes($attachment->original_name).
-                    '"',
-            ]
-        );
+        $inline = in_array($attachment->mime_type, ['image/jpeg', 'image/png', 'application/pdf', 'text/plain'], true);
+        $filename = Str::afterLast(str_replace('\\', '/', $attachment->original_name), '/');
+        $filename = trim(preg_replace('/[\x00-\x1f\x7f]/', '', $filename));
+        if (in_array($filename, ['', '.', '..'], true)) {
+            $filename = 'dosya';
+        }
+
+        return $disk->response($attachment->path, $filename, [
+            'Cache-Control' => 'private, no-store',
+            'Content-Type' => $inline ? $attachment->mime_type : 'application/octet-stream',
+            'X-Content-Type-Options' => 'nosniff',
+        ], $inline ? 'inline' : 'attachment');
     }
 }
