@@ -42,6 +42,8 @@ php artisan test --compact tests/Feature/LocalBackupTest.php
 
 ### PostgreSQL randevu provası
 
+GitHub Actions, `main` dalına gönderimlerde ve bu dalı hedefleyen pull request’lerde tam test paketini SQLite ve geçici bir PostgreSQL 17 veritabanıyla çalıştırır. [CI iş akışı](.github/workflows/ci.yml)
+
 PHP’de `pdo_pgsql` etkin olan bir ortamda, veritabanı bağlantı ayarlarını ayrı bir PostgreSQL test veritabanına yönelt. Test hesabı şema oluşturabilmeli. Aşağıdaki test, kendi açtığı geçici şemada migration’ları uygular ve iki işlemden aynı saati rezerve etmeyi dener. Test sonunda geçici şemayı kaldırır.
 
 ```bash
