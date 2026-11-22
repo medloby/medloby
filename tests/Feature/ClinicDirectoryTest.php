@@ -32,6 +32,55 @@ test('guests can search the home page by clinic or branch name and location', fu
     $this->get(route('clinics.show', $inactive->slug))->assertNotFound();
 });
 
+test('treatment and location searches match the same active branch and tolerate Turkish keyboard spelling', function () {
+    $clinic = Business::factory()->create(['name' => 'Örnek Sağlık']);
+    $branch = Branch::factory()->for($clinic)->create(['name' => 'Merkez Şubesi', 'city' => 'İstanbul', 'district' => 'Şişli']);
+    $otherBranch = Branch::factory()->for($clinic)->create(['name' => 'Avrupa Şubesi', 'city' => 'İstanbul', 'district' => 'Bakırköy']);
+    $elsewhere = Business::factory()->create(['name' => 'Başka Konum Sağlık']);
+    Branch::factory()->for($elsewhere)->create(['city' => 'İstanbul', 'district' => 'Şişli']);
+    $wrongLocation = Branch::factory()->for($elsewhere)->create(['city' => 'İstanbul', 'district' => 'Bakırköy']);
+    $closed = Business::factory()->create(['name' => 'Kaldırılan Tedavili Klinik']);
+    $closedBranch = Branch::factory()->for($closed)->create(['city' => 'İstanbul', 'district' => 'Şişli']);
+    $category = TreatmentCategory::factory()->create();
+    $cleaning = Treatment::create([
+        'treatment_category_id' => $category->id, 'name' => 'Diş Temizliği', 'slug' => 'dis-temizligi', 'is_active' => true,
+    ]);
+    $inactive = Treatment::create([
+        'treatment_category_id' => $category->id, 'name' => 'Diş Temizliği Arşiv', 'slug' => 'dis-temizligi-arsiv', 'is_active' => false,
+    ]);
+    foreach ([$branch, $otherBranch, $wrongLocation] as $offering) {
+        $offering->treatments()->attach($cleaning->id, ['is_active' => true]);
+    }
+    $closedBranch->treatments()->attach($cleaning->id, ['is_active' => false]);
+    $closedBranch->treatments()->attach($inactive->id, ['is_active' => true]);
+    $detail = route('clinics.show', $clinic->slug);
+
+    $this->get(route('home', ['konum' => 'sisli', 'tedavi' => 'DIS TEMIZLIGI']))->assertOk()
+        ->assertSeeText($clinic->name)->assertSeeText('Şişli / İstanbul')->assertSeeText($cleaning->name)
+        ->assertSee($detail.'#sube-'.$branch->id)->assertDontSee($detail.'#sube-'.$otherBranch->id)
+        ->assertDontSeeText($elsewhere->name)->assertDontSeeText($closed->name)->assertDontSeeText($inactive->name);
+    $this->get(route('home', ['klinik' => 'ORNEK SAGLIK', 'konum' => 'istanbul', 'tedavi' => 'diş temizliği']))
+        ->assertOk()->assertSee($detail.'#sube-'.$branch->id)->assertSee($detail.'#sube-'.$otherBranch->id);
+    $this->get(route('home', ['tedavi' => '%']))->assertOk()->assertSeeText('Aramanıza uygun klinik bulunamadı.');
+    $this->get($detail)->assertOk()->assertSee('id="sube-'.$branch->id.'"', false);
+});
+
+test('treatment and location filters stay in clinic search pagination', function () {
+    $treatment = Treatment::create([
+        'treatment_category_id' => TreatmentCategory::factory()->create()->id,
+        'name' => 'Muayene', 'slug' => 'muayene', 'is_active' => true,
+    ]);
+    foreach (range(1, 10) as $number) {
+        $clinic = Business::factory()->create(['name' => 'Sağlık Merkezi '.str_pad((string) $number, 2, '0', STR_PAD_LEFT)]);
+        Branch::factory()->for($clinic)->create(['city' => 'İzmir'])->treatments()->attach($treatment->id, ['is_active' => true]);
+    }
+
+    $this->get(route('home', ['konum' => 'izmir', 'tedavi' => 'muayene']))->assertOk()->assertSeeText('Sağlık Merkezi 09')
+        ->assertDontSeeText('Sağlık Merkezi 10')->assertSee('konum=izmir&amp;tedavi=muayene&amp;klinik_sayfa=2#klinikler', false);
+    $this->get(route('home', ['konum' => 'izmir', 'tedavi' => 'muayene', 'klinik_sayfa' => 2]))
+        ->assertOk()->assertSeeText('Sağlık Merkezi 10')->assertDontSeeText('Sağlık Merkezi 09');
+});
+
 test('the chosen clinic shows active branch details and links bookings to the bookable branch only', function () {
     $clinic = Business::factory()->create(['name' => 'Deneme Sağlık', 'email' => 'private@example.test']);
     $branch = Branch::factory()->for($clinic)->create(['name' => 'Anadolu Şubesi', 'address' => 'Deneme Sokak 1']);

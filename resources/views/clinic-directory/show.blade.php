@@ -23,7 +23,7 @@
                 <h2 id="clinic-branches-title" class="text-2xl font-semibold tracking-tight">Şubeler</h2>
                 <div class="grid items-start gap-4 sm:grid-cols-2">
                     @foreach ($branches as $branch)
-                        <article class="grid min-w-0 gap-4 rounded-2xl border border-[#d6e0d5] bg-white p-5 sm:p-6 dark:border-slate-800 dark:bg-slate-900">
+                        <article id="sube-{{ $branch->id }}" tabindex="-1" class="grid min-w-0 scroll-mt-6 gap-4 rounded-2xl border border-[#d6e0d5] bg-white p-5 target:border-teal-700 sm:p-6 dark:border-slate-800 dark:bg-slate-900 dark:target:border-teal-400">
                             <div class="grid gap-1 break-words">
                                 <h3 class="text-xl font-semibold tracking-tight">{{ $branch->name }}</h3>
                                 @if ($branch->district || $branch->city)
