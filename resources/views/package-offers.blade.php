@@ -8,7 +8,7 @@
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
     <body class="min-h-screen bg-slate-50 font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-        <div id="offer-workspace" data-today="{{ today()->toDateString() }}">
+        <div id="offer-workspace">
             <header class="border-b border-slate-800 bg-slate-950 text-white">
                 <div class="mx-auto flex min-h-18 max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-8">
                     <a href="{{ route('home') }}" class="inline-flex items-center gap-3 text-lg font-semibold tracking-tight">

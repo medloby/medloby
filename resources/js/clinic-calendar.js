@@ -15,6 +15,10 @@ const editorLabels = {
 const todayInClinic = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Istanbul' });
 const displayDate = new Intl.DateTimeFormat('tr-TR', { dateStyle: 'medium', timeZone: 'UTC' });
 
+export function clinicToday() {
+    return todayInClinic.format(new Date());
+}
+
 export function dateLabel(value) {
     return displayDate.format(new Date(value.slice(0, 10) + 'T00:00:00Z'));
 }
@@ -45,7 +49,7 @@ export function mountClinicCalendar(panel, api, { openBookingDialog, openAppoint
     const blockDoctor = forms.blocks.elements.namedItem('doctor_id');
     const weekday = forms.hours.elements.namedItem('day_of_week');
     const booking = mountCalendarBooking(find('booking'), {
-        api, openBookingDialog, today: () => todayInClinic.format(new Date()),
+        api, openBookingDialog, today: clinicToday,
         onSaved: (start, confirmation) => selectDay(start.slice(0, 10), confirmation),
     });
     let scope = null;
@@ -304,7 +308,7 @@ export function mountClinicCalendar(panel, api, { openBookingDialog, openAppoint
         if (!scope) {
             return;
         }
-        day.value = value || todayInClinic.format(new Date());
+        day.value = value || clinicToday();
         find('agenda').hidden = true;
         find('booking').hidden = true;
         find('day-blocks').hidden = true;
@@ -331,7 +335,7 @@ export function mountClinicCalendar(panel, api, { openBookingDialog, openAppoint
     day.addEventListener('change', () => selectDay(day.value));
     find('previous').addEventListener('click', () => moveDay(-1));
     find('next').addEventListener('click', () => moveDay(1));
-    find('today').addEventListener('click', () => selectDay(todayInClinic.format(new Date())));
+    find('today').addEventListener('click', () => selectDay(clinicToday()));
 
     doctor.addEventListener('change', () => {
         scope.doctorId = doctor.value;
@@ -379,7 +383,7 @@ export function mountClinicCalendar(panel, api, { openBookingDialog, openAppoint
         },
         async bookForPatient(patient) {
             const current = scope;
-            const today = todayInClinic.format(new Date());
+            const today = clinicToday();
             const date = day.value >= today ? day.value : today;
             panel.open = true;
             await selectDay(date);
@@ -396,7 +400,7 @@ export function mountClinicCalendar(panel, api, { openBookingDialog, openAppoint
             } : null;
             panel.open = false;
             panel.hidden = !scope;
-            day.value = todayInClinic.format(new Date());
+            day.value = clinicToday();
             for (const kind of Object.keys(forms)) {
                 resetEditor(kind);
             }

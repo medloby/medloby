@@ -127,7 +127,6 @@ class AppointmentBookingController extends Controller
             'starts_at' => [
                 'required',
                 'date',
-                'after:now',
             ],
             'notes' => [
                 'nullable',
@@ -214,7 +213,7 @@ class AppointmentBookingController extends Controller
     private function offerOptions(Request $request, Offer $offer, AppointmentSlotAvailabilityService $availability, ?Branch $clinicBranch = null): JsonResponse
     {
         abort_if($offer->appointments()->exists(), 422, 'Bu teklif daha önce randevuya dönüştürülmüş.');
-        $now = $clinicBranch ? Appointment::clinicLocalNow() : Carbon::now();
+        $now = Appointment::clinicLocalNow();
 
         $validated = $request->hasAny(['branch_id', 'treatment_id', 'date'])
             ? $request->validate([
@@ -283,7 +282,6 @@ class AppointmentBookingController extends Controller
                     'name' => trim($doctor->person->first_name.' '.$doctor->person->last_name),
                     'specialty' => $doctor->specialty,
                     'slots' => collect($availability->getAvailableSlots($doctor, $branchId, $treatment, $date, requireOnlineBookable: ! $clinicBranch))
-                        ->filter(fn (Carbon $slot) => $slot->gt($now))
                         ->map(fn (Carbon $slot) => $slot->toDateTimeString())
                         ->values()->all(),
                 ])
@@ -348,7 +346,7 @@ class AppointmentBookingController extends Controller
             'sessions.*.doctor_id' => ['required', 'integer', 'exists:doctors,id'],
             'sessions.*.starts_at' => $clinicUserId
                 ? ['required', 'date_format:Y-m-d H:i:s', 'after:'.Appointment::clinicLocalNow()->toDateTimeString()]
-                : ['required', 'date', 'after:now'],
+                : ['required', 'date'],
             'sessions.*.notes' => ['nullable', 'string', 'max:2000'],
         ]);
 

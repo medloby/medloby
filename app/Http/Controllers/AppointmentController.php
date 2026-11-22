@@ -609,12 +609,7 @@ class AppointmentController extends Controller
 
     $slotInterval = $appointmentSettings?->slot_interval_minutes ?? 30;
 
-    /*
-     * Online randevu kontrolü request'ten açıkça false gönderilse bile
-     * şube ayarı online randevuyu kapatmışsa servis bunu engelleyecektir.
-     */
-    $requireOnlineBookable =
-        $validated['require_online_bookable'] ?? true;
+    $requireOnlineBookable = ! $isBusinessUser || ($validated['require_online_bookable'] ?? true);
 
     try {
         $slots = $this->slotAvailabilityService->getAvailableSlots(

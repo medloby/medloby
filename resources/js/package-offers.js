@@ -8,6 +8,7 @@ import { mountClinicAdministration } from './clinic-administration';
 import { mountClinicContracts } from './clinic-contracts';
 import { mountClinicApplications } from './clinic-applications';
 import { mountClinicCrm } from './clinic-crm';
+import { clinicToday } from './clinic-calendar';
 
 const statusLabels = {
     pending: 'Yanıt bekliyor',
@@ -793,7 +794,7 @@ export function mountPackageOffers(root) {
             doctors: [],
             request: 0,
         };
-        session.date.min = root.dataset.today;
+        session.date.min = clinicToday();
         resetSession(session);
         session.date.addEventListener('change', () => loadSlots(session));
         session.doctor.addEventListener('change', () => {
@@ -844,7 +845,7 @@ export function mountPackageOffers(root) {
 
             bookingForm.hidden = false;
             showStatus(status);
-            if (calendar?.date >= root.dataset.today) {
+            if (calendar?.date >= clinicToday()) {
                 for (const session of sessions) {
                     session.date.value = calendar.date;
                     loadSlots(session);

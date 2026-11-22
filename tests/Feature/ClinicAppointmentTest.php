@@ -10,6 +10,7 @@ use App\Models\Person;
 use App\Models\Treatment;
 use App\Models\TreatmentCategory;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
 
@@ -45,6 +46,72 @@ function clinicAppointmentFixture(): array
 
     return [$business, $owner, $branch, $other, $doctor, $treatment, $calendar, $otherCalendar];
 }
+
+test('patient booking uses the clinic clock and respects the online booking window', function () {
+    Mail::fake();
+    $this->travelTo(Carbon::parse('2026-12-04 07:15:00', 'UTC'));
+    [$business, $owner, $branch, , $doctor, $treatment, $calendar] = clinicAppointmentFixture();
+    $branch->appointmentSetting()->update(['online_booking_enabled' => true]);
+    $branch->treatments()->updateExistingPivot($treatment->id, ['is_online_bookable' => true]);
+    $doctor->update(['is_public' => true]);
+    foreach ([6, 0] as $day) {
+        $doctor->workingHours()->create([
+            'branch_id' => $branch->id, 'day_of_week' => $day, 'start_time' => '09:00', 'end_time' => '12:00', 'is_active' => true,
+        ]);
+    }
+    $patientUser = User::factory()->create();
+    $patient = $patientUser->patientProfile()->create(['first_name' => 'Deneme', 'last_name' => 'Hasta']);
+    $conversation = $patient->conversations()->create(['business_id' => $business->id, 'branch_id' => $branch->id, 'status' => 'open']);
+    $offer = $conversation->offers()->create([
+        'business_id' => $business->id, 'branch_id' => $branch->id, 'patient_profile_id' => $patient->id,
+        'created_by' => $owner->id, 'title' => 'Bir seanslık paket', 'status' => 'accepted', 'amount' => 100, 'currency' => 'TRY',
+        'package_snapshot' => ['branch_id' => $branch->id, 'treatments' => [
+            ['treatment_id' => $treatment->id, 'name' => $treatment->name, 'quantity' => 1],
+        ]],
+    ]);
+    $packageBooking = '/api/offers/'.$offer->id.'/appointments';
+    $query = '?branch_id='.$branch->id.'&treatment_id='.$treatment->id.'&date=';
+    $session = ['doctor_id' => $doctor->id, 'treatment_id' => $treatment->id];
+    $booking = fn (string $start) => ['branch_id' => $branch->id, 'sessions' => [[...$session, 'starts_at' => $start]]];
+
+    $this->actingAs($owner, 'sanctum')->getJson($calendar.'/appointment-options'.$query.'2026-12-04')->assertOk()
+        ->assertJsonPath('data.doctors.0.slots.0', '2026-12-04 10:30:00');
+    $this->actingAs($patientUser, 'sanctum')->getJson($packageBooking.'/options'.$query.'2026-12-04')->assertOk()
+        ->assertJsonPath('data.doctors.0.slots.0', '2026-12-04 10:30:00');
+    $this->postJson($packageBooking, $booking('2026-12-04 09:00:00'))->assertUnprocessable();
+    $this->postJson('/api/appointments', [
+        ...$session, 'business_id' => $business->id, 'branch_id' => $branch->id,
+        'patient_profile_id' => $patient->id, 'starts_at' => '2026-12-04 09:00:00',
+    ])->assertUnprocessable();
+
+    $branch->appointmentSetting()->update(['minimum_booking_notice_minutes' => 45]);
+    $this->getJson($packageBooking.'/options'.$query.'2026-12-04')->assertOk()
+        ->assertJsonPath('data.doctors.0.slots.0', '2026-12-04 11:00:00');
+    $this->postJson($packageBooking, $booking('2026-12-04 10:30:00'))->assertUnprocessable();
+
+    $this->travelTo(Carbon::parse('2026-12-03 22:15:00', 'UTC'));
+    $branch->appointmentSetting()->update(['same_day_booking_enabled' => false, 'maximum_booking_days' => 1]);
+    $this->getJson($packageBooking.'/options'.$query.'2026-12-03')->assertUnprocessable()->assertJsonValidationErrors('date');
+    $this->getJson($packageBooking.'/options'.$query.'2026-12-04')->assertOk()->assertJsonPath('data.doctors', []);
+    $this->postJson($packageBooking, $booking('2026-12-04 10:30:00'))->assertUnprocessable();
+    $this->getJson($packageBooking.'/options'.$query.'2026-12-06')->assertOk()->assertJsonPath('data.doctors', []);
+    $this->postJson($packageBooking, $booking('2026-12-06 10:30:00'))->assertUnprocessable();
+    $this->getJson('/api/appointments/availability'.$query.'2026-12-04&doctor_id='.$doctor->id.'&require_online_bookable=0')
+        ->assertOk()->assertJsonPath('data.slots', []);
+    $this->actingAs($owner, 'sanctum')->getJson($calendar.'/appointment-options'.$query.'2026-12-04')->assertOk()
+        ->assertJsonPath('data.doctors.0.slots.0', '2026-12-04 09:00:00');
+    $this->assertDatabaseCount('appointments', 0);
+
+    $branch->appointmentSetting()->update(['is_active' => false]);
+    $this->actingAs($patientUser, 'sanctum')->getJson($packageBooking.'/options'.$query.'2026-12-06')->assertOk()
+        ->assertJsonPath('data.doctors.0.slots.0', '2026-12-06 09:00:00');
+    $branch->appointmentSetting()->update(['is_active' => true]);
+    $this->getJson($packageBooking.'/options'.$query.'2026-12-05')->assertOk()
+        ->assertJsonPath('data.doctors.0.slots.0', '2026-12-05 09:00:00');
+    $appointment = $this->postJson($packageBooking, $booking('2026-12-05 09:00:00'))->assertCreated()->json('data.appointments.0.id');
+    $this->actingAs($owner, 'sanctum')->getJson($calendar.'/appointments/'.$appointment)->assertOk()
+        ->assertJsonPath('data.starts_at', '2026-12-05 09:00:00');
+});
 
 test('clinic calendar books a patient known to the branch and prevents the same doctor being booked twice across branches', function () {
     $this->travelTo(now()->setDate(2026, 12, 1)->startOfDay());

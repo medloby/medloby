@@ -50,7 +50,7 @@ class ClinicAppointmentController extends Controller
                 'id' => $doctor->id,
                 'name' => trim($doctor->person->first_name.' '.$doctor->person->last_name),
                 'slots' => collect($availability->getAvailableSlots($doctor, $branch->id, $treatment, $date, requireOnlineBookable: false))
-                    ->filter(fn (Carbon $slot) => $slot->gt($now))->map(fn (Carbon $slot) => $slot->toDateTimeString())->values(),
+                    ->map(fn (Carbon $slot) => $slot->toDateTimeString())->values(),
             ])->filter(fn (array $doctor) => $doctor['slots']->isNotEmpty())->values();
 
         return $this->data(['doctors' => $doctors]);

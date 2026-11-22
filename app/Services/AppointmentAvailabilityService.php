@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Appointment;
+use App\Models\BranchAppointmentSetting;
 use App\Models\CalendarBlock;
 use App\Models\Doctor;
 use App\Models\Treatment;
@@ -27,7 +28,9 @@ class AppointmentAvailabilityService
         ?int $ignoreAppointmentId = null,
         bool $requireOnlineBookable = true
     ): bool {
-        if ($doctor->status !== 'active') {
+        $now = Appointment::clinicLocalNow();
+        $startsAt = $startsAt->copy()->shiftTimezone($now->getTimezone());
+        if ($doctor->status !== 'active' || $startsAt->lte($now)) {
             return false;
         }
 
@@ -68,14 +71,10 @@ class AppointmentAvailabilityService
             return false;
         }
 
-        // 4. Medloby üzerinden online randevu ise
-        // online booking şartını kontrol et.
+        // 4. Çevrimiçi randevu için şubenin rezervasyon kurallarını kontrol et.
         if (
             $requireOnlineBookable &&
-            ! $this->isOnlineBookable(
-                $branchId,
-                $treatment->id
-            )
+            ! $this->allowsOnlineBooking($branchId, $treatment->id, $startsAt, $now)
         ) {
             return false;
         }
@@ -95,18 +94,7 @@ class AppointmentAvailabilityService
             return false;
         }
 
-        // 6. Minimum randevu öncesi bildirim süresini kontrol et.
-        if (
-            $requireOnlineBookable &&
-            ! $this->meetsMinimumBookingNotice(
-                $branchId,
-                $startsAt
-            )
-        ) {
-            return false;
-        }
-
-        // 7. Doktorun çalışma saatleri uygun mu?
+        // 6. Doktorun çalışma saatleri uygun mu?
         if (! $this->isWithinWorkingHours(
             $doctor->id,
             $branchId,
@@ -116,7 +104,7 @@ class AppointmentAvailabilityService
             return false;
         }
 
-        // 8. Doktor izinli mi?
+        // 7. Doktor izinli mi?
         if ($this->isOnLeave(
             $doctor->id,
             $branchId,
@@ -126,7 +114,7 @@ class AppointmentAvailabilityService
             return false;
         }
 
-        // 9. Manuel takvim bloğu var mı?
+        // 8. Manuel takvim bloğu var mı?
         if ($this->hasCalendarBlock(
             $branchId,
             $doctor->id,
@@ -136,7 +124,7 @@ class AppointmentAvailabilityService
             return false;
         }
 
-        // 10. Başka aktif randevuyla çakışıyor mu?
+        // 9. Başka aktif randevuyla çakışıyor mu?
         if ($this->hasAppointmentConflict(
             $doctor->id,
             $startsAt,
@@ -147,45 +135,6 @@ class AppointmentAvailabilityService
         }
 
         return true;
-    }
-
-    /**
-     * Klinik tarafından belirlenen minimum randevu öncesi
-     * bildirim süresini kontrol eder.
-     */
-    protected function meetsMinimumBookingNotice(
-        int $branchId,
-        Carbon $startsAt
-    ): bool {
-        $minimumNotice = DB::table('branch_appointment_settings')
-            ->where('branch_id', $branchId)
-            ->where('is_active', true)
-            ->value('minimum_booking_notice_minutes');
-
-        /*
-         * Şube ayarı yoksa herhangi bir minimum süre
-         * uygulanmaz.
-         */
-        if ($minimumNotice === null) {
-            return true;
-        }
-
-        $minimumNotice = (int) $minimumNotice;
-
-        /*
-         * 0 dakika = minimum bekleme yok.
-         */
-        if ($minimumNotice <= 0) {
-            return true;
-        }
-
-        $earliestAllowedStart = now()->addMinutes(
-            $minimumNotice
-        );
-
-        return $startsAt->greaterThanOrEqualTo(
-            $earliestAllowedStart
-        );
     }
 
     /**
@@ -282,29 +231,34 @@ class AppointmentAvailabilityService
             ->exists();
     }
 
-    /**
-     * Şube + tedavi kombinasyonu online randevuya açık mı?
-     */
-    protected function isOnlineBookable(
+    protected function allowsOnlineBooking(
         int $branchId,
-        int $treatmentId
+        int $treatmentId,
+        Carbon $startsAt,
+        Carbon $now
     ): bool {
-        $branchTreatment = DB::table('branch_treatment')
+        $bookableTreatment = DB::table('branch_treatment')
             ->where('branch_id', $branchId)
             ->where('treatment_id', $treatmentId)
             ->where('is_active', true)
-            ->first([
-                'is_online_bookable',
-            ]);
+            ->where('is_online_bookable', true)
+            ->exists();
 
-        if (! $branchTreatment?->is_online_bookable) {
+        if (! $bookableTreatment) {
             return false;
         }
 
-        $onlineBooking = DB::table('branch_appointment_settings')
-            ->where('branch_id', $branchId)->where('is_active', true)->value('online_booking_enabled');
+        $settings = BranchAppointmentSetting::query()->where('branch_id', $branchId)->where('is_active', true)->first([
+            'online_booking_enabled', 'minimum_booking_notice_minutes', 'same_day_booking_enabled', 'maximum_booking_days',
+        ]);
+        if (! $settings) {
+            return true;
+        }
 
-        return $onlineBooking === null || (bool) $onlineBooking;
+        return $settings->online_booking_enabled
+            && ($settings->same_day_booking_enabled || ! $startsAt->isSameDay($now))
+            && $startsAt->gte($now->copy()->addMinutes($settings->minimum_booking_notice_minutes))
+            && $startsAt->lte($now->copy()->addDays($settings->maximum_booking_days)->endOfDay());
     }
 
     /**
