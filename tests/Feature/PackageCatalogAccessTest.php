@@ -25,6 +25,8 @@ beforeEach(function () {
 test('guests can read active catalog entries but cannot change them', function () {
     $this->getJson("/api/treatment-packages/{$this->package->id}")->assertOk();
     $this->getJson("/api/package-services/{$this->service->id}")->assertOk();
+    $this->getJson('/api/package-services/manage')->assertUnauthorized();
+    $this->getJson("/api/package-services/manage/{$this->business->id}")->assertUnauthorized();
     $this->deleteJson("/api/treatment-packages/{$this->package->id}")->assertUnauthorized();
     $this->putJson("/api/package-services/{$this->service->id}")->assertUnauthorized();
     $this->postJson("/api/treatment-packages/{$this->package->id}/items")->assertUnauthorized();
@@ -59,6 +61,7 @@ test('catalog writes require active ownership in the target business', function 
     $this->actingAs($user, 'sanctum');
 
     $this->putJson("/api/treatment-packages/{$this->package->id}", ['name' => 'Updated'])->assertForbidden();
+    $this->getJson("/api/package-services/manage/{$this->business->id}")->assertForbidden();
     $this->deleteJson("/api/package-services/{$this->service->id}")->assertForbidden();
     $this->postJson("/api/treatment-packages/{$this->package->id}/items")->assertForbidden();
     $this->postJson("/api/treatment-packages/{$this->package->id}/service-items")->assertForbidden();
@@ -94,4 +97,43 @@ test('owners cannot transfer records to an unmanaged business or manage global s
     $this->actingAs(User::factory()->create(['is_admin' => true]), 'sanctum');
     $this->deleteJson("/api/package-services/{$globalService->id}")->assertOk();
     $this->assertDatabaseHas('package_services', ['id' => $globalService->id, 'is_active' => false]);
+});
+
+test('verified owners can list and reactivate only their clinic services', function () {
+    $owner = User::factory()->unverified()->create();
+    $this->business->memberships()->create(['user_id' => $owner->id, 'role' => 'business_owner', 'is_active' => true]);
+    $otherClinic = Business::factory()->create();
+    $otherClinic->packageServices()->create(['name' => 'Diğer hizmet', 'slug' => 'diger', 'service_type' => 'transfer']);
+    PackageService::create(['name' => 'Ortak hizmet', 'slug' => 'ortak', 'service_type' => 'transfer']);
+    $this->service->update(['is_active' => false]);
+
+    $url = '/api/package-services/manage';
+    $this->withToken($owner->createToken('service-management')->plainTextToken)
+        ->getJson($url.'/'.$this->business->id)->assertForbidden();
+    $owner->markEmailAsVerified();
+    $this->actingAs($owner, 'sanctum');
+    $this->getJson($url.'/'.$this->business->id)->assertOk()->assertHeader('Cache-Control', 'no-store, private')
+        ->assertJsonCount(1, 'data.services')->assertJsonPath('data.services.0.id', $this->service->id)
+        ->assertJsonPath('data.services.0.is_active', false);
+    $this->getJson($url.'/'.$otherClinic->id)->assertForbidden();
+    $this->getJson($url)->assertForbidden();
+
+    $this->putJson('/api/package-services/'.$this->service->id, ['name' => 'Klinik transferi', 'is_active' => true])
+        ->assertOk()->assertJsonPath('data.is_active', true);
+    $this->assertDatabaseHas('package_services', ['id' => $this->service->id, 'name' => 'Klinik transferi', 'is_active' => true]);
+});
+
+test('platform service management lists its own inactive records and saves without clinic package details', function () {
+    $shared = PackageService::create(['name' => 'Ortak transfer', 'slug' => 'ortak-transfer', 'service_type' => 'transfer', 'is_active' => false]);
+    $this->package->update(['price' => 3200, 'description' => 'Özel paket açıklaması']);
+    $this->package->services()->attach($shared, ['notes' => 'Klinik içi not']);
+
+    $this->actingAs(User::factory()->create(['is_admin' => true]), 'sanctum');
+    $this->getJson('/api/package-services/manage')->assertOk()
+        ->assertJsonCount(1, 'data.services')->assertJsonPath('data.services.0.id', $shared->id)
+        ->assertJsonPath('data.services.0.is_active', false)->assertJsonMissingPath('data.services.0.packages');
+    $this->getJson('/api/package-services/manage/'.$this->business->id)->assertForbidden();
+    $this->putJson('/api/package-services/'.$shared->id, ['is_active' => true])->assertOk()
+        ->assertJsonPath('data.is_active', true)->assertJsonMissingPath('data.packages');
+    $this->assertDatabaseHas('package_service_items', ['treatment_package_id' => $this->package->id, 'package_service_id' => $shared->id]);
 });

@@ -17,6 +17,8 @@
             </label>
         </div>
 
+        <button type="button" class="offer-button offer-button-secondary justify-self-start" data-catalog-manage-services hidden>Ek hizmetleri yönet</button>
+
         <form method="post" class="grid gap-4 rounded-xl border border-slate-200 p-4 dark:border-slate-700" data-catalog-metadata hidden>
             <div class="grid gap-4 sm:grid-cols-2">
                 <label class="offer-field">
@@ -75,24 +77,6 @@
                 </section>
             @endforeach
 
-            <details class="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
-                <summary class="cursor-pointer text-sm font-semibold text-teal-800 dark:text-teal-300">Yeni ek hizmet tanımla</summary>
-                <form method="post" class="mt-4 grid items-end gap-3 sm:grid-cols-3" data-catalog-create-service>
-                    <label class="offer-field">
-                        Hizmet adı
-                        <input name="name" class="offer-control" maxlength="255" required>
-                    </label>
-                    <label class="offer-field">
-                        Hizmet türü
-                        <input name="service_type" class="offer-control" maxlength="100" placeholder="Örn. transfer" required>
-                    </label>
-                    <label class="offer-field">
-                        Birim (isteğe bağlı)
-                        <input name="unit" class="offer-control" maxlength="100" placeholder="Örn. gece">
-                    </label>
-                    <button type="submit" class="offer-button justify-self-start">Hizmet oluştur</button>
-                </form>
-            </details>
         </div>
     </fieldset>
 

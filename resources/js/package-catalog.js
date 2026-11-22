@@ -3,7 +3,7 @@ function options(select, choices, selected = '') {
     select.value = selected;
 }
 
-export function mountPackageCatalog(dialog, api) {
+export function mountPackageCatalog(dialog, api, openServices) {
     const find = (selector) => dialog.querySelector(selector);
     const controls = find('[data-catalog-controls]');
     const status = find('[data-catalog-status]');
@@ -13,6 +13,7 @@ export function mountPackageCatalog(dialog, api) {
     const publish = find('[data-catalog-publish]');
     const contents = find('[data-catalog-contents]');
     const itemSections = dialog.querySelectorAll('[data-catalog-items]');
+    const manageServices = find('[data-catalog-manage-services]');
     let catalog;
     let selectedPackage;
     let operation = 0;
@@ -61,6 +62,7 @@ export function mountPackageCatalog(dialog, api) {
         metadata.reset();
         metadata.hidden = true;
         contents.hidden = true;
+        manageServices.hidden = true;
         showStatus('');
     }
 
@@ -123,6 +125,7 @@ export function mountPackageCatalog(dialog, api) {
         publish.hidden = !selectedPackage;
         publish.textContent = selectedPackage?.is_active ? 'Pasife al' : 'Yayımla';
         metadata.hidden = false;
+        manageServices.hidden = false;
         contents.hidden = !selectedPackage;
 
         if (!selectedPackage) {
@@ -153,6 +156,7 @@ export function mountPackageCatalog(dialog, api) {
         options(packageSelect, []);
         metadata.hidden = true;
         contents.hidden = true;
+        manageServices.hidden = true;
         dialog.showModal();
         run((current) => reload(current));
     }
@@ -160,6 +164,7 @@ export function mountPackageCatalog(dialog, api) {
     business.addEventListener('change', () => {
         metadata.hidden = true;
         contents.hidden = true;
+        manageServices.hidden = true;
         options(packageSelect, []);
         run((current) => reload(current));
     });
@@ -204,16 +209,22 @@ export function mountPackageCatalog(dialog, api) {
         });
     }
 
-    const createService = find('[data-catalog-create-service]');
-    submit(createService, async (fields, current) => {
-        await api('/package-services', {
-            business_id: Number(business.value),
-            name: fields.name.trim(),
-            service_type: fields.service_type.trim(),
-            unit: fields.unit.trim() || null,
+    manageServices.addEventListener('click', () => {
+        openServices({ id: Number(business.value), name: business.selectedOptions[0].text }, (service) => {
+            catalog.services = catalog.services.filter((item) => item.id !== service.id);
+            if (service.is_active) {
+                catalog.services.push({ id: service.id, name: service.name });
+                catalog.services.sort((first, second) => first.name.localeCompare(second.name, 'tr'));
+            }
+            if (selectedPackage) {
+                const linked = selectedPackage.services.find((item) => item.id === service.id);
+                if (linked) {
+                    linked.name = service.name;
+                    linked.is_active = service.is_active;
+                }
+                renderItems(itemSections[1], 'service-items', selectedPackage.services, catalog.services);
+            }
         });
-        createService.reset();
-        await reload(current, selectedPackage.id, 'Hizmet oluşturuldu. Ek hizmetler listesinden pakete ekleyebilirsiniz.');
     });
 
     find('[data-catalog-close]').addEventListener('click', () => {

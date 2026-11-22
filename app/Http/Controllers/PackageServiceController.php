@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Business;
 use App\Models\PackageService;
 use App\Models\TreatmentPackage;
 use App\Services\CatalogManagementAccess;
@@ -43,6 +44,21 @@ class PackageServiceController extends Controller
                 'services' => $services,
             ],
         ]);
+    }
+
+    public function manage(Request $request, ?Business $business = null): JsonResponse
+    {
+        $businessId = $business?->id;
+        $this->catalogAccess->authorizeManagement($request->user(), $businessId);
+
+        $services = PackageService::query()->where('business_id', $businessId)
+            ->orderBy('sort_order')->orderBy('name')->orderBy('id')
+            ->get(['id', 'business_id', 'name', 'service_type', 'description', 'unit', 'is_active', 'sort_order']);
+
+        return response()->json([
+            'success' => true,
+            'data' => ['services' => $services],
+        ])->header('Cache-Control', 'private, no-store');
     }
 
     public function store(Request $request): JsonResponse
@@ -224,10 +240,7 @@ class PackageServiceController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $packageService->fresh([
-                'business',
-                'packages',
-            ]),
+            'data' => $packageService->fresh('business'),
         ]);
     }
 

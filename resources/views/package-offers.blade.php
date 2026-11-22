@@ -30,6 +30,7 @@
                         <button id="clinic-review-button" type="button" class="rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800" hidden>Klinik başvuruları</button>
                         <button id="clinic-administration-button" type="button" class="rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800" hidden>Klinik yönetimi</button>
                         <button id="treatment-administration-button" type="button" class="rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800" hidden>Tedavi kataloğu</button>
+                        <button id="shared-package-services-button" type="button" class="rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800" hidden>Ortak ek hizmetler</button>
                         <button id="clinic-contracts-button" type="button" class="rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800" hidden>Üyelik sözleşmeleri</button>
                         <button id="logout" type="button" class="rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800">Çıkış yap</button>
                     </div>
@@ -133,6 +134,7 @@
 
             @include('workspace-registration')
             @include('package-catalog-dialog')
+            @include('package-service-dialog')
             @include('workspace-notifications')
             @include('clinic-review-dialog')
             @include('clinic-administration-dialog')

@@ -1,4 +1,5 @@
 import { mountPackageCatalog } from './package-catalog';
+import { mountPackageServiceAdministration } from './package-service-administration';
 import { mountPackageDiscovery } from './package-discovery';
 import { mountPackageConversation } from './package-conversation';
 import { mountWorkspaceNotifications } from './workspace-notifications';
@@ -117,7 +118,9 @@ export function mountPackageOffers(root) {
     const conversationList = get('conversation-list');
     const branchField = bookingForm.elements.namedItem('branch');
     const catalogButton = get('catalog-button');
-    const packageCatalog = mountPackageCatalog(get('catalog-dialog'), api);
+    const sharedServicesButton = get('shared-package-services-button');
+    const packageServiceAdministration = mountPackageServiceAdministration(get('package-service-dialog'), api);
+    const packageCatalog = mountPackageCatalog(get('catalog-dialog'), api, packageServiceAdministration.open);
     const clinicReview = mountClinicReview(get('clinic-review-dialog'), get('clinic-review-button'), {
         api,
         timeLabel: (value) => offerDeadline.format(new Date(value)),
@@ -488,6 +491,7 @@ export function mountPackageOffers(root) {
         rejectDialog.close();
         bookingDialog.close();
         appointmentDialog.close();
+        packageServiceAdministration.close();
         packageCatalog.close();
         notifications.stop();
         clinicReview.stop();
@@ -498,6 +502,7 @@ export function mountPackageOffers(root) {
         staffCrmIds.clear();
         get('staff-crm-list').replaceChildren();
         catalogButton.hidden = true;
+        sharedServicesButton.hidden = true;
         appointmentForm.reset();
         offerForm.reset();
         rejectForm.reset();
@@ -521,6 +526,7 @@ export function mountPackageOffers(root) {
     }
 
     catalogButton.addEventListener('click', () => packageCatalog.open(ownedBusinesses()));
+    sharedServicesButton.addEventListener('click', () => packageServiceAdministration.open());
 
     function canSendOffer(item) {
         return item.status === 'open' && user.business_memberships.some(
@@ -1018,6 +1024,7 @@ export function mountPackageOffers(root) {
     async function openVerifiedWorkspace() {
         const businesses = ownedBusinesses();
         catalogButton.hidden = businesses.length === 0;
+        sharedServicesButton.hidden = !(user.is_admin && user.email_verified_at);
         notifications.start(businesses);
         clinicApplications.setAccount(businesses, true);
         loadStaffCrm();

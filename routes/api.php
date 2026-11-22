@@ -1001,6 +1001,7 @@ Route::controller(TreatmentPackageItemController::class)->prefix('treatment-pack
 
 Route::controller(PackageServiceController::class)->prefix('package-services')->group(function () {
     Route::get('/', 'index');
+    Route::get('/manage/{business?}', 'manage')->middleware(['auth:sanctum', 'verified']);
     Route::get('/{packageService}', 'show');
 
     Route::middleware(['auth:sanctum', 'verified'])->group(function () {
