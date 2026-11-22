@@ -28,5 +28,27 @@
                 <button type="button" class="offer-button offer-button-secondary" data-consents-reload hidden>Taslağı yeniden yükle</button>
             </div>
         </form>
+        <div class="grid justify-items-start gap-2" data-consents-preparation hidden>
+            <p class="text-sm text-slate-600 dark:text-slate-300" data-consents-prepared-label></p>
+            <button type="button" class="offer-button offer-button-secondary" data-consents-prepare>Kaydedilen metni sürüm olarak hazırla</button>
+        </div>
+        <details class="min-w-0 rounded-xl border border-slate-200 p-4 dark:border-slate-700" data-consents-history hidden>
+            <summary class="cursor-pointer font-semibold">Hazırlanan sürümler</summary>
+            <div class="mt-3 grid gap-3">
+                <label class="offer-field" data-consents-version-field hidden>
+                    Hazırlanan sürüm
+                    <select class="offer-control" data-consents-version-picker></select>
+                </label>
+                <nav class="flex flex-wrap items-center justify-between gap-2" aria-label="Onam sürümü sayfaları" data-consents-version-pages hidden>
+                    <button type="button" class="offer-button offer-button-secondary" data-consents-version-previous>Önceki</button>
+                    <span class="text-sm text-slate-600 dark:text-slate-300" data-consents-version-page></span>
+                    <button type="button" class="offer-button offer-button-secondary" data-consents-version-next>Sonraki</button>
+                </nav>
+                <article class="min-w-0 rounded-lg bg-slate-50 p-3 dark:bg-slate-800" data-consents-version-preview hidden>
+                    <h3 class="break-words font-semibold" data-consents-version-title></h3>
+                    <p class="mt-2 whitespace-pre-wrap break-words text-sm" data-consents-version-content></p>
+                </article>
+            </div>
+        </details>
     </fieldset>
 </details>

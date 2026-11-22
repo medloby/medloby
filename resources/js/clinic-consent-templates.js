@@ -1,3 +1,5 @@
+const preparedDate = new Intl.DateTimeFormat('tr-TR', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Istanbul' });
+
 export function mountClinicConsentTemplates(panel, api) {
     const find = (part) => panel.querySelector('[data-consents-' + part + ']');
     const status = find('status');
@@ -8,6 +10,12 @@ export function mountClinicConsentTemplates(panel, api) {
     const reload = find('reload');
     const previous = find('previous');
     const next = find('next');
+    const prepare = find('prepare');
+    const history = find('history');
+    const versionPicker = find('version-picker');
+    const preview = find('version-preview');
+    const title = form.elements.namedItem('title');
+    const content = form.elements.namedItem('content');
     let scope;
 
     function showStatus(message = '') {
@@ -18,9 +26,63 @@ export function mountClinicConsentTemplates(panel, api) {
     function edit(draft = null) {
         scope.draft = draft;
         picker.value = draft?.id ?? '';
-        form.elements.namedItem('title').value = draft?.title ?? '';
-        form.elements.namedItem('content').value = draft?.content ?? '';
+        title.value = draft?.title ?? '';
+        content.value = draft?.content ?? '';
         reload.hidden = !draft;
+        resetHistory();
+        updatePreparation();
+    }
+
+    function resetHistory() {
+        history.open = false;
+        versionPicker.replaceChildren();
+        find('version-field').hidden = true;
+        find('version-pages').hidden = true;
+        preview.hidden = true;
+        find('version-title').textContent = '';
+        find('version-content').textContent = '';
+    }
+
+    function updatePreparation() {
+        const draft = scope?.draft;
+        find('preparation').hidden = !draft;
+        history.hidden = !draft?.prepared_revision;
+        if (!draft) {
+            return;
+        }
+
+        const dirty = title.value !== draft.title || content.value !== draft.content.replace(/\r\n?/g, '\n');
+        prepare.disabled = dirty;
+        prepare.hidden = draft.prepared_revision === draft.revision;
+        const prepared = draft.prepared_revision
+            ? 'Son hazırlanan sürüm ' + draft.prepared_revision + '.'
+            : 'Bu metin için ilk sürümü hazırlayabilirsiniz.';
+        find('prepared-label').textContent = dirty ? 'Sürüm hazırlamak için değişiklikleri kaydedin.' : prepared;
+    }
+
+    function versionsPath(current) {
+        return current.path + '/' + current.draft.id + '/versions';
+    }
+
+    function loadVersions(page) {
+        return run(async (current) => {
+            const result = await api(versionsPath(current) + '?page=' + page);
+            if (scope !== current) {
+                return;
+            }
+
+            current.versionPage = result.current_page;
+            preview.hidden = true;
+            versionPicker.replaceChildren(new Option('Sürüm seçin', ''), ...result.data.map((version) => (
+                new Option('Sürüm ' + version.revision + ' · ' + preparedDate.format(new Date(version.created_at)), version.id)
+            )));
+            find('version-field').hidden = false;
+            find('version-pages').hidden = result.last_page <= 1;
+            find('version-page').textContent = result.current_page + ' / ' + result.last_page;
+            find('version-previous').disabled = result.current_page <= 1;
+            find('version-next').disabled = result.current_page >= result.last_page;
+            showStatus();
+        }, 'Hazırlanan sürümler yükleniyor…');
     }
 
     async function run(action, message) {
@@ -133,6 +195,44 @@ export function mountClinicConsentTemplates(panel, api) {
         }, 'Onam taslağı kaydediliyor…');
     });
 
+    form.addEventListener('input', updatePreparation);
+    prepare.addEventListener('click', () => run(async (current) => {
+        const version = await api(versionsPath(current), { revision: current.draft.revision });
+        if (scope === current) {
+            current.draft.prepared_revision = version.revision;
+            resetHistory();
+            updatePreparation();
+            showStatus('Onam metni sürüm ' + version.revision + ' olarak hazırlandı.');
+        }
+    }, 'Onam sürümü hazırlanıyor…'));
+    history.addEventListener('toggle', () => {
+        if (history.open && !versionPicker.options.length) {
+            if (controls.disabled) {
+                history.open = false;
+                return;
+            }
+            loadVersions(1);
+        }
+    });
+    versionPicker.addEventListener('change', () => {
+        const id = versionPicker.value;
+        preview.hidden = true;
+        if (!id) {
+            return;
+        }
+
+        run(async (current) => {
+            const version = await api(versionsPath(current) + '/' + id);
+            if (scope === current) {
+                find('version-title').textContent = version.title;
+                find('version-content').textContent = version.content;
+                preview.hidden = false;
+                showStatus();
+            }
+        }, 'Onam sürümü yükleniyor…');
+    });
+    find('version-previous').addEventListener('click', () => loadVersions(scope.versionPage - 1));
+    find('version-next').addEventListener('click', () => loadVersions(scope.versionPage + 1));
     picker.addEventListener('change', () => loadDraft(picker.value));
     reload.addEventListener('click', () => loadDraft(scope.draft.id));
     previous.addEventListener('click', () => load(scope.page - 1));
@@ -158,6 +258,8 @@ export function mountClinicConsentTemplates(panel, api) {
             controls.disabled = false;
             picker.replaceChildren();
             form.reset();
+            resetHistory();
+            updatePreparation();
             retry.hidden = true;
             showStatus();
         },

@@ -185,6 +185,9 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('/', 'store');
             Route::get('/{template}', 'show')->whereNumber('template');
             Route::put('/{template}', 'update')->whereNumber('template');
+            Route::get('/{template}/versions', 'versions')->whereNumber('template');
+            Route::post('/{template}/versions', 'prepareVersion')->whereNumber('template');
+            Route::get('/{template}/versions/{version}', 'showVersion')->whereNumber(['template', 'version']);
         });
 
         /*
