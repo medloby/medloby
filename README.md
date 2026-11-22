@@ -16,7 +16,26 @@ Uygulama mimarisi, tamamlanan işler, eksikler ve geliştirme sırası proje yol
 - [ ] **İşletmeci ve iletişim bilgilerini doğrula.** Resmî unvanı ve tebligata esas posta adresini `MEDLOBY_OPERATOR_LEGAL_NAME` ve `MEDLOBY_OPERATOR_POSTAL_ADDRESS` ayarlarına gir. KVKK başvuru kanalını belirle. Kullanılacak e-posta ve KEP adreslerini `MEDLOBY_PRIVACY_EMAIL` ve `MEDLOBY_PRIVACY_KEP` ayarlarına gir. Destek ve içerik editörü adreslerini `MEDLOBY_SUPPORT_EMAIL` ve `MEDLOBY_EDITOR_EMAIL` ayarlarına gir.
 - [ ] **Veri saklama ve işleme kurallarını onayla.** Kayıt gruplarının kesin saklama sürelerini ve sağlık verilerinin hangi şartlarla işleneceğini belirle. [Veri işleme ve saklama planı](resources/contracts/medloby-veri-isleme-ve-saklama-taslagi.md)
 - [ ] **Onaylı KVKK metinlerini ve klinik üyelik sözleşmesini yayımla.** Veri işleme ve saklama planı doğrulanıp metinler onaylandığında `MEDLOBY_PRIVACY_PUBLISHED` ayarı hasta ve klinik aydınlatma sayfalarını açar. Klinik üyelik sözleşmesi yönetim ekranından kendi sürümü ve yürürlük tarihiyle yayımlanır. [Klinik üyelik taslağı](resources/contracts/medloby-klinik-uyelik-taslak.txt)
+- [ ] **Üretim yedeklemesini kur ve geri yüklemeyi doğrula.** Seçilen veritabanı ve dosya depolaması için şifreli yedek konumunu, çalışma sıklığını, erişim yetkilerini ve saklama süresini belirle. Geri yükleme, şema değişikliği ve geri dönüşü üretimden ayrı bir kopyada prova et. İlk yönetici ve üretim verisi kurulumunu bu provadan sonra planla. [Yerel SQLite provası](#yerel-sqlite-yedekleme-ve-geri-yükleme)
 - [ ] **Canlı e-posta gönderimini aç.** Site geliştirmesi tamamlandığında yetkili gönderici adresini ve destek adresini belirle. Canlı ortamda SMTP sunucusunu ve portunu yapılandır, gerekiyorsa erişim bilgilerini gizli ayarlara ekle. Klinik başvurusu ve hasta kaydı için doğrulama e-postasının gerçek bir test gelen kutusuna ulaştığını ve bağlantının çalıştığını kontrol et.
+
+### Yerel SQLite yedekleme ve geri yükleme
+
+Komutlar, yapılandırılmış SQLite dosyasını ve yerel özel dosyaları birlikte yedekler. Aynı ana ait kayıt ve dosya içeriği için yedek alırken uygulama ile arka plan işçilerinin yazma işlemlerini durdur. Test verileriyle hazırlanmış bir kurulumda aşağıdaki komutlarla yeni bir yedek ve ayrı bir geri yükleme dizini oluşturabilirsin.
+
+```bash
+backup_root=$(mktemp -d)
+php artisan medloby:backup "$backup_root/backup" --no-interaction
+php artisan medloby:restore "$backup_root/backup" "$backup_root/restored" --no-interaction
+```
+
+Yedek dizininde `database.sqlite`, `storage/app/private` ve SHA-256 doğrulama toplamlarını taşıyan `manifest.json` bulunur. Geri yükleme sonucu doğrulandığında test uygulamasının `DB_DATABASE` değerini geri yüklenen SQLite dosyasına, `LARAVEL_STORAGE_PATH` değerini geri yüklenen `storage` dizinine yönelt. Uygulama anahtarı ve ortam sırlarını kendi güvenli saklama yerlerinden kullan. Yedekleri erişimi sınırlandırılmış, şifreli bir depoda sakla.
+
+Otomatik provada geri yüklenen kopyada son migration geri alınıp yeniden uygulanır. Örnek görüşme eki, yetkili hasta hesabıyla açılır.
+
+```bash
+php artisan test --compact tests/Feature/LocalBackupTest.php
+```
 
 ## About Laravel
 

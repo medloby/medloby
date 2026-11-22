@@ -2,7 +2,7 @@
 
 **İnceleme tarihi** 22 Kasım 2026 · **İncelenen sürüm** `main / 668980d`
 
-**Sıradaki geliştirme işi 5.2** Test ortamında yedekleme ve geri yükleme provası. İşletmeci bilgileri ve KVKK onayları yayın öncesi kontrol listesinde takip ediliyor. [Yayın öncesi kontrol listesi](README.md#medloby-yayına-çıkmadan-önce)
+**Sıradaki geliştirme işi 5.5** Test verileriyle ilk klinik ve hasta akışının uçtan uca provası. Üretim yedeklemesi, işletmeci bilgileri ve KVKK onayları yayın öncesi kontrol listesinde takip ediliyor. [Yayın öncesi kontrol listesi](README.md#medloby-yayına-çıkmadan-önce)
 
 ## Kapsam ve doğrulama
 
@@ -105,7 +105,7 @@ Kamuya açılış için içeriğin uygunluğu, onaylı sözleşme ve kişisel ve
 ### 5. Yayına hazırlık ve kontrollü açılış
 
 1. **5.1 Otomatik derleme ve test iş akışı hazır.** GitHub Actions, `main` dalına gönderimlerde ve bu dalı hedefleyen pull request'lerde PHP 8.4 ve Node.js 24 ile kilitli bağımlılıkları kuruyor, Vite derlemesini ve Pest testlerini çalıştırıyor. Temiz çalışma kopyasında Vite derlemesi ve 811 test geçti. Üretim uygulamasının HTTPS, hata ayıklama, gizli ayarlar, depolama, veritabanı ve kuyruk ayarları yayın hazırlığında yapılacak. [İş akışı](.github/workflows/ci.yml)
-2. Veritabanı ve özel dosyaların yedeklenmesini kur. Geri yükleme, migration ve geri dönüş provasını test ortamında yap. İlk yönetici ve üretim verisi kurulumunu kontrollü hale getir.
+2. **5.2 Yerel yedekleme ve geri yükleme provası tamamlandı.** SQLite veritabanı ve özel dosyalar birlikte yedekleniyor. Geri yükleme ayrı bir dizinde dosyaları ve veritabanını doğruluyor. Testte geri yüklenen kopyada son migration geri alınıp yeniden uygulandı ve görüşme eki yetkili hasta hesabından okundu. 814 test geçti. Üretim yedek takvimi, saklama süresi ve ilk yönetici kurulumu yayın hazırlığında ele alınacak. [Yerel SQLite provası](README.md#yerel-sqlite-yedekleme-ve-geri-yükleme)
 3. İşletmeci ve iletişim bilgilerini doğrula, veri saklama sürelerini ve sağlık verilerinin işleme şartlarını onayla. [Yayın öncesi kontrol listesi](README.md#medloby-yayına-çıkmadan-önce)
 4. Site tamamlandığında anlaşmaya göre canlı e-posta gönderimini bağla. Gönderen, destek adresi, SMTP, TLS ve gerçek gelen kutusu doğrulamasını tamamla. [Canlı e-posta maddesi](README.md#medloby-yayına-çıkmadan-önce)
 5. İlk klinik ve hasta için başvuru, kabul, CRM, özel teklif, seans randevusu ve bildirim akışını yayın koşullarında doğrula.
