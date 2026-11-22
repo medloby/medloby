@@ -357,7 +357,7 @@ class AppointmentLifecycleService
         ?Branch $calendarBranch = null,
         bool $byPatient = false,
     ): Appointment {
-        $newAppointment = DB::transaction(function () use (
+        $newAppointment = $this->availabilityService->runBookingTransaction(function () use (
             $appointment,
             $newStartsAt,
             $changedBy,
@@ -493,7 +493,7 @@ class AppointmentLifecycleService
                 'rescheduledFrom',
                 'statusHistories',
             ]);
-        }, 3);
+        });
 
         /*
          * Bildirim yeni randevu kaydına gider.

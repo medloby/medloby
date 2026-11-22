@@ -36,7 +36,7 @@ class AppointmentBookingService
         ?Offer $offer = null,
         ?int $changedBy = null,
     ): Appointment {
-        return DB::transaction(function () use (
+        return $this->availabilityService->runBookingTransaction(function () use (
             $businessId, $branchId, $patient, $doctor, $treatment,
             $startsAt, $source, $requireOnlineBookable, $notes, $offer, $changedBy
         ) {
@@ -59,7 +59,7 @@ class AppointmentBookingService
                 $businessId, $branchId, $patient, $doctor, $treatment, $startsAt, $status,
                 source: $source, requireOnlineBookable: $requireOnlineBookable, notes: $notes, offer: $offer, changedBy: $changedBy,
             );
-        }, 3);
+        });
     }
 
     private function createBooking(
@@ -174,7 +174,7 @@ class AppointmentBookingService
 
     public function bookPackage(Offer $offer, int $branchId, array $sessions, ?int $clinicUserId = null): array
     {
-        return DB::transaction(function () use ($offer, $branchId, $sessions, $clinicUserId) {
+        return $this->availabilityService->runBookingTransaction(function () use ($offer, $branchId, $sessions, $clinicUserId) {
             $offer = Offer::query()->lockForUpdate()->findOrFail($offer->id);
             $doctors = Doctor::query()->whereKey(array_column($sessions, 'doctor_id'))
                 ->orderBy('id')->lockForUpdate()->get()->keyBy('id');
@@ -225,7 +225,7 @@ class AppointmentBookingService
             }
 
             return $appointments;
-        }, 3);
+        });
     }
 
     /**

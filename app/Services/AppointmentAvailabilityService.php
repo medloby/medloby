@@ -8,6 +8,7 @@ use App\Models\CalendarBlock;
 use App\Models\Doctor;
 use App\Models\Treatment;
 use Carbon\Carbon;
+use Closure;
 use Illuminate\Support\Facades\DB;
 
 class AppointmentAvailabilityService
@@ -15,6 +16,20 @@ class AppointmentAvailabilityService
     public function __construct(
         protected BookingCalendarService $bookingCalendarService
     ) {}
+
+    public function runBookingTransaction(Closure $book): mixed
+    {
+        $connection = DB::connection();
+
+        return $connection->transaction(function () use ($connection, $book) {
+            if ($connection->getDriverName() === 'sqlite') {
+                // SQLite ignores row locks. An empty update takes the write lock before any availability reads.
+                $connection->affectingStatement('UPDATE doctors SET id = id WHERE 1 = 0');
+            }
+
+            return $book();
+        }, 3);
+    }
 
     /**
      * Belirli doktor, şube ve tedavi için başlangıç saatinin

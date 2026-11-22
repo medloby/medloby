@@ -8,7 +8,6 @@ use App\Models\BranchAppointmentSetting;
 use App\Models\Doctor;
 use App\Models\Treatment;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 class AppointmentService
@@ -25,7 +24,7 @@ class AppointmentService
      */
     public function createAppointment(array $data): Appointment
     {
-        return DB::transaction(function () use ($data) {
+        return $this->availabilityService->runBookingTransaction(function () use ($data) {
             $startsAt = Carbon::parse($data['starts_at']);
             $source = $data['source'] ?? 'medloby';
             $requireOnlineBookable = $data['require_online_bookable'] ?? true;
@@ -122,7 +121,7 @@ class AppointmentService
                 'treatment',
                 'statusHistories',
             ]);
-        }, 3);
+        });
     }
 
     /**
