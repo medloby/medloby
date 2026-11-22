@@ -1,7 +1,7 @@
 import { mountCalendarBooking } from './clinic-calendar-booking';
 
 const weekdays = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
-const appointmentStatuses = {
+export const appointmentStatuses = {
     pending: 'Bekliyor', confirmed: 'Onaylandı', cancelled: 'İptal edildi',
     completed: 'Tamamlandı', rescheduled: 'Yeniden planlandı', no_show: 'Hasta gelmedi',
 };
@@ -14,7 +14,7 @@ const editorLabels = {
 const todayInClinic = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Istanbul' });
 const displayDate = new Intl.DateTimeFormat('tr-TR', { dateStyle: 'medium', timeZone: 'UTC' });
 
-function dateLabel(value) {
+export function dateLabel(value) {
     return displayDate.format(new Date(value.slice(0, 10) + 'T00:00:00Z'));
 }
 
@@ -25,7 +25,7 @@ function rangeLabel(start, end) {
     return dateLabel(start) + ' – ' + dateLabel(end);
 }
 
-function timeLabel(start, end) {
+export function timeLabel(start, end) {
     const times = [start, end].map((value) => value.slice(11, 16));
     return start.slice(0, 10) === end.slice(0, 10)
         ? times.join(' – ')
@@ -126,10 +126,8 @@ export function mountClinicCalendar(panel, api, { openBookingDialog, openAppoint
     function renderAgenda(current, data) {
         find('day-rule').textContent = data.open ? 'Çevrimiçi randevu açık' : 'Çevrimiçi randevu kapalı';
         find('empty-appointments').hidden = data.appointments.length > 0;
-        find('appointments').replaceChildren(...data.appointments.map((item) => row(
-            [timeLabel(item.starts_at, item.ends_at), item.patient || 'Hasta adı girilmemiş'].join(' · '),
-            [item.doctor, item.treatment, item.package, appointmentStatuses[item.status] ?? item.status].filter(Boolean).join(' · '),
-            ...item.actions.map((key) => action(appointmentActionLabels[key], () => {
+        find('appointments').replaceChildren(...data.appointments.map((item) => {
+            const actions = item.actions.map((key) => action(appointmentActionLabels[key], () => {
                 if (scope === current && !current.loading && !current.saving) {
                     openAppointmentAction({ ...item, treatment_name: item.treatment }, key, (result) => {
                         if (scope === current) {
@@ -138,8 +136,17 @@ export function mountClinicCalendar(panel, api, { openBookingDialog, openAppoint
                         }
                     }, current.path + '/appointments');
                 }
-            })),
-        )));
+            }));
+            const entry = row(
+                [timeLabel(item.starts_at, item.ends_at), item.patient || 'Hasta adı girilmemiş'].join(' · '),
+                [item.doctor, item.treatment, item.package, appointmentStatuses[item.status] ?? item.status].filter(Boolean).join(' · '),
+                ...actions,
+            );
+            const heading = find('name', entry);
+            heading.dataset.appointmentId = item.id;
+            heading.tabIndex = -1;
+            return entry;
+        }));
         booking.show(current.path, day.value, data.can_create_appointments);
 
         find('empty-blocks').hidden = data.blocks.length > 0;
@@ -348,6 +355,26 @@ export function mountClinicCalendar(panel, api, { openBookingDialog, openAppoint
     }
 
     return {
+        async openAppointment(appointment) {
+            const current = scope;
+            const date = appointment.starts_at.slice(0, 10);
+            panel.open = true;
+            await selectDay(date);
+            if (scope === current && current?.loaded && day.value === date) {
+                const heading = find('appointments').querySelector('[data-appointment-id="' + Number(appointment.id) + '"]');
+                (heading ?? day).focus();
+            }
+        },
+        async bookForPatient(patient) {
+            const current = scope;
+            const today = todayInClinic.format(new Date());
+            const date = day.value >= today ? day.value : today;
+            panel.open = true;
+            await selectDay(date);
+            if (scope === current && current?.loaded && day.value === date) {
+                booking.selectPatient(patient);
+            }
+        },
         setBranch(id, canManage) {
             booking.reset();
             scope = id ? {

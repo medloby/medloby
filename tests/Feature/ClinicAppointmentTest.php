@@ -93,6 +93,58 @@ test('clinic calendar books a patient known to the branch and prevents the same 
     $this->assertDatabaseCount('appointments', 2);
 });
 
+test('crm lead appointments show only the linked patient in the authorized branch and booking requires permission', function () {
+    $this->travelTo(now()->setDate(2026, 12, 1)->startOfDay());
+    [$business, $owner, $branch, $other, $doctor, $treatment, $calendar, $otherCalendar] = clinicAppointmentFixture();
+    $patient = User::factory()->create()->patientProfile()->create(['first_name' => 'Deneme', 'last_name' => 'Hasta']);
+    foreach ([$branch, $other] as $assigned) {
+        $patient->conversations()->create(['business_id' => $business->id, 'branch_id' => $assigned->id, 'status' => 'open']);
+    }
+    $staff = User::factory()->create();
+    $membership = $business->memberships()->create(['user_id' => $staff->id, 'role' => 'staff', 'is_active' => true]);
+    $membership->branches()->attach($branch->id, ['is_active' => true]);
+    $leadPath = "/api/branches/{$branch->id}/crm/leads";
+    $payload = [
+        'patient_profile_id' => $patient->id, 'doctor_id' => $doctor->id, 'treatment_id' => $treatment->id,
+        'starts_at' => '2026-12-04 10:00:00',
+    ];
+    $this->actingAs($owner, 'sanctum');
+    $appointment = $this->postJson($calendar.'/appointments', $payload)->assertCreated()->json('data.id');
+    $this->postJson($otherCalendar.'/appointments', [...$payload, 'starts_at' => '2026-12-04 10:30:00'])->assertCreated();
+    $this->postJson($calendar.'/appointments', [
+        ...$payload, 'patient_profile_id' => null, 'patient_name' => 'Deneme Hasta', 'starts_at' => '2026-12-04 11:00:00',
+    ])->assertCreated();
+    $lead = $this->postJson($leadPath, ['patient_profile_id' => $patient->id])->assertCreated()->json('data.id');
+    $unlinked = $this->postJson($leadPath, ['first_name' => 'Deneme', 'last_name' => 'Hasta'])->assertCreated()->json('data.id');
+    $history = $leadPath.'/'.$lead.'/appointments';
+    $otherHistory = "/api/branches/{$other->id}/crm/leads/{$lead}/appointments";
+
+    $this->getJson($history)->assertOk()->assertHeader('Cache-Control', 'no-store, private')
+        ->assertJsonPath('data.patient', ['id' => $patient->id, 'name' => 'Deneme Hasta'])
+        ->assertJsonPath('data.can_book', true)->assertJsonCount(1, 'data.appointments.data')
+        ->assertJsonPath('data.appointments.data.0', [
+            'id' => $appointment, 'starts_at' => '2026-12-04 10:00:00', 'ends_at' => '2026-12-04 10:30:00',
+            'status' => 'pending', 'doctor' => $doctor->person->first_name.' '.$doctor->person->last_name,
+            'treatment' => $treatment->name,
+        ]);
+    $this->getJson($leadPath.'/'.$unlinked.'/appointments')->assertOk()->assertJsonPath('data', [
+        'patient' => null, 'can_book' => false, 'appointments' => null,
+    ]);
+    $this->getJson($otherHistory)->assertNotFound();
+
+    $this->actingAs($staff, 'sanctum')->getJson($otherHistory)->assertForbidden();
+    $this->getJson($history)->assertOk()->assertJsonPath('data.can_book', false);
+    $newBooking = [...$payload, 'starts_at' => '2026-12-04 11:30:00'];
+    $this->postJson($calendar.'/appointments', $newBooking)->assertForbidden();
+    $permission = Permission::create(['name' => 'appointments.create', 'display_name' => 'Randevu oluştur', 'module' => 'appointments', 'is_active' => true]);
+    $staff->permissions()->attach($permission->id, ['business_id' => $business->id, 'is_allowed' => true]);
+    $this->getJson($history)->assertOk()->assertJsonPath('data.can_book', true);
+    $newAppointment = $this->postJson($calendar.'/appointments', $newBooking)->assertCreated()->json('data.id');
+    $this->getJson($history)->assertOk()->assertJsonCount(2, 'data.appointments.data')
+        ->assertJsonPath('data.appointments.data.0.id', $newAppointment);
+    $this->getJson($leadPath.'/'.$lead)->assertOk()->assertJsonPath('data.status', 'new');
+});
+
 test('calendar actions enforce branch access, individual permission and clinic approval', function () {
     $this->travelTo(now()->setDate(2026, 12, 1)->startOfDay());
     [$business, $owner, $branch, , $doctor, $treatment, $calendar, $otherCalendar] = clinicAppointmentFixture();

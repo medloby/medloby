@@ -26,9 +26,12 @@ export function mountClinicCrm(section, api, appointmentDialogs) {
     const stageForm = find('stage-form');
     const stageFields = stageForm.querySelector('fieldset');
     const stageStatus = find('stage-status');
-    const leads = mountCrmLeads(find('leads'), { api, onChanged: refreshDashboard });
     const operations = mountClinicOperations(find('operations'), api);
     const calendar = mountClinicCalendar(find('calendar'), api, appointmentDialogs);
+    const leads = mountCrmLeads(find('leads'), {
+        api, onChanged: refreshDashboard,
+        openAppointment: calendar.openAppointment, bookForPatient: calendar.bookForPatient,
+    });
     const profile = mountClinicProfile(find('profile'), api, (saved) => {
         title.textContent = saved.clinic.name;
         branch.selectedOptions[0].textContent = saved.branch.name;

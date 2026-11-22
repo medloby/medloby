@@ -1,3 +1,4 @@
+import { mountCrmLeadAppointments } from './crm-lead-appointments';
 import { mountCrmLeadWork } from './crm-lead-work';
 
 const statusLabels = new Map([
@@ -11,7 +12,7 @@ const statusLabels = new Map([
 const leadDate = new Intl.DateTimeFormat('tr-TR', { dateStyle: 'medium', timeZone: 'Europe/Istanbul' });
 const historyDate = new Intl.DateTimeFormat('tr-TR', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Istanbul' });
 
-export function mountCrmLeads(section, { api, onChanged }) {
+export function mountCrmLeads(section, { api, onChanged, openAppointment, bookForPatient }) {
     const find = (part, root = section) => root.querySelector('[data-leads-' + part + ']');
     const create = find('new');
     const filter = find('filter');
@@ -42,7 +43,18 @@ export function mountCrmLeads(section, { api, onChanged }) {
     const outcomeStatus = find('outcome-status');
     const outcomeChoice = outcomeForm.elements.namedItem('outcome');
     const lostReason = outcomeForm.elements.namedItem('lost_reason');
-    const leadWork = mountCrmLeadWork(find('work'), { api, onChanged });
+    const leadAppointments = mountCrmLeadAppointments(find('appointments'), {
+        api,
+        openAppointment: (appointment) => goToCalendar(() => openAppointment(appointment)),
+        bookForPatient: (patient) => goToCalendar(() => bookForPatient(patient)),
+    });
+    const leadWork = mountCrmLeadWork(find('work'), {
+        api,
+        onChanged() {
+            onChanged();
+            leadAppointments.refresh();
+        },
+    });
     let branch = null;
     let listRequest = 0;
     let page = 1;
@@ -116,6 +128,7 @@ export function mountCrmLeads(section, { api, onChanged }) {
     function resetEditor() {
         activeEditor = null;
         leadWork.setLead(null);
+        leadAppointments.setLead(null);
         editor.close();
         form.reset();
         assignee.replaceChildren();
@@ -142,6 +155,20 @@ export function mountCrmLeads(section, { api, onChanged }) {
         outcomeFields.disabled = false;
         close.disabled = false;
         showStatus(formStatus);
+    }
+
+    function goToCalendar(open) {
+        if (!activeEditor || activeEditor.saving) {
+            return;
+        }
+        const original = activeEditor.original;
+        if (original && Object.entries(formValues()).some(([field, value]) => value !== original[field])
+            && !window.confirm('Aday bilgilerinde kaydedilmemiş değişiklikler var. Takvime geçilsin mi?')) {
+            return;
+        }
+
+        resetEditor();
+        open();
     }
 
     function formValues() {
@@ -248,6 +275,7 @@ export function mountCrmLeads(section, { api, onChanged }) {
             syncStageNote();
             outcome.hidden = finalized;
             leadWork.setLead(detail, { branchCrm, members, followUpId });
+            leadAppointments.setLead(current.base + '/' + current.leadId + '/appointments');
 
             current.original = formValues();
             form.hidden = false;

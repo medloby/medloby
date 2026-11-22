@@ -207,6 +207,24 @@ export function mountCalendarBooking(area, { api, onSaved, openBookingDialog, to
     });
 
     return {
+        selectPatient(profile) {
+            if (!scope || area.hidden || fields.disabled) {
+                return;
+            }
+            scope.patientRequest++;
+            form.reset();
+            mode.value = 'profile';
+            find('patient-query').value = '';
+            resetPatient();
+            options(patient, 'Hasta seçin', [[profile.id, profile.name + ' · #' + profile.id]]);
+            patient.value = String(profile.id);
+            if (individual.open && treatment.disabled) {
+                loadTreatments(scope);
+            }
+            individual.open = true;
+            loadSlots(scope);
+            patient.focus();
+        },
         reset() {
             scope = null;
             area.hidden = true;

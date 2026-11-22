@@ -44,6 +44,8 @@ use App\Http\Controllers\ClinicCrmWorkspaceController;
 
 use App\Http\Controllers\CrmLeadController;
 
+use App\Http\Controllers\CrmLeadAppointmentController;
+
 use App\Http\Controllers\CrmTaskController;
 
 use App\Http\Controllers\CrmDashboardController;
@@ -1078,6 +1080,8 @@ Route::middleware(['auth:sanctum', 'verified', EnsureClinicCrmAccess::class])
                 CrmLeadController::class,
                 'show',
             ]);
+
+            Route::get('/{crmLead}/appointments', CrmLeadAppointmentController::class);
 
             Route::put('/{crmLead}', [
                 CrmLeadController::class,
