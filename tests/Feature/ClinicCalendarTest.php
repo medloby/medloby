@@ -5,6 +5,7 @@ use App\Models\Branch;
 use App\Models\Business;
 use App\Models\CalendarBlock;
 use App\Models\Doctor;
+use App\Models\DoctorWorkingHour;
 use App\Models\Person;
 use App\Models\Treatment;
 use App\Models\TreatmentCategory;
@@ -121,11 +122,13 @@ test('staff can change online booking settings only while assigned to that branc
     $membership->branches()->attach($this->branch->id, ['is_active' => true]);
     $path = $this->calendar.'/appointment-settings';
     $otherPath = $this->otherCalendar.'/appointment-settings';
+    $legacyPath = "/api/branches/{$this->branch->id}/appointment-settings";
 
     $this->actingAs($staff, 'sanctum')->getJson($path)->assertOk()
         ->assertJsonPath('data.settings.maximum_booking_days', 90);
-    $this->putJson($path, ['online_booking_enabled' => false, 'maximum_booking_days' => 21])->assertOk()
+    $this->putJson($legacyPath, ['online_booking_enabled' => false, 'maximum_booking_days' => 21])->assertOk()
         ->assertJsonPath('data.maximum_booking_days', 21);
+    $this->putJson($path, ['slot_interval_minutes' => 45])->assertOk()->assertJsonPath('data.slot_interval_minutes', 45);
     $this->getJson($this->day)->assertOk()->assertJsonPath('data.online_booking_enabled', false);
     $this->getJson($otherPath)->assertForbidden();
     $this->putJson($otherPath, ['maximum_booking_days' => 30])->assertForbidden();
@@ -135,8 +138,55 @@ test('staff can change online booking settings only while assigned to that branc
     $membership->branches()->updateExistingPivot($this->branch->id, ['is_active' => false]);
     $this->getJson($path)->assertForbidden();
     $this->putJson($path, ['maximum_booking_days' => 30])->assertForbidden();
-    $this->assertDatabaseHas('branch_appointment_settings', ['branch_id' => $this->branch->id, 'maximum_booking_days' => 21]);
+    $this->putJson($legacyPath, ['maximum_booking_days' => 30])->assertForbidden();
+    $this->assertDatabaseHas('branch_appointment_settings', [
+        'branch_id' => $this->branch->id, 'maximum_booking_days' => 21, 'slot_interval_minutes' => 45,
+    ]);
 });
+
+test('both calendar routes reject schedule changes without active clinic owner access', function (
+    array $memberAttributes,
+    array $branchAttributes = [],
+    array $businessAttributes = [],
+    bool $assigned = true,
+) {
+    $user = User::factory()->create();
+    $membership = $this->business->memberships()->create([
+        'user_id' => $user->id, 'role' => 'business_owner', 'is_active' => true, ...$memberAttributes,
+    ]);
+    if ($assigned) {
+        $membership->branches()->attach($this->branch->id, [
+            'is_active' => true, 'permission_names' => ['appointments.create', 'branches.manage'],
+        ]);
+    }
+    $this->branch->update($branchAttributes);
+    $this->business->update($businessAttributes);
+    $hour = DoctorWorkingHour::create([
+        'branch_id' => $this->branch->id, 'doctor_id' => $this->doctor->id, 'day_of_week' => 5,
+        'start_time' => '09:00', 'end_time' => '12:00', 'is_active' => true,
+    ]);
+    $oldHourPath = "/api/doctor-working-hours/{$hour->id}";
+
+    $this->actingAs($user, 'sanctum');
+    $this->putJson("/api/branches/{$this->branch->id}/booking-calendar", ['default_status' => 'closed'])->assertForbidden();
+    $this->putJson($this->calendar.'/rules', ['default_status' => 'closed'])->assertForbidden();
+    $this->putJson($this->calendar.'/working-hours/'.$hour->id, ['is_active' => false])->assertForbidden();
+    $this->putJson($oldHourPath, ['is_active' => false])->assertForbidden();
+    $this->patchJson($oldHourPath.'/toggle')->assertForbidden();
+    $this->deleteJson($oldHourPath)->assertForbidden();
+
+    $this->assertDatabaseCount('booking_calendar_rules', 0);
+    $this->assertDatabaseHas('doctor_working_hours', ['id' => $hour->id, 'is_active' => true]);
+})->with([
+    'assigned staff' => [['role' => 'staff']],
+    'assigned manager' => [['role' => 'manager']],
+    'legacy owner role' => [['role' => 'owner']],
+    'inactive owner membership' => [['is_active' => false]],
+    'inactive branch' => [[], ['status' => 'inactive']],
+    'suspended clinic' => [[], [], ['status' => 'suspended']],
+    'unapproved clinic' => [[], [], ['is_verified' => false]],
+    'unassigned staff' => [['role' => 'staff'], [], [], false],
+]);
 
 test('calendar settings change booking availability and cannot be edited from another branch', function () {
     $treatment = Treatment::create([

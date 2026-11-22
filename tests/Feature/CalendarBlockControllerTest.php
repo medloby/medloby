@@ -106,6 +106,7 @@ test('staff can list calendar blocks for assigned branch', function () {
         'starts_at' => '2026-10-11 09:00:00',
         'ends_at' => '2026-10-11 11:00:00',
         'block_type' => 'manual',
+        'reason' => 'Klinik sahibine özel not',
         'is_active' => true,
     ]);
 
@@ -117,7 +118,11 @@ test('staff can list calendar blocks for assigned branch', function () {
     $response
         ->assertSuccessful()
         ->assertJsonPath('success', true)
-        ->assertJsonCount(1, 'data.blocks');
+        ->assertJsonCount(1, 'data.blocks')
+        ->assertJsonPath('data.blocks.0.reason', null);
+
+    $this->actingAs($this->owner)->getJson("/api/branches/{$this->branch->id}/calendar-blocks")
+        ->assertOk()->assertJsonPath('data.blocks.0.reason', 'Klinik sahibine özel not');
 });
 
 test('business owner can create doctor calendar block', function () {
@@ -153,7 +158,7 @@ test('business owner can create doctor calendar block', function () {
     ]);
 });
 
-test('staff can create doctor calendar block for assigned branch', function () {
+test('assigned staff cannot create doctor calendar block', function () {
     $response = $this->actingAs($this->staff)
         ->postJson(
             "/api/branches/{$this->branch->id}/calendar-blocks",
@@ -164,9 +169,8 @@ test('staff can create doctor calendar block for assigned branch', function () {
             ]
         );
 
-    $response
-        ->assertCreated()
-        ->assertJsonPath('success', true);
+    $response->assertForbidden();
+    $this->assertDatabaseCount('calendar_blocks', 0);
 });
 
 test('branch wide calendar block can be created without doctor', function () {

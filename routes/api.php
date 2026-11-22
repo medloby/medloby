@@ -656,134 +656,43 @@ Route::prefix('notifications')->group(function () {
 
         */
 
-                /*
+        Route::middleware(EnsureClinicCrmAccess::class)->group(function () {
+            Route::get('/branches/{branch}/doctors/{doctor}/working-hours', [DoctorWorkingHourController::class, 'index']);
+            Route::get('/branches/{branch}/doctors/{doctor}/leaves', [DoctorLeaveController::class, 'index']);
+            Route::get('/branches/{branch}/calendar-blocks', [CalendarBlockController::class, 'index']);
 
-        |--------------------------------------------------------------------------
+            Route::middleware(EnsureClinicBranchOperationsAccess::class)->group(function () {
+                Route::post('/branches/{branch}/doctors/{doctor}/working-hours', [DoctorWorkingHourController::class, 'store']);
+                Route::put('/doctor-working-hours/{doctorWorkingHour}', [DoctorWorkingHourController::class, 'update']);
+                Route::patch('/doctor-working-hours/{doctorWorkingHour}/toggle', [DoctorWorkingHourController::class, 'toggle']);
+                Route::delete('/doctor-working-hours/{doctorWorkingHour}', [DoctorWorkingHourController::class, 'destroy']);
 
-        | Doctor Working Hours
+                Route::post('/branches/{branch}/doctors/{doctor}/leaves', [DoctorLeaveController::class, 'store']);
+                Route::put('/branches/{branch}/doctors/{doctor}/leaves/{doctorLeave}', [DoctorLeaveController::class, 'update']);
+                Route::delete('/branches/{branch}/doctors/{doctor}/leaves/{doctorLeave}', [DoctorLeaveController::class, 'deactivate']);
 
-        |--------------------------------------------------------------------------
-
-        */
-
-        Route::prefix('branches/{branch}/doctors/{doctor}/working-hours')
-
-            ->group(function () {
-
-                Route::get('/', [
-
-                    DoctorWorkingHourController::class,
-
-                    'index',
-
-                ]);
-
-                Route::post('/', [
-
-                    DoctorWorkingHourController::class,
-
-                    'store',
-
-                ]);
-
+                Route::post('/branches/{branch}/calendar-blocks', [CalendarBlockController::class, 'store']);
+                Route::put('/branches/{branch}/calendar-blocks/{calendarBlock}', [CalendarBlockController::class, 'update']);
+                Route::delete('/branches/{branch}/calendar-blocks/{calendarBlock}', [CalendarBlockController::class, 'deactivate']);
             });
 
-        Route::prefix('doctor-working-hours/{doctorWorkingHour}')
-
-            ->group(function () {
-
-                Route::put('/', [
-
-                    DoctorWorkingHourController::class,
-
-                    'update',
-
-                ]);
-
-                Route::patch('/toggle', [
-
-                    DoctorWorkingHourController::class,
-
-                    'toggle',
-
-                ]);
-
-                Route::delete('/', [
-
-                    DoctorWorkingHourController::class,
-
-                    'destroy',
-
-                ]);
-
+            Route::controller(BookingCalendarController::class)->prefix('branches/{branch}/booking-calendar')->group(function () {
+                Route::get('/', 'show');
+                Route::get('/overrides', 'overrides');
+                Route::middleware(EnsureClinicBranchOperationsAccess::class)->group(function () {
+                    Route::put('/', 'updateRule');
+                    Route::post('/overrides', 'createOverride');
+                    Route::put('/overrides/{override}', 'updateOverride');
+                    Route::delete('/overrides/{override}', 'deactivateOverride');
+                });
             });
 
-            Route::get('/branches/{branch}/doctors/{doctor}/leaves', [
-    DoctorLeaveController::class,
-    'index',
-]);
-
-Route::post('/branches/{branch}/doctors/{doctor}/leaves', [
-    DoctorLeaveController::class,
-    'store',
-]);
-
-Route::put('/branches/{branch}/doctors/{doctor}/leaves/{doctorLeave}', [
-    DoctorLeaveController::class,
-    'update',
-]);
-
-Route::delete('/branches/{branch}/doctors/{doctor}/leaves/{doctorLeave}', [
-    DoctorLeaveController::class,
-    'deactivate',
-]);
-
-Route::get('/branches/{branch}/calendar-blocks', [
-    CalendarBlockController::class,
-    'index',
-]);
-
-Route::post('/branches/{branch}/calendar-blocks', [
-    CalendarBlockController::class,
-    'store',
-]);
-
-Route::put('/branches/{branch}/calendar-blocks/{calendarBlock}', [
-    CalendarBlockController::class,
-    'update',
-]);
-
-Route::delete('/branches/{branch}/calendar-blocks/{calendarBlock}', [
-    CalendarBlockController::class,
-    'deactivate',
-]);
-
-        /*
-        |--------------------------------------------------------------------------
-        | Branch Appointment Settings
-        |--------------------------------------------------------------------------
-        */
-
-        Route::prefix('branches/{branch}/appointment-settings')->group(function () {
-            Route::get('/', [
-                BranchAppointmentSettingController::class,
-                'show',
-            ]);
-
-            Route::post('/', [
-                BranchAppointmentSettingController::class,
-                'store',
-            ]);
-
-            Route::put('/', [
-                BranchAppointmentSettingController::class,
-                'update',
-            ]);
-
-            Route::post('/reset', [
-                BranchAppointmentSettingController::class,
-                'reset',
-            ]);
+            Route::controller(BranchAppointmentSettingController::class)->prefix('branches/{branch}/appointment-settings')->group(function () {
+                Route::get('/', 'show');
+                Route::post('/', 'store');
+                Route::put('/', 'update');
+                Route::post('/reset', 'reset');
+            });
         });
 
 /*
@@ -819,38 +728,6 @@ Route::prefix('branches')->group(function () {
     ]);
 });
    
-Route::prefix('branches/{branch}/booking-calendar')->group(function () {
-    Route::get('/', [
-        BookingCalendarController::class,
-        'show',
-    ]);
-
-    Route::put('/', [
-        BookingCalendarController::class,
-        'updateRule',
-    ]);
-
-    Route::get('/overrides', [
-        BookingCalendarController::class,
-        'overrides',
-    ]);
-
-    Route::post('/overrides', [
-        BookingCalendarController::class,
-        'createOverride',
-    ]);
-
-    Route::put('/overrides/{override}', [
-        BookingCalendarController::class,
-        'updateOverride',
-    ]);
-
-    Route::delete('/overrides/{override}', [
-        BookingCalendarController::class,
-        'deactivateOverride',
-    ]);
-});
-
 Route::prefix('appointments')->group(function () {
 
             Route::get('/', [

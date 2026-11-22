@@ -160,7 +160,7 @@ test('business owner can create doctor working hour', function () {
     ]);
 });
 
-test('staff can create doctor working hour for assigned branch', function () {
+test('assigned staff cannot create doctor working hour', function () {
     $response = $this->actingAs($this->staff)
         ->postJson(
             "/api/branches/{$this->branch->id}/doctors/{$this->doctor->id}/working-hours",
@@ -171,9 +171,8 @@ test('staff can create doctor working hour for assigned branch', function () {
             ]
         );
 
-    $response
-        ->assertCreated()
-        ->assertJsonPath('success', true);
+    $response->assertForbidden();
+    $this->assertDatabaseCount('doctor_working_hours', 0);
 });
 
 test('invalid time range is rejected', function () {

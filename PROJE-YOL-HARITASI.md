@@ -1,18 +1,17 @@
 # Medloby mimarisi ve proje yol haritası
 
-**İnceleme tarihi** 22 Kasım 2026 · **İncelenen sürüm** `main / 668980d`
+**İnceleme tarihi** 22 Kasım 2026 · **Envanterin dayandığı sürüm** `main / eb56f3d`
 
 **Güncel durum** Klinik ve personel hesapları, CRM takip hatırlatmaları, adaydan şube randevusuna geçiş, sözleşme yönetimi ve platform yöneticisinin klinik yönetim ekranı test ortamında tamamlandı. Canlı e-posta, üretim zamanlayıcısı ve yedeklemesi, işletmeci bilgileri ve KVKK onayları yayın öncesi kontrol listesinde takip ediliyor. [Yayın öncesi kontrol listesi](README.md#medloby-yayına-çıkmadan-önce)
 
 ## Kapsam ve doğrulama
 
-GitHub'daki `main` ile geliştirme kopyasının aynı commit'te olduğu doğrulandı. Envanter, Git'in izlediği 375 dosyayı kapsadı. Uygulama, şema, ön yüz, testler, ayarlar, kilit dosyaları ve lisans bildirimleri incelendi. Yerel veri ve Git dışındaki dosyalar depo kapsamı dışında. Depoda 120 uygulama dosyası, 61 migration, 46 model, 11 servis ve 66 Feature test dosyası bulunuyor. Laravel rota listesindeki 164 API ve 2 web uç noktası esas alındı.
+Envanter, Git'in izlediği 476 dosyayı kapsadı. Depoda 152 uygulama dosyası, 66 migration, 47 model, 16 servis ve 82 Feature test dosyası bulunuyor. Laravel rota listesinde 232 API ucu ve 13 web veya sistem rotası var. [API rotaları](routes/api.php)
 
-- PHP 8.4.28 ve Node 24.22.3 ile kilitli PHP ortam gereksinimleri, 291 PHP dosyasının sözdizimi, JavaScript sözdizimi ve Vite derlemesi geçti.
-- Pest'te **781 test, 2.710 doğrulama** geçti. Bu sonuç testlerin SQLite kullandığı geliştirme ortamına ait.
-- Mobil Chromium'da yapay verilerle başvuru, onaydan CRM’e geçiş, hasta adayı kaydı, sayfalama, filtreleme ve şube ayrımı doğrulandı.
-- Tüm 61 migration yerel SQLite veritabanına uygulanmış. Klinik üyeliği için `0.2-draft` hazırlandı. Başvuru formu, geçerli ve yayımlanmış zorunlu sözleşme olduğunda açılır.
-- Bu incelemedeki bağımlılık bulguları Aşama 1.3’te ele alındı. PHP kilit dosyası GitHub Advisory Database üzerinden tarandı.
+- Kilitli PHP ortam gereksinimleri, 371 PHP dosyasının sözdizimi ve Vite derlemesi geçti.
+- Envanterin dayandığı sürümde SQLite ve PostgreSQL 17 yapılandırmalarıyla **879’ar test** geçti. Sonraki uygulama sonuçları geliştirme sırasındaki ilgili maddede yer alır.
+- Klinik üyeliği için `0.2-draft` hazırlandı. Başvuru formu, geçerli ve yayımlanmış zorunlu sözleşme olduğunda açılır.
+- npm taramasında ve kilitli 133 PHP paket sürümü için GitHub Advisory Database taramasında eşleşen bildirim bulunmadı.
 
 ## Mimari
 
@@ -64,6 +63,8 @@ flowchart LR
 | Sağlık verisi ve bekleme listesi | Tıbbi kayıt, onam ve bekleme listesi için şema ve modeller | Kullanıcı akışları, erişim ve saklama kararları. Bu modüllerin kapsamı ürün kararıyla belirlenecek |
 | Yayın ve operasyon | Yerel kurulum, otomatik derleme ve test, yerel font ve lisans bildirimleri, SQLite yedekleme ve geri yükleme provası, `/up` adresinden uygulama ve veritabanı erişim kontrolü | Üretim kurulumu ve yedekleme, canlı izleme ve yayın öncesi kontroller |
 
+İlk sürüm için klinik başvurusunda üç abonelik paketinden birinin seçilip seçilmeyeceği ve hangi CRM özelliklerinin zorunlu olacağı ürün kararı bekliyor. Muhasebe, faturalama, bağımsız destek talepleri, hasta yolculuğu ve sağlık turizmi operasyonları için kullanıcı akışları ayrıca tanımlanacak. [Klinik başvuru akışı](app/Http/Controllers/BusinessRegistrationController.php)
+
 Adayı sonuçlandırma işlemi durum ve tarih kaydeder. Adayın profil bağlantısı şubeyle ilişkisi doğrulanabilen hastalar için kurulur. Aday ayrıntısındaki randevu listesi bu profilin adayın şubesindeki kayıtlarıyla sınırlıdır. CRM özeti başarılı ve sonuçsuz adayları kayıtlı sonuca göre sayar. [CRM aday işlemleri](app/Http/Controllers/CrmLeadController.php) · [Aday randevuları](app/Http/Controllers/CrmLeadAppointmentController.php) · [CRM raporu](app/Http/Controllers/CrmDashboardController.php)
 
 ## Geliştirme sırası
@@ -76,6 +77,9 @@ Adayı sonuçlandırma işlemi durum ve tarih kaydeder. Adayın profil bağlant�
   - [x] CRM adayı, aynı şubede görüşmesi veya doğrulanabilir randevusu olan hastaya ve yetkili personele bağlanabiliyor. Görüşmeler, mesajlar, teklifler ve ekler klinik ve şube yetkisine göre açılıyor. Şube seçilmeden açılan görüşmeler aktif klinik üyelerine açık. Klinik askıya alındığında hasta geçmişini görebiliyor ve yeni görüşme, mesaj, teklif yanıtı ve teklife bağlı randevu işlemleri duruyor. 795 test geçti. [CRM ve görüşme erişimi](https://github.com/medloby/medloby/commit/7ed1d7fcca430dfc8095e44ad8eb0e06145f3575)
   - [x] Görüşme ve teklif yanıtlarında kişi, klinik ve ek dosya bilgileri sınırlandı. Hastanın telefonu ve doğum tarihi, personelin hesap e-postası ve dosyanın depolama bilgileri bu yanıtlardan çıkarıldı. CRM aday bağlantısı şube yetkisiyle açılan CRM işleminde görülür. Hasta ve klinik yetkileri, dosya açma, teklif yanıtı ve paket seanslarının kaydı test edildi. 836 test, 3.679 doğrulama ve Vite derlemesi geçti. [Görüşme testi](tests/Feature/ConversationTest.php) · [Teklif testi](tests/Feature/OfferTest.php)
 - [x] **1.3** Güvenlik duyurularına göre iki PHP ve dört JavaScript paketinin kilitli sürümleri güncellendi. Güncel kilit dosyalarında `npm audit` ve GitHub Advisory Database taramaları eşleşen güvenlik bildirimi bulmadı. PHP ortam gereksinimleri, 795 test ve Vite derlemesi geçti. [Bağımlılık güncellemeleri](https://github.com/medloby/medloby/commit/214a18389834151e15f136f317b4a1e534e9af87)
+- [x] **1.4** Eski ve güncel takvim uçları aynı klinik ve şube erişim kontrolünü kullanır. Takvim kuralı, tarih istisnası, saat engeli, hekim çalışma saati ve izin değişiklikleri aktif klinik sahibine açıktır. Şubeye atanmış personel mevcut görüntüleme, randevu ayarı ve kendisine verilen işlem yetkilerini kullanmaya devam eder. Takvim engeli gerekçesini klinik sahibi görür. 245 mevcut rota korunmuştur. SQLite ve PostgreSQL yapılandırmalarıyla 887’şer test geçti. Yerel SQLite üyelik tablosu boştu. Eski `owner` kayıtlarının üretim verisi varsa rol eşlemesi o veri üzerinden doğrulanacak. [Takvim yetki testleri](tests/Feature/ClinicCalendarTest.php)
+- [ ] **1.5** Hekime özel fiyatın tedavi atamasından önce tanımlanıp tanımlanamayacağını kararlaştır. Mevcut fiyat kaydı hekim, klinik, şube ve tedavinin ilgili kontrollerini yapar. Mevcut test, aktif hekim–tedavi ataması henüz eklenmeden fiyat kaydına izin verir. Randevu uygunluğu aktif hekim–tedavi atamasını ayrıca gerektirir. [Fiyat testi](tests/Feature/TreatmentPriceControllerTest.php) · [Randevu uygunluğu](app/Services/AppointmentAvailabilityService.php)
+- [ ] **1.6** Eski şube yönetimindeki işletme geneli `branches.manage` izninin kapsamını doğrula. Eski API bu izinle şube oluşturma ve güncellemeyi destekler. CRM’de şube oluşturma ve durum değiştirme klinik sahibine açıktır. Yetkiyi kullanan hesaplar ve istemciler belirlendikten sonra şube yönetimi kuralı ortaklaştırılacak. [Eski şube işlemleri](app/Http/Controllers/BranchController.php) · [CRM şube yönetimi](app/Http/Controllers/ClinicProfileController.php)
 
 Aşama, olumsuz yetki testleri ve kendi kliniğinde çalışan olumlu akışlarla tamamlanır. Bundan sonra CRM düzenleme ekranına geçilir.
 

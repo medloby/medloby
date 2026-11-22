@@ -11,9 +11,9 @@ use Illuminate\Validation\ValidationException;
 
 class DoctorLeaveController extends Controller
 {
-    public function index(Request $request, Branch $branch, Doctor $doctor): JsonResponse
+    public function index(Branch $branch, Doctor $doctor): JsonResponse
     {
-        $this->authorizeAccess($request, $branch, $doctor);
+        $this->ensureDoctorAssignment($branch, $doctor);
 
         $leaves = DoctorLeave::query()
             ->where('doctor_id', $doctor->id)
@@ -34,7 +34,7 @@ class DoctorLeaveController extends Controller
 
     public function store(Request $request, Branch $branch, Doctor $doctor): JsonResponse
     {
-        $this->authorizeAccess($request, $branch, $doctor);
+        $this->ensureDoctorAssignment($branch, $doctor);
 
         $validated = $request->validate([
             'start_date' => ['required', 'date'],
@@ -75,8 +75,7 @@ class DoctorLeaveController extends Controller
         Doctor $doctor,
         DoctorLeave $doctorLeave
     ): JsonResponse {
-        $this->authorizeLeaveAccess(
-            $request,
+        $this->ensureLeaveScope(
             $branch,
             $doctor,
             $doctorLeave
@@ -113,13 +112,11 @@ class DoctorLeaveController extends Controller
     }
 
     public function deactivate(
-        Request $request,
         Branch $branch,
         Doctor $doctor,
         DoctorLeave $doctorLeave
     ): JsonResponse {
-        $this->authorizeLeaveAccess(
-            $request,
+        $this->ensureLeaveScope(
             $branch,
             $doctor,
             $doctorLeave
@@ -135,60 +132,25 @@ class DoctorLeaveController extends Controller
         ]);
     }
 
-    private function authorizeAccess(
-        Request $request,
-        Branch $branch,
-        Doctor $doctor
-    ): void {
-        if (!$request->user()) {
-            abort(401);
-        }
-
-        $businessUser = $request->user()
-            ->businessMemberships()
-            ->where('business_id', $branch->business_id)
-            ->where('is_active', true)
-            ->first();
-
-        if (!$businessUser) {
-            abort(403);
-        }
-
-        $isOwner = in_array(
-            $businessUser->role,
-            ['business_owner', 'owner'],
-            true
-        );
-
-        if (!$isOwner) {
-            $hasBranchAccess = $businessUser->branches()
-                ->where('branches.id', $branch->id)
-                ->wherePivot('is_active', true)
-                ->exists();
-
-            if (!$hasBranchAccess) {
-                abort(403);
-            }
-        }
-
+    private function ensureDoctorAssignment(Branch $branch, Doctor $doctor): void
+    {
         $doctorBelongsToBranch = $doctor->person()->where('business_id', $branch->business_id)->exists()
             && $doctor->branches()
                 ->where('branches.id', $branch->id)
                 ->wherePivot('status', 'active')
                 ->exists();
 
-        if (!$doctorBelongsToBranch) {
+        if (! $doctorBelongsToBranch) {
             abort(422, 'Doctor is not assigned to this branch.');
         }
     }
 
-    private function authorizeLeaveAccess(
-        Request $request,
+    private function ensureLeaveScope(
         Branch $branch,
         Doctor $doctor,
         DoctorLeave $doctorLeave
     ): void {
-        $this->authorizeAccess($request, $branch, $doctor);
+        $this->ensureDoctorAssignment($branch, $doctor);
 
         if ($doctorLeave->doctor_id !== $doctor->id) {
             abort(404);

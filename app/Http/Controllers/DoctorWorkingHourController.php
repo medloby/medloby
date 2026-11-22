@@ -15,16 +15,9 @@ class DoctorWorkingHourController extends Controller
     /**
      * Doktorun belirli şubedeki çalışma saatlerini listeler.
      */
-    public function index(
-        Request $request,
-        Branch $branch,
-        Doctor $doctor
-    ): JsonResponse {
-        $this->ensureBusinessBranchDoctorAccess(
-            $request,
-            $branch,
-            $doctor
-        );
+    public function index(Branch $branch, Doctor $doctor): JsonResponse
+    {
+        $this->ensureDoctorAssignment($branch, $doctor);
 
         $workingHours = DoctorWorkingHour::query()
             ->where('branch_id', $branch->id)
@@ -58,11 +51,7 @@ class DoctorWorkingHourController extends Controller
         Branch $branch,
         Doctor $doctor
     ): JsonResponse {
-        $this->ensureBusinessBranchDoctorAccess(
-            $request,
-            $branch,
-            $doctor
-        );
+        $this->ensureDoctorAssignment($branch, $doctor);
 
         $validated = $request->validate([
             'day_of_week' => [
@@ -139,10 +128,7 @@ class DoctorWorkingHourController extends Controller
         Request $request,
         DoctorWorkingHour $doctorWorkingHour
     ): JsonResponse {
-        $this->ensureWorkingHourAccess(
-            $request,
-            $doctorWorkingHour
-        );
+        $this->ensureWorkingHourAssignment($doctorWorkingHour);
 
         $validated = $request->validate([
             'day_of_week' => [
@@ -221,14 +207,9 @@ class DoctorWorkingHourController extends Controller
     /**
      * Çalışma saatini aktif/pasif yapar.
      */
-    public function toggle(
-        Request $request,
-        DoctorWorkingHour $doctorWorkingHour
-    ): JsonResponse {
-        $this->ensureWorkingHourAccess(
-            $request,
-            $doctorWorkingHour
-        );
+    public function toggle(DoctorWorkingHour $doctorWorkingHour): JsonResponse
+    {
+        $this->ensureWorkingHourAssignment($doctorWorkingHour);
 
         $newStatus = ! $doctorWorkingHour->is_active;
 
@@ -268,14 +249,9 @@ class DoctorWorkingHourController extends Controller
     /**
      * Çalışma saatini siler.
      */
-    public function destroy(
-        Request $request,
-        DoctorWorkingHour $doctorWorkingHour
-    ): JsonResponse {
-        $this->ensureWorkingHourAccess(
-            $request,
-            $doctorWorkingHour
-        );
+    public function destroy(DoctorWorkingHour $doctorWorkingHour): JsonResponse
+    {
+        $this->ensureWorkingHourAssignment($doctorWorkingHour);
 
         $doctorWorkingHour->delete();
 
@@ -285,38 +261,8 @@ class DoctorWorkingHourController extends Controller
         ]);
     }
 
-    /**
-     * Kullanıcının şube ve doktor üzerinde erişimi var mı?
-     */
-    private function ensureBusinessBranchDoctorAccess(
-        Request $request,
-        Branch $branch,
-        Doctor $doctor
-    ): void {
-        $user = $request->user();
-
-        $isBusinessUser = $user->businessMemberships()
-            ->where('business_id', $branch->business_id)
-            ->where('is_active', true)
-            ->exists();
-
-        if (! $isBusinessUser) {
-            abort(
-                403,
-                'Bu işletmeye erişim yetkiniz yok.'
-            );
-        }
-
-        if (! $user->hasBusinessBranchAccess(
-            (int) $branch->business_id,
-            (int) $branch->id
-        )) {
-            abort(
-                403,
-                'Bu şubeye erişim yetkiniz yok.'
-            );
-        }
-
+    private function ensureDoctorAssignment(Branch $branch, Doctor $doctor): void
+    {
         $doctorBelongsToBranch = $doctor->person()->where('business_id', $branch->business_id)->exists()
             && $doctor->branches()
                 ->where('branches.id', $branch->id)
@@ -331,24 +277,11 @@ class DoctorWorkingHourController extends Controller
         }
     }
 
-    /**
-     * Mevcut çalışma saatinin bağlı olduğu
-     * işletme, şube ve doktor erişimini kontrol eder.
-     */
-    private function ensureWorkingHourAccess(
-        Request $request,
-        DoctorWorkingHour $doctorWorkingHour
-    ): void {
-        $branch = Branch::query()
-            ->findOrFail($doctorWorkingHour->branch_id);
-
-        $doctor = Doctor::query()
-            ->findOrFail($doctorWorkingHour->doctor_id);
-
-        $this->ensureBusinessBranchDoctorAccess(
-            $request,
-            $branch,
-            $doctor
+    private function ensureWorkingHourAssignment(DoctorWorkingHour $workingHour): void
+    {
+        $this->ensureDoctorAssignment(
+            $workingHour->branch ?? abort(404),
+            $workingHour->doctor ?? abort(404)
         );
     }
 }

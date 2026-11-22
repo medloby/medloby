@@ -146,7 +146,7 @@ test('business owner can create doctor leave', function () {
     ]);
 });
 
-test('staff can create doctor leave for assigned branch', function () {
+test('assigned staff cannot create doctor leave', function () {
     $response = $this->actingAs($this->staff)
         ->postJson(
             "/api/branches/{$this->branch->id}/doctors/{$this->doctor->id}/leaves",
@@ -156,9 +156,8 @@ test('staff can create doctor leave for assigned branch', function () {
             ]
         );
 
-    $response
-        ->assertCreated()
-        ->assertJsonPath('success', true);
+    $response->assertForbidden();
+    $this->assertDatabaseCount('doctor_leaves', 0);
 });
 
 test('end date before start date is rejected', function () {

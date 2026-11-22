@@ -1,7 +1,6 @@
 <?php
 
 use App\Models\BookingCalendarOverride;
-use App\Models\BookingCalendarRule;
 use App\Models\Branch;
 use App\Models\Business;
 use App\Models\BusinessUser;
@@ -18,7 +17,7 @@ function createCalendarBusinessUser(): array
     $branch = Branch::create([
         'business_id' => $business->id,
         'name' => 'Test Şubesi',
-        'slug' => 'test-subesi-' . Str::random(10),
+        'slug' => 'test-subesi-'.Str::random(10),
         'country_code' => 'TR',
         'city' => 'Istanbul',
         'district' => 'Kadikoy',
@@ -30,7 +29,7 @@ function createCalendarBusinessUser(): array
     $businessUser = BusinessUser::create([
         'business_id' => $business->id,
         'user_id' => $user->id,
-        'role' => 'owner',
+        'role' => 'business_owner',
         'is_active' => true,
     ]);
 
@@ -312,7 +311,7 @@ test('business user cannot access another business branch calendar', function ()
     $otherBranch = Branch::create([
         'business_id' => $otherBusiness->id,
         'name' => 'Başka İşletme Şubesi',
-        'slug' => 'diger-subesi-' . Str::random(10),
+        'slug' => 'diger-subesi-'.Str::random(10),
         'country_code' => 'TR',
         'city' => 'Istanbul',
         'district' => 'Besiktas',
@@ -336,7 +335,7 @@ test('business user cannot update another business branch calendar', function ()
     $otherBranch = Branch::create([
         'business_id' => $otherBusiness->id,
         'name' => 'Başka İşletme Şubesi',
-        'slug' => 'diger-subesi-' . Str::random(10),
+        'slug' => 'diger-subesi-'.Str::random(10),
         'country_code' => 'TR',
         'city' => 'Istanbul',
         'district' => 'Besiktas',
@@ -373,7 +372,7 @@ test('override belonging to another branch cannot be updated', function () {
     $otherBranch = Branch::create([
         'business_id' => $otherBusiness->id,
         'name' => 'Başka Şube',
-        'slug' => 'baska-sube-' . Str::random(10),
+        'slug' => 'baska-sube-'.Str::random(10),
         'country_code' => 'TR',
         'city' => 'Istanbul',
         'district' => 'Sisli',

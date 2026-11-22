@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Middleware\EnsureClinicCrmAccess;
 use App\Models\Branch;
 use App\Models\CalendarBlock;
 use App\Models\Doctor;
@@ -13,10 +14,9 @@ class CalendarBlockController extends Controller
 {
     public function index(Request $request, Branch $branch): JsonResponse
     {
-        $this->authorizeBranchAccess($request, $branch);
-
-        $query = CalendarBlock::query()
-            ->where('branch_id', $branch->id)
+        $canManage = $request->attributes->get(EnsureClinicCrmAccess::class)->role === 'business_owner';
+        $query = $branch->calendarBlocks()
+            ->where('business_id', $branch->business_id)
             ->where('is_active', true);
 
         if ($request->filled('doctor_id')) {
@@ -33,7 +33,11 @@ class CalendarBlockController extends Controller
 
         $blocks = $query
             ->orderBy('starts_at')
-            ->get();
+            ->get()
+            ->map(fn (CalendarBlock $block): array => [
+                ...$block->toArray(),
+                'reason' => $canManage ? $block->reason : null,
+            ]);
 
         return response()->json([
             'success' => true,
@@ -45,8 +49,6 @@ class CalendarBlockController extends Controller
 
     public function store(Request $request, Branch $branch): JsonResponse
     {
-        $this->authorizeBranchAccess($request, $branch);
-
         $validated = $request->validate([
             'doctor_id' => ['nullable', 'integer', 'exists:doctors,id'],
             'starts_at' => ['required', 'date'],
@@ -59,7 +61,7 @@ class CalendarBlockController extends Controller
 
         $doctor = null;
 
-        if (!empty($validated['doctor_id'])) {
+        if (! empty($validated['doctor_id'])) {
             $doctor = Doctor::findOrFail($validated['doctor_id']);
             $this->authorizeDoctorBranch($doctor, $branch);
         }
@@ -95,11 +97,7 @@ class CalendarBlockController extends Controller
         Branch $branch,
         CalendarBlock $calendarBlock
     ): JsonResponse {
-        $this->authorizeBlockAccess(
-            $request,
-            $branch,
-            $calendarBlock
-        );
+        $this->ensureBlockScope($branch, $calendarBlock);
 
         $validated = $request->validate([
             'doctor_id' => ['nullable', 'integer', 'exists:doctors,id'],
@@ -143,15 +141,10 @@ class CalendarBlockController extends Controller
     }
 
     public function deactivate(
-        Request $request,
         Branch $branch,
         CalendarBlock $calendarBlock
     ): JsonResponse {
-        $this->authorizeBlockAccess(
-            $request,
-            $branch,
-            $calendarBlock
-        );
+        $this->ensureBlockScope($branch, $calendarBlock);
 
         $calendarBlock->update([
             'is_active' => false,
@@ -163,54 +156,9 @@ class CalendarBlockController extends Controller
         ]);
     }
 
-    private function authorizeBranchAccess(
-        Request $request,
-        Branch $branch
-    ): void {
-        if (!$request->user()) {
-            abort(401);
-        }
-
-        $businessMembership = $request->user()
-            ->businessMemberships()
-            ->where('business_id', $branch->business_id)
-            ->where('is_active', true)
-            ->first();
-
-        if (!$businessMembership) {
-            abort(403);
-        }
-
-        $isOwner = in_array(
-            $businessMembership->role,
-            ['business_owner', 'owner'],
-            true
-        );
-
-        if ($isOwner) {
-            return;
-        }
-
-        $hasBranchAccess = $businessMembership->branches()
-            ->where('branches.id', $branch->id)
-            ->wherePivot('is_active', true)
-            ->exists();
-
-        if (!$hasBranchAccess) {
-            abort(403);
-        }
-    }
-
-    private function authorizeBlockAccess(
-        Request $request,
-        Branch $branch,
-        CalendarBlock $calendarBlock
-    ): void {
-        $this->authorizeBranchAccess($request, $branch);
-
-        if ($calendarBlock->branch_id !== $branch->id) {
-            abort(404);
-        }
+    private function ensureBlockScope(Branch $branch, CalendarBlock $block): void
+    {
+        abort_unless($block->branch_id === $branch->id && $block->business_id === $branch->business_id, 404);
     }
 
     private function authorizeDoctorBranch(
@@ -223,7 +171,7 @@ class CalendarBlockController extends Controller
                 ->wherePivot('status', 'active')
                 ->exists();
 
-        if (!$belongsToBranch) {
+        if (! $belongsToBranch) {
             abort(422, 'Doctor is not assigned to this branch.');
         }
     }

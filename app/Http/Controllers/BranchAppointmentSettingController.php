@@ -15,15 +15,8 @@ class BranchAppointmentSettingController extends Controller
      *
      * Ayar kaydı yoksa varsayılan ayarları döndürür.
      */
-    public function show(
-        Request $request,
-        Branch $branch
-    ): JsonResponse {
-        $this->ensureBusinessBranchAccess(
-            $request,
-            $branch
-        );
-
+    public function show(Branch $branch): JsonResponse
+    {
         $settings = $branch->appointmentSetting;
 
         if (! $settings) {
@@ -46,11 +39,6 @@ class BranchAppointmentSettingController extends Controller
         Request $request,
         Branch $branch
     ): JsonResponse {
-        $this->ensureBusinessBranchAccess(
-            $request,
-            $branch
-        );
-
         if ($branch->appointmentSetting) {
             return response()->json([
                 'success' => false,
@@ -79,11 +67,6 @@ class BranchAppointmentSettingController extends Controller
         Request $request,
         Branch $branch
     ): JsonResponse {
-        $this->ensureBusinessBranchAccess(
-            $request,
-            $branch
-        );
-
         $validated = $this->validateSettings(
             $request,
             true
@@ -107,15 +90,8 @@ class BranchAppointmentSettingController extends Controller
     /**
      * Ayarları sistem varsayılanlarına döndürür.
      */
-    public function reset(
-        Request $request,
-        Branch $branch
-    ): JsonResponse {
-        $this->ensureBusinessBranchAccess(
-            $request,
-            $branch
-        );
-
+    public function reset(Branch $branch): JsonResponse
+    {
         $defaults = $this->defaultSettings(
             $branch,
             false
@@ -270,32 +246,4 @@ class BranchAppointmentSettingController extends Controller
     /**
      * Kullanıcının işletme ve şube erişimini kontrol eder.
      */
-    private function ensureBusinessBranchAccess(
-        Request $request,
-        Branch $branch
-    ): void {
-        $user = $request->user();
-
-        $isBusinessUser = $user->businessMemberships()
-            ->where('business_id', $branch->business_id)
-            ->where('is_active', true)
-            ->exists();
-
-        if (! $isBusinessUser) {
-            abort(
-                403,
-                'Bu işletmeye erişim yetkiniz yok.'
-            );
-        }
-
-        if (! $user->hasBusinessBranchAccess(
-            (int) $branch->business_id,
-            (int) $branch->id
-        )) {
-            abort(
-                403,
-                'Bu şubeye erişim yetkiniz yok.'
-            );
-        }
-    }
 }

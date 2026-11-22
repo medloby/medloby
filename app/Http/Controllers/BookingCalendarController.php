@@ -7,7 +7,6 @@ use App\Models\BookingCalendarRule;
 use App\Models\Branch;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class BookingCalendarController extends Controller
@@ -15,17 +14,8 @@ class BookingCalendarController extends Controller
     /**
      * Şubenin mevcut booking calendar ayarlarını getirir.
      */
-    public function show(Request $request, Branch $branch): JsonResponse
+    public function show(Branch $branch): JsonResponse
     {
-        $user = $request->user();
-
-        if (! $this->canAccessBranch($user, $branch)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Bu şubeye erişim yetkiniz yok.',
-            ], 403);
-        }
-
         $rule = BookingCalendarRule::query()
             ->where('branch_id', $branch->id)
             ->where('is_active', true)
@@ -55,15 +45,6 @@ class BookingCalendarController extends Controller
         Request $request,
         Branch $branch
     ): JsonResponse {
-        $user = $request->user();
-
-        if (! $this->canAccessBranch($user, $branch)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Bu şubeye erişim yetkiniz yok.',
-            ], 403);
-        }
-
         $validated = $request->validate([
             'default_status' => [
                 'required',
@@ -107,15 +88,6 @@ class BookingCalendarController extends Controller
         Request $request,
         Branch $branch
     ): JsonResponse {
-        $user = $request->user();
-
-        if (! $this->canAccessBranch($user, $branch)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Bu şubeye erişim yetkiniz yok.',
-            ], 403);
-        }
-
         $validated = $request->validate([
             'start_date' => [
                 'required',
@@ -159,19 +131,8 @@ class BookingCalendarController extends Controller
     /**
      * Aktif özel takvim kayıtlarını listeler.
      */
-    public function overrides(
-        Request $request,
-        Branch $branch
-    ): JsonResponse {
-        $user = $request->user();
-
-        if (! $this->canAccessBranch($user, $branch)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Bu şubeye erişim yetkiniz yok.',
-            ], 403);
-        }
-
+    public function overrides(Branch $branch): JsonResponse
+    {
         $overrides = BookingCalendarOverride::query()
             ->where('branch_id', $branch->id)
             ->where('is_active', true)
@@ -192,19 +153,9 @@ class BookingCalendarController extends Controller
      * Geçmiş kayıtların korunması için soft-deactivate mantığı kullanıyoruz.
      */
     public function deactivateOverride(
-        Request $request,
         Branch $branch,
         BookingCalendarOverride $override
     ): JsonResponse {
-        $user = $request->user();
-
-        if (! $this->canAccessBranch($user, $branch)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Bu şubeye erişim yetkiniz yok.',
-            ], 403);
-        }
-
         if ($override->branch_id !== $branch->id) {
             return response()->json([
                 'success' => false,
@@ -231,15 +182,6 @@ class BookingCalendarController extends Controller
         Branch $branch,
         BookingCalendarOverride $override
     ): JsonResponse {
-        $user = $request->user();
-
-        if (! $this->canAccessBranch($user, $branch)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Bu şubeye erişim yetkiniz yok.',
-            ], 403);
-        }
-
         if ($override->branch_id !== $branch->id) {
             return response()->json([
                 'success' => false,
@@ -288,32 +230,5 @@ class BookingCalendarController extends Controller
             'message' => 'Takvim özel tarih ayarı güncellendi.',
             'data' => $override->fresh(),
         ]);
-    }
-
-    /**
-     * Kullanıcının ilgili şubeye erişimi var mı?
-     *
-     * İşletme sahibi / yetkili kullanıcı:
-     * Business üyeliği üzerinden kontrol edilir.
-     *
-     * Hasta:
-     * Takvim yönetimi yapamaz.
-     */
-    protected function canAccessBranch(
-        $user,
-        Branch $branch
-    ): bool {
-        if (! $user) {
-            return false;
-        }
-
-        return $user->businessMemberships()
-            ->where('business_id', $branch->business_id)
-            ->where('is_active', true)
-            ->exists()
-            && $user->hasBusinessBranchAccess(
-                (int) $branch->business_id,
-                (int) $branch->id
-            );
     }
 }
