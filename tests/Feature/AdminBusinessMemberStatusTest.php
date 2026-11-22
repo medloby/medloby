@@ -157,6 +157,20 @@ test('admin can toggle member status multiple times', function () {
     ]);
 });
 
+test('an explicit membership status can be retried and disabling managed staff revokes their tokens', function () {
+    $admin = createMemberStatusAdmin();
+    $business = Business::factory()->create();
+    $staff = User::factory()->unverified()->create(['email' => null, 'login_code' => 'deneme-clinic-user', 'staff_business_id' => $business->id]);
+    $member = $business->memberships()->create(['user_id' => $staff->id, 'role' => 'staff', 'is_active' => true]);
+    $staff->createToken('staff-test');
+    $path = "/api/admin/businesses/{$business->id}/members/{$member->id}/status";
+
+    $this->actingAs($admin, 'sanctum')->putJson($path, ['is_active' => false])->assertOk()->assertJsonPath('data.is_active', false);
+    $this->putJson($path, ['is_active' => false])->assertOk()->assertJsonPath('data.is_active', false);
+    $this->assertDatabaseMissing('personal_access_tokens', ['tokenable_id' => $staff->id]);
+    $this->putJson($path, ['is_active' => true])->assertOk()->assertJsonPath('data.is_active', true);
+});
+
 test('admin cannot change member status belonging to another business', function () {
     $admin = createMemberStatusAdmin();
 

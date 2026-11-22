@@ -17,12 +17,13 @@ class AdminBusinessMembershipController extends Controller
     ): JsonResponse {
         $memberships = $business->memberships()
             ->with([
-                'user:id,name,email,email_verified_at',
+                'user:id,name,email,email_verified_at,login_code',
             ])
             ->latest()
+            ->orderByDesc('id')
             ->paginate(
                 min(
-                    (int) $request->input('per_page', 20),
+                    max((int) $request->input('per_page', 20), 1),
                     100
                 )
             );
@@ -30,6 +31,6 @@ class AdminBusinessMembershipController extends Controller
         return response()->json([
             'success' => true,
             'data' => $memberships,
-        ]);
+        ])->header('Cache-Control', 'private, no-store');
     }
 }

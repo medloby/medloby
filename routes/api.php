@@ -186,6 +186,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
             ->group(function () {
 
+                Route::get('/directory', [AdminBusinessController::class, 'directory']);
+
                 Route::get('/', [
 
                     AdminBusinessController::class,
@@ -307,6 +309,8 @@ Route::middleware('auth:sanctum')->group(function () {
                     'index',
 
                 ]);
+
+                Route::delete('/{business}/members/{businessUser}/permissions/{permission}', [AdminBusinessMemberPermissionController::class, 'destroy']);
 
             });
 

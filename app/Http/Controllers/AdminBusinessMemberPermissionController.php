@@ -78,4 +78,12 @@ class AdminBusinessMemberPermissionController extends Controller
             ],
         ]);
     }
+
+    public function destroy(Business $business, BusinessUser $businessUser, Permission $permission): JsonResponse
+    {
+        abort_unless($businessUser->business_id === $business->id, 404);
+        $business->permissions()->where('user_id', $businessUser->user_id)->where('permission_id', $permission->id)->delete();
+
+        return response()->json(['success' => true, 'message' => 'İzin varsayılan ayarına döndürüldü.', 'data' => null]);
+    }
 }

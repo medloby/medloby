@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Business;
 use App\Models\BusinessUser;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class AdminBusinessMemberStatusController extends Controller
 {
@@ -12,6 +14,7 @@ class AdminBusinessMemberStatusController extends Controller
      * Bir işletme üyesini aktif veya pasif yapar.
      */
     public function update(
+        Request $request,
         Business $business,
         BusinessUser $businessUser
     ): JsonResponse {
@@ -20,11 +23,19 @@ class AdminBusinessMemberStatusController extends Controller
             404
         );
 
-        $oldStatus = $businessUser->is_active;
+        $validated = $request->validate(['is_active' => ['sometimes', 'required', 'boolean']]);
 
-        $businessUser->update([
-            'is_active' => ! $oldStatus,
-        ]);
+        [$businessUser, $oldStatus] = DB::transaction(function () use ($business, $businessUser, $validated): array {
+            $member = $business->memberships()->lockForUpdate()->findOrFail($businessUser->id);
+            $oldStatus = $member->is_active;
+            $member->update(['is_active' => (bool) ($validated['is_active'] ?? ! $oldStatus)]);
+
+            if (! $member->is_active && $member->user?->staff_business_id === $business->id) {
+                $member->user()->lockForUpdate()->firstOrFail()->tokens()->delete();
+            }
+
+            return [$member, $oldStatus];
+        }, attempts: 3);
 
         return response()->json([
             'success' => true,

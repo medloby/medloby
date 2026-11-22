@@ -1,7 +1,6 @@
 <?php
 
 use App\Models\Business;
-use App\Models\BusinessReview;
 use App\Models\ClinicContractAcceptance;
 use App\Models\PlatformContract;
 use App\Models\User;
@@ -61,6 +60,22 @@ test('admin can access pending business applications', function () {
 
     expect($response->json('data.data'))
         ->toHaveCount(1);
+});
+
+test('only platform administrators can find clinics by name and status in the directory', function () {
+    $admin = User::factory()->create(['is_admin' => true]);
+    $active = Business::factory()->create(['name' => 'Atlas Merkez Kliniği', 'status' => 'active']);
+    Business::factory()->create(['name' => 'Atlas Yeni Şube', 'status' => 'suspended']);
+    Business::factory()->create(['name' => 'Başka Klinik', 'status' => 'active']);
+    $path = '/api/admin/businesses/directory?search=Atlas&status=active';
+
+    $this->getJson($path)->assertUnauthorized();
+    $this->actingAs(User::factory()->create(), 'sanctum')->getJson($path)->assertForbidden();
+    $this->actingAs($admin, 'sanctum')->getJson($path)
+        ->assertOk()->assertHeader('Cache-Control', 'no-store, private')->assertJsonPath('data.total', 1)
+        ->assertJsonPath('data.data.0.id', $active->id)
+        ->assertJsonMissingPath('data.data.0.email')->assertJsonMissingPath('data.data.0.memberships');
+    $this->getJson('/api/admin/businesses/directory?status=unknown')->assertUnprocessable();
 });
 
 test('admin can view a business application detail', function () {

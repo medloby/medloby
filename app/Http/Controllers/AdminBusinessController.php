@@ -44,6 +44,21 @@ class AdminBusinessController extends Controller
         ]);
     }
 
+    public function directory(Request $request): JsonResponse
+    {
+        $filters = $request->validate([
+            'status' => ['sometimes', 'required', 'in:pending,active,suspended,rejected'],
+            'search' => ['nullable', 'string', 'max:120'],
+        ]);
+        $businesses = Business::query()
+            ->when(isset($filters['status']), fn ($query) => $query->where('status', $filters['status']))
+            ->when(isset($filters['search']), fn ($query) => $query->whereLike('name', '%'.$filters['search'].'%'))
+            ->orderBy('name')->orderBy('id')
+            ->paginate(20, ['id', 'name', 'status', 'city', 'district']);
+
+        return response()->json(['success' => true, 'data' => $businesses])->header('Cache-Control', 'private, no-store');
+    }
+
     /**
      * Admin için tek bir klinik başvurusunun detaylarını gösterir.
      */

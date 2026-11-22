@@ -20,9 +20,10 @@ class AdminBusinessStatusHistoryController extends Controller
                 'changedBy:id,name,email',
             ])
             ->latest('changed_at')
+            ->orderByDesc('id')
             ->paginate(
                 min(
-                    (int) $request->input('per_page', 20),
+                    max((int) $request->input('per_page', 20), 1),
                     100
                 )
             );
@@ -30,6 +31,6 @@ class AdminBusinessStatusHistoryController extends Controller
         return response()->json([
             'success' => true,
             'data' => $histories,
-        ]);
+        ])->header('Cache-Control', 'private, no-store');
     }
 }

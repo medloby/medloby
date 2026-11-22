@@ -34,7 +34,7 @@ class AdminBusinessStatusController extends Controller
             $admin,
             $validated
         ) {
-            $business->refresh();
+            $business = Business::query()->lockForUpdate()->findOrFail($business->id);
 
             if ($business->status !== 'active') {
                 throw ValidationException::withMessages([
@@ -60,7 +60,7 @@ class AdminBusinessStatusController extends Controller
             ]);
 
             return $business->fresh();
-        });
+        }, attempts: 3);
 
         return response()->json([
             'success' => true,
@@ -92,7 +92,7 @@ class AdminBusinessStatusController extends Controller
             $admin,
             $validated
         ) {
-            $business->refresh();
+            $business = Business::query()->lockForUpdate()->findOrFail($business->id);
 
             if ($business->status !== 'suspended') {
                 throw ValidationException::withMessages([
@@ -118,7 +118,7 @@ class AdminBusinessStatusController extends Controller
             ]);
 
             return $business->fresh();
-        });
+        }, attempts: 3);
 
         return response()->json([
             'success' => true,

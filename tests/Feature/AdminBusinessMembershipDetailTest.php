@@ -1,7 +1,9 @@
 <?php
 
+use App\Models\Branch;
 use App\Models\Business;
 use App\Models\BusinessUser;
+use App\Models\Permission;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -80,6 +82,26 @@ test('admin can view business membership detail', function () {
         'data.is_active',
         true
     );
+});
+
+test('membership detail distinguishes explicit permissions from defaults and shows only the clinic branches', function () {
+    $business = Business::factory()->create();
+    $foreign = Business::factory()->create();
+    $branch = Branch::factory()->for($business)->create();
+    $foreignBranch = Branch::factory()->for($foreign)->create();
+    $user = User::factory()->unverified()->create(['email' => null, 'login_code' => 'deneme-personel', 'staff_business_id' => $business->id]);
+    $member = $business->memberships()->create(['user_id' => $user->id, 'role' => 'staff']);
+    $member->branches()->attach([$branch->id, $foreignBranch->id]);
+    $admin = createMembershipDetailAdmin();
+    $first = Permission::create(['name' => 'test.first', 'display_name' => 'A İzni', 'module' => 'test', 'is_active' => true]);
+    $second = Permission::create(['name' => 'test.second', 'display_name' => 'B İzni', 'module' => 'test', 'is_active' => true]);
+    $business->permissions()->create(['user_id' => $user->id, 'permission_id' => $first->id, 'granted_by_user_id' => $admin->id, 'is_allowed' => false]);
+    $foreign->permissions()->create(['user_id' => $user->id, 'permission_id' => $second->id, 'granted_by_user_id' => $admin->id, 'is_allowed' => true]);
+
+    $this->actingAs($admin, 'sanctum')->getJson("/api/admin/businesses/{$business->id}/members/{$member->id}")
+        ->assertOk()->assertJsonPath('data.user.login_code', 'deneme-personel')
+        ->assertJsonCount(1, 'data.branches')->assertJsonPath('data.branches.0.id', $branch->id)
+        ->assertJsonPath('data.permissions.0.is_allowed', false)->assertJsonPath('data.permissions.1.is_allowed', null);
 });
 
 test('admin can see membership user details', function () {

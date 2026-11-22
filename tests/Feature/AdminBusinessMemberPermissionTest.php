@@ -175,6 +175,24 @@ test('admin can update an existing permission assignment without creating duplic
     ]);
 });
 
+test('resetting a member permission changes only the selected clinic assignment', function () {
+    $admin = createMemberPermissionAdmin();
+    $business = Business::factory()->create();
+    $otherBusiness = Business::factory()->create();
+    $member = createMemberPermissionMembership($business);
+    $permission = createMemberPermission();
+    $assignment = ['user_id' => $member->user_id, 'permission_id' => $permission->id, 'granted_by_user_id' => $admin->id, 'is_allowed' => false];
+    $business->permissions()->create($assignment);
+    $otherBusiness->permissions()->create($assignment);
+
+    $url = "/api/admin/businesses/{$business->id}/members/{$member->id}/permissions/{$permission->id}";
+    $this->actingAs(createMemberPermissionUser(), 'sanctum')->deleteJson($url)->assertForbidden();
+    $this->actingAs($admin, 'sanctum')->deleteJson($url)->assertOk();
+    $this->deleteJson($url)->assertOk();
+    $this->assertDatabaseMissing('business_user_permission', $assignment + ['business_id' => $business->id]);
+    $this->assertDatabaseHas('business_user_permission', $assignment + ['business_id' => $otherBusiness->id]);
+});
+
 test('admin can change permission assignment back to allowed', function () {
     $admin = createMemberPermissionAdmin();
 

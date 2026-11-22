@@ -4,6 +4,7 @@ import { mountPackageConversation } from './package-conversation';
 import { mountWorkspaceNotifications } from './workspace-notifications';
 import { mountWorkspaceRegistration } from './workspace-registration';
 import { mountClinicReview } from './clinic-review';
+import { mountClinicAdministration } from './clinic-administration';
 import { mountClinicContracts } from './clinic-contracts';
 import { mountClinicApplications } from './clinic-applications';
 import { mountClinicCrm } from './clinic-crm';
@@ -113,6 +114,11 @@ export function mountPackageOffers(root) {
     const clinicReview = mountClinicReview(get('clinic-review-dialog'), get('clinic-review-button'), {
         api,
         timeLabel: (value) => offerDeadline.format(new Date(value)),
+    });
+    const clinicAdministration = mountClinicAdministration(get('clinic-administration-dialog'), get('clinic-administration-button'), {
+        api,
+        timeLabel: (value) => offerDeadline.format(new Date(value)),
+        openApplication: (id) => clinicReview.open(id),
     });
     const clinicContracts = mountClinicContracts(get('clinic-contracts-dialog'), get('clinic-contracts-button'), { api });
     const clinicApplications = mountClinicApplications(get('clinic-applications'), {
@@ -425,6 +431,7 @@ export function mountPackageOffers(root) {
         packageCatalog.close();
         notifications.stop();
         clinicReview.stop();
+        clinicAdministration.stop();
         clinicContracts.stop();
         clinicApplications.stop();
         staffCrmIds.clear();
@@ -904,6 +911,7 @@ export function mountPackageOffers(root) {
         loadStaffCrm();
         if (user.is_admin) {
             clinicReview.start();
+            clinicAdministration.start();
             clinicContracts.start();
         }
         if (pendingPackage && !user.patient_profile_exists) {
