@@ -12,6 +12,7 @@ use App\Notifications\NewOfferNotification;
 use App\Notifications\NotificationType;
 use App\Notifications\OfferAcceptedNotification;
 use App\Notifications\OfferRejectedNotification;
+use App\Rules\PriceAmount;
 use App\Services\BusinessNotificationPreferenceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -134,8 +135,7 @@ class OfferController extends Controller
             ],
             'amount' => [
                 'required',
-                'numeric',
-                'min:0',
+                ...PriceAmount::RULES,
             ],
             'currency' => [
                 'required',
@@ -450,31 +450,18 @@ class OfferController extends Controller
         Conversation $conversation,
         int $treatmentId
     ): void {
-        $treatmentIsActive = DB::table('treatments')
-            ->where('id', $treatmentId)
-            ->where('is_active', true)
-            ->exists();
-
-        if (! $treatmentIsActive) {
-            abort(
-                422,
-                'Seçilen tedavi aktif değil.'
-            );
-        }
+        $treatment = Treatment::findOrFail($treatmentId);
+        abort_unless($treatment->is_active, 422, 'Seçilen tedavi aktif değil.');
+        abort_unless($treatment->is_offer_enabled, 422, 'Seçilen tedavi teklif oluşturmaya kapalı.');
 
         if ($conversation->branch_id !== null) {
-            $branchTreatmentIsActive = DB::table('branch_treatment')
+            $branchTreatment = DB::table('branch_treatment')
                 ->where('branch_id', $conversation->branch_id)
                 ->where('treatment_id', $treatmentId)
-                ->where('is_active', true)
-                ->exists();
+                ->first(['is_active', 'is_offer_enabled']);
 
-            if (! $branchTreatmentIsActive) {
-                abort(
-                    422,
-                    'Seçilen tedavi bu şubede aktif değil.'
-                );
-            }
+            abort_unless($branchTreatment?->is_active, 422, 'Seçilen tedavi bu şubede aktif değil.');
+            abort_unless($branchTreatment->is_offer_enabled, 422, 'Seçilen tedavi bu şubede teklif oluşturmaya kapalı.');
         }
     }
 }

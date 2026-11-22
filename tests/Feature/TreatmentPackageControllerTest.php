@@ -241,6 +241,23 @@ test('public package listing does not expose or filter by currency', function ()
         ->assertJsonMissingPath('data.packages.1.currency');
 });
 
+test('package price stays within the database range on creation and update', function () {
+    $package = createPackage($this);
+    $invalidAmount = '10000000000.00';
+
+    $this->postJson('/api/treatment-packages', [
+        'business_id' => $this->business->id,
+        'branch_id' => $this->branch->id,
+        'name' => 'Üst sınırı aşan fiyat',
+        'price' => $invalidAmount,
+    ])->assertUnprocessable()->assertJsonValidationErrors('price');
+    $this->putJson('/api/treatment-packages/'.$package->id, ['price' => $invalidAmount])
+        ->assertUnprocessable()->assertJsonValidationErrors('price');
+
+    $this->assertDatabaseCount('treatment_packages', 1);
+    expect($package->refresh()->price)->toBe('50000.00');
+});
+
 test('can create treatment package', function () {
     $response = $this->postJson(
         '/api/treatment-packages',

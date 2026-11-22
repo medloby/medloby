@@ -55,6 +55,19 @@ class Offer extends Model
                 ->where('business_id', $this->business_id)->where('status', 'active')->exists());
     }
 
+    /** @return list<int> */
+    public function requiredBookingBranchIds(): array
+    {
+        $branchIds = [];
+        foreach ([$this->branch_id, $this->package_snapshot['branch_id'] ?? null, $this->conversation?->branch_id] as $branchId) {
+            if ($branchId !== null) {
+                $branchIds[] = (int) $branchId;
+            }
+        }
+
+        return array_values(array_unique($branchIds));
+    }
+
     #[Scope]
     protected function readyForClinicBooking(Builder $query, Branch $branch): Builder
     {

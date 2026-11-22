@@ -1248,7 +1248,7 @@ test('booking cannot use an offer belonging to another business', function () {
     $this->assertDatabaseCount('appointments', 0);
 });
 
-test('booking cannot use an offer belonging to another branch', function () {
+test('offer booking respects the branch of the originating conversation', function (string $offerBranch) {
     $user = User::factory()->create();
 
     $business = Business::factory()->create();
@@ -1369,11 +1369,16 @@ test('booking cannot use an offer belonging to another branch', function () {
         'subject' => 'Başka Şube Teklifi',
         'status' => 'open',
     ]);
+    $otherBranch->treatments()->attach($treatment, ['is_active' => true, 'is_online_bookable' => true]);
 
     $offer = Offer::create([
         'conversation_id' => $conversation->id,
         'business_id' => $business->id,
-        'branch_id' => $otherBranch->id,
+        'branch_id' => match ($offerBranch) {
+            'matching' => $otherBranch->id,
+            'conflicting' => $branch->id,
+            default => null,
+        },
         'patient_profile_id' => $patient->id,
         'created_by' => $user->id,
         'title' => 'Başka Şube Teklifi',
@@ -1385,6 +1390,9 @@ test('booking cannot use an offer belonging to another branch', function () {
         'responded_at' => now(),
         'treatment_id' => $treatment->id,
     ]);
+
+    $options = $this->actingAs($user)->getJson("/api/offers/{$offer->id}/appointments/options")->assertOk();
+    expect(array_column($options->json('data.branches'), 'id'))->toBe($offerBranch === 'conflicting' ? [] : [$otherBranch->id]);
 
     expect(fn () => app(AppointmentBookingService::class)->book(
         businessId: $business->id,
@@ -1400,7 +1408,7 @@ test('booking cannot use an offer belonging to another branch', function () {
     );
 
     $this->assertDatabaseCount('appointments', 0);
-});
+})->with(['matching', 'missing', 'conflicting']);
 
 test('booking cannot use a different treatment than the offer', function () {
     $user = User::factory()->create();

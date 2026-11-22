@@ -253,21 +253,21 @@ class AppointmentBookingController extends Controller
         abort_if($treatments === [], 422, 'Bu teklife bağlı bir tedavi bulunmuyor.');
 
         $treatmentIds = array_column($treatments, 'treatment_id');
-        $offerBranchId = $offer->package_snapshot['branch_id'] ?? $offer->branch_id;
-        $branches = Branch::query()
+        $branchQuery = Branch::query()
             ->where('business_id', $offer->business_id)
             ->where('status', 'active')
             ->when($clinicBranch, fn ($query) => $query->whereKey($clinicBranch->id))
-            ->when($offerBranchId !== null, fn ($query) => $query->whereKey($offerBranchId))
             ->whereHas('treatments', fn ($query) => $query
                 ->whereIn('treatments.id', $treatmentIds)
                 ->where('treatments.is_active', true)
                 ->where('branch_treatment.is_active', true)
                 ->when(! $clinicBranch, fn ($available) => $available->where('branch_treatment.is_online_bookable', true)), '=', count($treatmentIds))
             ->when(! $clinicBranch, fn ($query) => $query->whereDoesntHave('appointmentSetting', fn ($setting) => $setting
-                ->where('is_active', true)->where('online_booking_enabled', false)))
-            ->orderBy('name')
-            ->get(['id', 'name']);
+                ->where('is_active', true)->where('online_booking_enabled', false)));
+        foreach ($offer->requiredBookingBranchIds() as $requiredBranchId) {
+            $branchQuery->whereKey($requiredBranchId);
+        }
+        $branches = $branchQuery->orderBy('name')->get(['id', 'name']);
 
         $data = ['branches' => $branches, 'treatments' => $treatments];
 

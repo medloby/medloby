@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Branch;
 use App\Models\Business;
 use App\Models\BusinessUser;
 use App\Models\Conversation;
@@ -340,6 +341,19 @@ test('offer creation rejects negative amount', function () {
     $this->assertDatabaseCount('offers', 0);
 });
 
+test('offer creation rejects an amount outside the database range before notifying the patient', function () {
+    Notification::fake();
+    $data = createOfferCreationData();
+
+    $this->actingAs($data['businessUser'])->postJson(
+        "/api/conversations/{$data['conversation']->id}/offers",
+        offerCreationPayload($data, ['amount' => '10000000000.00'])
+    )->assertUnprocessable()->assertJsonValidationErrors('amount');
+
+    $this->assertDatabaseCount('offers', 0);
+    Notification::assertNothingSent();
+});
+
 test('offer creation rejects invalid currency length', function () {
     $data = createOfferCreationData();
 
@@ -404,6 +418,24 @@ test('offer creation rejects inactive treatment', function () {
 
     $this->assertDatabaseCount('offers', 0);
 });
+
+test('a single treatment can be offered only when offers are enabled in its catalog and branch', function (bool $catalogEnabled, bool $branchEnabled, int $status) {
+    $data = createOfferCreationData();
+    $data['treatment']->update(['is_offer_enabled' => $catalogEnabled]);
+    $branch = Branch::factory()->for($data['business'])->create();
+    $data['conversation']->update(['branch_id' => $branch->id]);
+    $branch->treatments()->attach($data['treatment']->id, ['is_active' => true, 'is_offer_enabled' => $branchEnabled]);
+
+    $this->actingAs($data['businessUser'])->postJson(
+        "/api/conversations/{$data['conversation']->id}/offers", offerCreationPayload($data)
+    )->assertStatus($status);
+
+    $this->assertDatabaseCount('offers', $status === 201 ? 1 : 0);
+})->with([
+    'disabled in the catalog' => [false, true, 422],
+    'disabled in the branch' => [true, false, 422],
+    'enabled in both' => [true, true, 201],
+]);
 
 test('offer creation rejects nonexistent treatment', function () {
     $data = createOfferCreationData();

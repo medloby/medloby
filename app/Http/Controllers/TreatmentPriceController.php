@@ -6,11 +6,13 @@ use App\Models\Branch;
 use App\Models\Doctor;
 use App\Models\Treatment;
 use App\Models\TreatmentPrice;
+use App\Rules\PriceAmount;
 use App\Services\CatalogManagementAccess;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class TreatmentPriceController extends Controller
 {
@@ -135,18 +137,15 @@ class TreatmentPriceController extends Controller
             ],
             'price' => [
                 'nullable',
-                'numeric',
-                'min:0',
+                ...PriceAmount::RULES,
             ],
             'min_price' => [
                 'nullable',
-                'numeric',
-                'min:0',
+                ...PriceAmount::RULES,
             ],
             'max_price' => [
                 'nullable',
-                'numeric',
-                'min:0',
+                ...PriceAmount::RULES,
                 'gte:min_price',
             ],
             'currency' => [
@@ -328,19 +327,15 @@ class TreatmentPriceController extends Controller
             ],
             'price' => [
                 'nullable',
-                'numeric',
-                'min:0',
+                ...PriceAmount::RULES,
             ],
             'min_price' => [
                 'nullable',
-                'numeric',
-                'min:0',
+                ...PriceAmount::RULES,
             ],
             'max_price' => [
                 'nullable',
-                'numeric',
-                'min:0',
-                'gte:min_price',
+                ...PriceAmount::RULES,
             ],
             'currency' => [
                 'sometimes',
@@ -358,9 +353,19 @@ class TreatmentPriceController extends Controller
             'valid_until' => [
                 'nullable',
                 'date',
-                'after_or_equal:valid_from',
             ],
         ]);
+
+        $changesMinimum = array_key_exists('min_price', $validated);
+        $changesMaximum = array_key_exists('max_price', $validated);
+        if ($changesMinimum || $changesMaximum) {
+            $range = $validated + $treatmentPrice->only(['min_price', 'max_price']);
+            if (isset($range['min_price'], $range['max_price']) && $range['min_price'] > $range['max_price']) {
+                throw ValidationException::withMessages([
+                    ($changesMaximum ? 'max_price' : 'min_price') => 'En düşük fiyat, en yüksek fiyattan büyük olamaz.',
+                ]);
+            }
+        }
 
         $businessId = (int) ($validated['business_id'] ?? $treatmentPrice->business_id);
 
@@ -463,7 +468,16 @@ class TreatmentPriceController extends Controller
             );
         }
 
-        $treatmentPrice->update($validated);
+        $treatmentPrice->fill($validated);
+        $changesStart = array_key_exists('valid_from', $validated);
+        $changesEnd = array_key_exists('valid_until', $validated);
+        if (($changesStart || $changesEnd) && $treatmentPrice->valid_from !== null && $treatmentPrice->valid_until !== null
+            && $treatmentPrice->valid_from->gt($treatmentPrice->valid_until)) {
+            throw ValidationException::withMessages([
+                ($changesEnd ? 'valid_until' : 'valid_from') => 'Bitiş tarihi başlangıç tarihinden önce olamaz.',
+            ]);
+        }
+        $treatmentPrice->save();
 
         return response()->json([
             'success' => true,

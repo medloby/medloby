@@ -8,6 +8,7 @@ use App\Models\Business;
 use App\Models\PackageService;
 use App\Models\Treatment;
 use App\Models\TreatmentPackage;
+use App\Rules\PriceAmount;
 use App\Services\CatalogManagementAccess;
 use DateTimeInterface;
 use Illuminate\Database\Eloquent\Builder;
@@ -181,8 +182,7 @@ class TreatmentPackageController extends Controller
             ],
             'price' => [
                 'nullable',
-                'numeric',
-                'min:0',
+                ...PriceAmount::RULES,
             ],
             'currency' => [
                 'sometimes',
@@ -328,8 +328,7 @@ class TreatmentPackageController extends Controller
             ],
             'price' => [
                 'nullable',
-                'numeric',
-                'min:0',
+                ...PriceAmount::RULES,
             ],
             'currency' => [
                 'sometimes',

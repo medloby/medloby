@@ -249,6 +249,67 @@ test('can filter treatment prices by currency', function () {
         );
 });
 
+test('treatment prices reject amounts outside the database range', function () {
+    $payload = [
+        'business_id' => $this->business->id,
+        'treatment_id' => $this->treatment->id,
+        'price_type' => 'range',
+        'currency' => 'TRY',
+    ];
+    $invalidAmounts = array_fill_keys(['price', 'min_price', 'max_price'], '10000000000.00');
+    $this->actingAs($this->user);
+
+    $this->postJson('/api/treatment-prices', $payload + $invalidAmounts)
+        ->assertUnprocessable()->assertJsonValidationErrors(['price', 'min_price', 'max_price']);
+    $this->assertDatabaseCount('treatment_prices', 0);
+
+    $price = TreatmentPrice::create($payload + ['min_price' => 100, 'max_price' => 200]);
+    $this->putJson('/api/treatment-prices/'.$price->id, $invalidAmounts)
+        ->assertUnprocessable()->assertJsonValidationErrors(['price', 'min_price', 'max_price']);
+    expect($price->refresh()->max_price)->toBe('200.00');
+});
+
+test('changing one price bound validates the range against its stored bound', function () {
+    $price = TreatmentPrice::create([
+        'business_id' => $this->business->id,
+        'treatment_id' => $this->treatment->id,
+        'price_type' => 'range',
+        'min_price' => 100,
+        'max_price' => 200,
+        'currency' => 'TRY',
+    ]);
+    $this->actingAs($this->user);
+    $url = '/api/treatment-prices/'.$price->id;
+
+    $this->putJson($url, ['min_price' => 300])->assertUnprocessable()->assertJsonValidationErrors('min_price');
+    $this->putJson($url, ['max_price' => 50])->assertUnprocessable()->assertJsonValidationErrors('max_price');
+    $this->assertDatabaseHas('treatment_prices', ['id' => $price->id, 'min_price' => 100, 'max_price' => 200]);
+
+    $this->putJson($url, ['max_price' => '9999999999.99'])->assertOk()->assertJsonPath('data.max_price', '9999999999.99');
+});
+
+test('changing one price validity date checks the stored date at the other end of the period', function () {
+    $price = TreatmentPrice::create([
+        'business_id' => $this->business->id,
+        'treatment_id' => $this->treatment->id,
+        'price_type' => 'fixed',
+        'price' => 100,
+        'currency' => 'TRY',
+        'valid_from' => '2030-05-10',
+        'valid_until' => '2030-05-20',
+    ]);
+    $this->actingAs($this->user);
+    $url = '/api/treatment-prices/'.$price->id;
+
+    $this->putJson($url, ['valid_from' => '2030-05-21'])->assertUnprocessable()->assertJsonValidationErrors('valid_from');
+    $this->putJson($url, ['valid_until' => '2030-05-09'])->assertUnprocessable()->assertJsonValidationErrors('valid_until');
+    expect($price->refresh()->valid_from->toDateString())->toBe('2030-05-10')
+        ->and($price->valid_until->toDateString())->toBe('2030-05-20');
+
+    $this->putJson($url, ['valid_until' => '2030-05-31'])->assertOk();
+    expect($price->refresh()->valid_until->toDateString())->toBe('2030-05-31');
+});
+
 test('can create fixed treatment price', function () {
     $response = $this->actingAs($this->user)->postJson(
         '/api/treatment-prices',

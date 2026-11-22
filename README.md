@@ -16,7 +16,7 @@ Uygulama mimarisi, tamamlanan işler, eksikler ve geliştirme sırası proje yol
 - [ ] **İşletmeci ve iletişim bilgilerini doğrula.** Resmî unvanı ve tebligata esas posta adresini `MEDLOBY_OPERATOR_LEGAL_NAME` ve `MEDLOBY_OPERATOR_POSTAL_ADDRESS` ayarlarına gir. KVKK başvuru kanalını belirle. Kullanılacak e-posta ve KEP adreslerini `MEDLOBY_PRIVACY_EMAIL` ve `MEDLOBY_PRIVACY_KEP` ayarlarına gir. Destek ve içerik editörü adreslerini `MEDLOBY_SUPPORT_EMAIL` ve `MEDLOBY_EDITOR_EMAIL` ayarlarına gir.
 - [ ] **Veri saklama ve işleme kurallarını onayla.** Kayıt gruplarının kesin saklama sürelerini ve sağlık verilerinin hangi şartlarla işleneceğini belirle. [Veri işleme ve saklama planı](resources/contracts/medloby-veri-isleme-ve-saklama-taslagi.md)
 - [ ] **Onaylı KVKK metinlerini ve klinik üyelik sözleşmesini yayımla.** Veri işleme ve saklama planı doğrulanıp metinler onaylandığında `MEDLOBY_PRIVACY_PUBLISHED` ayarı hasta ve klinik aydınlatma sayfalarını açar. Klinik üyelik sözleşmesi yönetim ekranından kendi sürümü ve yürürlük tarihiyle yayımlanır. [Klinik üyelik taslağı](resources/contracts/medloby-klinik-uyelik-taslak.txt)
-- [ ] **Üretim yedeklemesini kur ve geri yüklemeyi doğrula.** Seçilen veritabanı ve dosya depolaması için şifreli yedek konumunu, çalışma sıklığını, erişim yetkilerini ve saklama süresini belirle. Geri yükleme, şema değişikliği ve geri dönüşü üretimden ayrı bir kopyada prova et. İlk yönetici ve üretim verisi kurulumunu bu provadan sonra planla. [Yerel SQLite provası](#yerel-sqlite-yedekleme-ve-geri-yükleme)
+- [ ] **Üretim yedeklemesini kur ve geri yüklemeyi doğrula.** Seçilen veritabanı ve dosya depolaması için şifreli yedek konumunu, çalışma sıklığını, erişim yetkilerini ve saklama süresini belirle. Geri yükleme, şema değişikliği ve geri dönüşü üretimden ayrı bir kopyada prova et. İlk yönetici ve üretim verisi kurulumunu bu provadan sonra planla. [SQLite provası](#yerel-sqlite-yedekleme-ve-geri-yükleme) · [PostgreSQL provası](#postgresql-ve-özel-dosya-yedekleme-provası)
 - [ ] **Canlı e-posta gönderimini aç.** Site geliştirmesi tamamlandığında yetkili gönderici adresini ve destek adresini belirle. Canlı ortamda SMTP sunucusunu ve portunu yapılandır, gerekiyorsa erişim bilgilerini gizli ayarlara ekle. `APP_URL` değerini Medloby’nin HTTPS adresine ayarla. Geçici SMTP hatalarında yeniden deneme için kuyruk işçisinin deneme sayısını ve bekleme süresini ayarla. Başarısız işleri `php artisan queue:failed` ile kontrol et. Klinik onayı, hasta doğrulaması, şifre yenileme ve yeni randevu e-postalarını gerçek bir test gelen kutusunda doğrula. [Kayıt ve e-posta kuyruğu provası](tests/Feature/PatientRegistrationTest.php) · [Randevu e-postası provası](tests/Feature/AppointmentNotificationTest.php) · [Şifre yenileme testleri](tests/Feature/AccountPasswordResetTest.php)
 - [ ] **Yayın koşullarında ilk klinik ve hasta akışını prova et.** HTTPS, seçilen veritabanı, dosya depolaması ve bildirim kuyruğu çalışırken deneme hesaplarıyla klinik başvurusunu, onay sonrası geçici şifreyle CRM’e girişi, personel hesabı oluşturmayı, özel teklifi ve her seans için ayrı randevu almayı doğrula. Klinik ve hasta aynı hekimin aynı saatini eşzamanlı seçtiğinde tek kayıt oluştuğunu ve diğer hesabın saat uygunluğu uyarısını aldığını seçilen veritabanıyla sınayıp doğrula. [Klinik hesapları provası](tests/Feature/ClinicAccountOnboardingTest.php) · [Teklif ve randevu provası](tests/Feature/LaunchWorkflowTest.php) · [PostgreSQL randevu provası](#postgresql-randevu-provası)
 - [ ] **Uygulama ve veritabanı erişimini izle.** HTTPS üzerinden `GET /up` adresini kontrol et. `Accept: application/json` başlığıyla uygulama erişilebiliyorsa ve veritabanı sorgusu başarılıysa `200` ve `{"status":"up"}` döner. Veritabanı bağlantı hatasında `500` ve `{"status":"down"}` döner. Ayrıntılar uygulama kayıtlarında incelenebilir. Yayın ortamında `APP_DEBUG=false` ayarını ve kullanılan izleme aracının kesintiyi algıladığını doğrula. [Erişim kontrolü testi](tests/Feature/ApplicationHealthTest.php)
@@ -39,6 +39,34 @@ Otomatik provada geri yüklenen kopyada son migration geri alınıp yeniden uygu
 ```bash
 php artisan test --compact tests/Feature/LocalBackupTest.php
 ```
+
+### PostgreSQL ve özel dosya yedekleme provası
+
+Bu prova PostgreSQL 17 ve varsayılan `storage/app/private` dizinini kullanır. PostgreSQL ile aynı ana sürümdeki `pg_dump` ve `pg_restore` komutlarını kullan. Kaynak ve geri yükleme bağlantılarını kendi ortamlarında yetkili test hesaplarıyla yapılandır. `encrypted_backup_root` değerini erişimi kısıtlı ve şifreli bir yedek dizinine, `source_db` değerini kaynak test veritabanına ve `source_storage` değerini kaynak uygulamanın `storage` yoluna ayarla. Yedekleme sırasında veritabanı ile özel dosyaların aynı durumu yansıtması için kaynak uygulamanın ve kuyruk işçilerinin yazmalarını durdur.
+
+```bash
+set -e
+umask 077
+backup_directory=$(mktemp -d "$encrypted_backup_root/medloby.XXXXXX")
+pg_dump --format=custom --file="$backup_directory/database.dump" --dbname="$source_db"
+tar -cf "$backup_directory/private.tar" -C "$source_storage/app" private
+(cd "$backup_directory" && sha256sum database.dump private.tar > SHA256SUMS)
+```
+
+Geri yükleme bağlantısını ayrı test ortamına yönelt. `restore_db` için boş bir PostgreSQL veritabanı oluştur. `backup_directory` değerini doğrulanacak yedek dizinine ayarla.
+
+```bash
+set -e
+umask 077
+(cd "$backup_directory" && sha256sum -c SHA256SUMS)
+restore_storage=$(mktemp -d)
+mkdir "$restore_storage/app"
+pg_restore --exit-on-error --single-transaction --no-owner --no-privileges \
+  --dbname="$restore_db" "$backup_directory/database.dump"
+tar -xf "$backup_directory/private.tar" -C "$restore_storage/app"
+```
+
+Test uygulamasında `DB_DATABASE` değerini `restore_db` ile açılan veritabanına, `LARAVEL_STORAGE_PATH` değerini `restore_storage` dizinine yönelt. Kaynak uygulamanın anahtarını güvenli saklama yerinden kullan. `php artisan migrate:status` ile şemayı kontrol et. Bir deneme görüşmesi ekini yetkili hasta hesabıyla aç ve başka bir hesabın aynı dosyaya erişiminin reddedildiğini doğrula. Geri yüklenen kopyada son migration’ı geri al, yeniden uygula ve dosyayı tekrar aç.
 
 ### PostgreSQL randevu provası
 

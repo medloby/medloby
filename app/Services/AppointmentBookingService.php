@@ -263,8 +263,8 @@ class AppointmentBookingService
             );
         }
 
-        $offerBranchId = $offer->package_snapshot['branch_id'] ?? $offer->branch_id;
-        if ($offerBranchId !== null && $offerBranchId !== $branchId) {
+        $requiredBranchIds = $offer->requiredBookingBranchIds();
+        if ($requiredBranchIds !== [] && $requiredBranchIds !== [$branchId]) {
             throw new RuntimeException(
                 'Teklif farklı bir şubeye aittir.'
             );
