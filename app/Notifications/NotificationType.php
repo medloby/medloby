@@ -10,6 +10,8 @@ final class NotificationType
 
     public const APPOINTMENT_REMINDER = 'appointment_reminder';
 
+    public const WAITING_LIST_AVAILABILITY = 'waiting_list_availability';
+
     public const APPOINTMENT_CANCELLED = 'appointment_cancelled';
 
     public const APPOINTMENT_RESCHEDULED = 'appointment_rescheduled';

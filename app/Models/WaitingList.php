@@ -2,11 +2,15 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class WaitingList extends Model
 {
+    public const string ONLINE_BOOKING = 'online_booking';
+
     protected $fillable = [
         'business_id',
         'branch_id',
@@ -33,6 +37,12 @@ class WaitingList extends Model
             'notified_at' => 'datetime',
             'expires_at' => 'datetime',
         ];
+    }
+
+    #[Scope]
+    protected function onlineBooking(Builder $query): Builder
+    {
+        return $query->where('source', self::ONLINE_BOOKING);
     }
 
     public function business(): BelongsTo

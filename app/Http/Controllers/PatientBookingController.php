@@ -7,8 +7,10 @@ use App\Models\Branch;
 use App\Models\Doctor;
 use App\Models\PatientProfile;
 use App\Models\Treatment;
+use App\Models\WaitingList;
 use App\Services\AppointmentBookingService;
 use App\Services\AppointmentSlotAvailabilityService;
+use App\Services\AppointmentWaitingList;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -52,18 +54,58 @@ class PatientBookingController extends Controller
         ]);
     }
 
-    public function slots(Request $request, int $branch, AppointmentSlotAvailabilityService $availability): JsonResponse
+    public function slots(Request $request, int $branch, AppointmentSlotAvailabilityService $availability, AppointmentWaitingList $waitingList): JsonResponse
     {
-        $this->patient($request);
+        $patient = $this->patient($request);
         $data = $request->validate([
             'treatment_id' => ['required', 'integer'], 'doctor_id' => ['required', 'integer'],
             'date' => ['required', 'date_format:Y-m-d'],
         ]);
         $branch = Branch::query()->bookableOnline()->findOrFail($branch);
         [$treatment, $doctor] = $this->selection($branch, (int) $data['treatment_id'], (int) $data['doctor_id']);
-        $slots = $availability->getAvailableSlots($doctor, $branch->id, $treatment, Carbon::parse($data['date']));
+        $date = Carbon::parse($data['date']);
+        $slots = $availability->getAvailableSlots($doctor, $branch->id, $treatment, $date);
 
-        return $this->data(['slots' => array_map(fn (Carbon $slot): string => $slot->toDateTimeString(), $slots)]);
+        return $this->data([
+            'slots' => array_map(fn (Carbon $slot): string => $slot->toDateTimeString(), $slots),
+            'can_wait' => $slots === [] && $waitingList->canWait($branch, $date),
+            'waiting_list_id' => $waitingList->pendingRequest($patient, $branch, $doctor, $treatment, $date)?->id,
+        ]);
+    }
+
+    public function joinWaitingList(Request $request, int $branch, AppointmentWaitingList $waitingList): JsonResponse
+    {
+        $patient = $this->patient($request);
+        $data = $request->validate([
+            'treatment_id' => ['required', 'integer'], 'doctor_id' => ['required', 'integer'],
+            'date' => ['required', 'date_format:Y-m-d'],
+        ]);
+        $branch = Branch::query()->bookableOnline()->findOrFail($branch);
+        [$treatment, $doctor] = $this->selection($branch, (int) $data['treatment_id'], (int) $data['doctor_id']);
+        $entry = $waitingList->join($patient, $branch, $doctor, $treatment, Carbon::parse($data['date']));
+
+        return $this->data($entry->only('id'), $entry->wasRecentlyCreated ? 201 : 200);
+    }
+
+    public function showWaitingRequest(Request $request, WaitingList $waitingList): JsonResponse
+    {
+        $this->authorizeWaitingRequest($request, $waitingList);
+        abort_unless($waitingList->doctor_id && $waitingList->treatment_id, 404, 'Bu randevu seçimi artık kullanılamıyor.');
+
+        return $this->data([
+            'branch_id' => $waitingList->branch_id,
+            'doctor_id' => $waitingList->doctor_id,
+            'treatment_id' => $waitingList->treatment_id,
+            'date' => $waitingList->preferred_date->toDateString(),
+        ]);
+    }
+
+    public function cancelWaitingRequest(Request $request, WaitingList $waitingList): JsonResponse
+    {
+        $this->authorizeWaitingRequest($request, $waitingList);
+        WaitingList::query()->whereKey($waitingList->id)->where('status', 'waiting')->update(['status' => 'cancelled']);
+
+        return $this->data($waitingList->only('id'));
     }
 
     public function store(Request $request, int $branch, AppointmentBookingService $booking): JsonResponse
@@ -92,6 +134,12 @@ class PatientBookingController extends Controller
         abort_unless($patient && $request->user()->hasVerifiedEmail(), 403);
 
         return $patient;
+    }
+
+    private function authorizeWaitingRequest(Request $request, WaitingList $waitingList): void
+    {
+        abort_unless($this->patient($request)->id === $waitingList->patient_profile_id
+            && $waitingList->source === WaitingList::ONLINE_BOOKING, 404);
     }
 
     private function publicDoctors(Branch $branch): BelongsToMany

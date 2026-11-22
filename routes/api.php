@@ -610,6 +610,12 @@ Route::prefix('notifications')->group(function () {
             Route::get('/{branch}/treatments', 'treatments')->whereNumber('branch');
             Route::get('/{branch}/slots', 'slots')->whereNumber('branch');
             Route::post('/{branch}', 'store')->whereNumber('branch');
+            Route::post('/{branch}/waiting-list', 'joinWaitingList')->whereNumber('branch');
+        });
+
+        Route::controller(PatientBookingController::class)->prefix('patient/appointments/waiting-list')->group(function () {
+            Route::get('/{waitingList}', 'showWaitingRequest')->whereNumber('waitingList');
+            Route::delete('/{waitingList}', 'cancelWaitingRequest')->whereNumber('waitingList');
         });
 
         Route::controller(PatientAppointmentController::class)->prefix('patient/appointments')->group(function () {

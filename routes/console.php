@@ -1,6 +1,7 @@
 <?php
 
 use App\Services\AppointmentReminderService;
+use App\Services\AppointmentWaitingList;
 use App\Services\CrmFollowUpReminderService;
 use App\Services\LocalBackup;
 use Illuminate\Console\Command;
@@ -23,6 +24,14 @@ Artisan::command('medloby:remind-appointments', function (AppointmentReminderSer
 })->purpose('Yaklaşan onaylı randevular için hastaya uygulama içi hatırlatma oluştur');
 
 Schedule::command('medloby:remind-appointments')->everyMinute()->withoutOverlapping(5);
+
+Artisan::command('medloby:notify-waiting-list', function (AppointmentWaitingList $waitingList): int {
+    $this->info('Gönderilen uygunluk bildirimi · '.$waitingList->sendAvailable());
+
+    return Command::SUCCESS;
+})->purpose('Bekleme listesindeki hastalara uygun saatleri bildir');
+
+Schedule::command('medloby:notify-waiting-list')->everyFiveMinutes()->withoutOverlapping(10);
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());

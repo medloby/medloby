@@ -9,6 +9,7 @@ export function mountPatientBooking(panel, { api, today, setOptions, onBooked })
     const clinicName = panel.querySelector('[data-booking-clinic]');
     const branchName = panel.querySelector('[data-booking-branch]');
     const submit = form.querySelector('[type="submit"]');
+    const waitingButton = form.querySelector('[data-waiting-list]');
     const treatment = form.elements.namedItem('treatment');
     const doctor = form.elements.namedItem('doctor');
     const date = form.elements.namedItem('date');
@@ -19,6 +20,7 @@ export function mountPatientBooking(panel, { api, today, setOptions, onBooked })
     let treatments = [];
     let request = 0;
     let activeSave = null;
+    let waitingId = null;
 
     function showStatus(message = '') {
         status.textContent = message;
@@ -33,6 +35,14 @@ export function mountPatientBooking(panel, { api, today, setOptions, onBooked })
     function resetSlots() {
         options(time, 'Saat seçin');
         submit.disabled = true;
+        showWaitingButton(false, null);
+    }
+
+    function showWaitingButton(canWait, id) {
+        waitingId = id;
+        waitingButton.hidden = !canWait && !id;
+        waitingButton.disabled = false;
+        waitingButton.textContent = id ? 'Bildirim isteğini kaldır' : 'Saat açılırsa haber ver';
     }
 
     function isCurrent(pending) {
@@ -61,10 +71,11 @@ export function mountPatientBooking(panel, { api, today, setOptions, onBooked })
         showStatus('Uygun saatler yükleniyor…');
         try {
             const query = new URLSearchParams({ treatment_id: treatment.value, doctor_id: doctor.value, date: date.value });
-            const { slots } = await api(`${path}/${selection.branch}/slots?${query}`);
+            const { slots, can_wait, waiting_list_id } = await api(`${path}/${selection.branch}/slots?${query}`);
             if (isCurrent(pending)) {
                 options(time, 'Saat seçin', slots.map((slot) => [slot, slot.slice(11, 16)]));
-                showStatus(slots.length ? '' : 'Bu gün için uygun saat yok. Başka bir gün seçin.');
+                showWaitingButton(can_wait, waiting_list_id);
+                showStatus(waiting_list_id ? 'Bu gün için bildirim isteğiniz kaydedildi.' : (slots.length ? '' : 'Bu gün için uygun saat yok.'));
             }
         } catch (error) {
             if (isCurrent(pending)) {
@@ -86,12 +97,16 @@ export function mountPatientBooking(panel, { api, today, setOptions, onBooked })
                     .find(({ id }) => String(id) === requestedDoctor) ?? null;
                 treatments = selectedDoctor ? result.treatments.filter((item) => item.doctors.some(({ id }) => id === selectedDoctor.id)) : result.treatments;
                 options(treatment, 'Tedavi seçin', treatments.map(({ id, name }) => [id, name]));
+                treatment.value = selection.treatment ?? '';
                 renderDoctors();
                 form.hidden = treatments.length === 0;
                 if (treatments.length === 0) {
                     showStatus('Bu şubede çevrimiçi randevuya açık tedavi bulunamadı.');
                 } else if (requestedDoctor && !selectedDoctor) {
                     showStatus('Seçtiğiniz hekim şu anda çevrimiçi randevuya kapalı. Bu şubeden başka bir hekim seçebilirsiniz.');
+                } else if (!date.disabled && selection.date) {
+                    date.value = selection.date;
+                    await loadSlots();
                 } else {
                     showStatus();
                 }
@@ -113,6 +128,35 @@ export function mountPatientBooking(panel, { api, today, setOptions, onBooked })
     });
     date.addEventListener('change', loadSlots);
     time.addEventListener('change', () => { submit.disabled = !time.value; });
+
+    waitingButton.addEventListener('click', async () => {
+        const pending = request;
+        waitingButton.disabled = true;
+        try {
+            if (waitingId) {
+                await api(`${patientAppointmentsPath}/waiting-list/${waitingId}`, undefined, 'DELETE');
+                if (isCurrent(pending)) {
+                    await loadSlots();
+                }
+            } else {
+                const { id } = await api(`${path}/${selection.branch}/waiting-list`, {
+                    treatment_id: Number(treatment.value), doctor_id: Number(doctor.value), date: date.value,
+                });
+                if (isCurrent(pending)) {
+                    showWaitingButton(false, id);
+                    showStatus('Bu gün için bildirim isteğiniz kaydedildi.');
+                }
+            }
+        } catch (error) {
+            if (isCurrent(pending)) {
+                showStatus(error.message);
+            }
+        } finally {
+            if (isCurrent(pending)) {
+                waitingButton.disabled = false;
+            }
+        }
+    });
 
     form.addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -153,7 +197,8 @@ export function mountPatientBooking(panel, { api, today, setOptions, onBooked })
 
     return {
         setSelection(next) {
-            if (selection?.branch === next?.branch && selection?.doctor === next?.doctor) {
+            if (selection?.branch === next?.branch && selection?.doctor === next?.doctor
+                && selection?.treatment === next?.treatment && selection?.date === next?.date) {
                 return;
             }
 

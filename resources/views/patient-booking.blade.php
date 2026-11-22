@@ -27,6 +27,7 @@
                 <textarea class="offer-control" name="notes" rows="3" maxlength="2000"></textarea>
             </label>
             <button type="submit" class="offer-button justify-self-start" disabled>Randevuyu kaydet</button>
+            <button type="button" class="offer-button offer-button-secondary justify-self-start" data-waiting-list hidden>Saat açılırsa haber ver</button>
         </fieldset>
     </form>
 </section>

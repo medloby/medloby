@@ -10,7 +10,7 @@ Envanter, Git'in izlediği 476 dosyayı kapsadı. Depoda 152 uygulama dosyası, 
 
 - Kilitli PHP ortam gereksinimleri, 371 PHP dosyasının sözdizimi ve Vite derlemesi geçti.
 - Envanterin dayandığı sürümde SQLite ve PostgreSQL 17 yapılandırmalarıyla **879’ar test** geçti. Sonraki uygulama sonuçları geliştirme sırasındaki ilgili maddede yer alır.
-- Randevu geçmişi ve kayıt hataları doğrulamalarından sonra SQLite ve PostgreSQL 17.12 üzerinde **934’er test** geçti.
+- Bekleme listesi doğrulamalarından sonra SQLite ve PostgreSQL 17.12 üzerinde **937’şer test** geçti.
 - Klinik üyeliği için `0.2-draft` hazırlandı. Başvuru formu, geçerli ve yayımlanmış zorunlu sözleşme olduğunda açılır.
 - npm taramasında ve kilitli 133 PHP paket sürümü için GitHub Advisory Database taramasında eşleşen bildirim bulunmadı.
 
@@ -61,7 +61,8 @@ flowchart LR
 | Görüşme ve teklif | Paketle görüşme başlatma, mesaj ve yetkili dosya açma, teklif oluşturma, kabul/ret ve paket içeriği kaydı. Görüşme, teklif ve tekliften randevu yanıtlarında sınırlı profil ve dosya bilgileri | Geçmiş kayıt ve dosya saklama kurallarını belirleme |
 | Randevu | Ana sayfadaki klinik aramasından tekil randevu alma ve kabul edilen paket seanslarını planlama. **Randevularım** ekranında hasta hesabına bağlı randevuların görüntülenmesi. Teklife bağlı randevularda şube kurallarına göre iptal ve tarih değişikliği. Klinik takviminde onay, iptal, tarih değişikliği, tamamlanma ve hasta gelmedi işlemleri. Yetkili şubede randevu kartını açma ve PDF indirme. SQLite ve PostgreSQL 17 üzerinde aynı hekimin saatine gelen eşzamanlı rezervasyon testi | Seçilecek üretim ortamında eşzamanlı rezervasyon provası |
 | Bildirim | Klinik başvurusu, görüşme, teklif ve randevu bildirimleri. CRM takip ve hasta randevu hatırlatmaları. Okunma durumu ve klinik tercihleri | Üretim zamanlayıcısı, kuyruk işçisi ve canlı e-posta teslimatı |
-| Sağlık verisi ve bekleme listesi | Tıbbi kayıt, onam ve bekleme listesi için şema ve modeller | Kullanıcı akışları, erişim ve saklama kararları. Bu modüllerin kapsamı ürün kararıyla belirlenecek |
+| Randevu bekleme listesi | Doğrulanmış hasta dolu bir gün için aynı şube, hekim ve tedavide bildirim isteyebilir ve isteğini kaldırabilir. Uygunluk bildirimi randevu ekranındaki seçimi açar. | Yayın ortamında zamanlayıcı ve bildirim provası |
+| Sağlık verisi ve onam | Tıbbi kayıt ve onam için şema ve modeller | Kullanıcı akışları, erişim, onam içeriği ve saklama kararları |
 | Yayın ve operasyon | Yerel kurulum, otomatik derleme ve test, yerel font ve lisans bildirimleri, SQLite ve PostgreSQL 17 yedekleme ve geri yükleme provaları, `/up` adresinden uygulama ve veritabanı erişim kontrolü | Üretim kurulumu ve yedekleme, canlı izleme ve yayın öncesi kontroller |
 
 İlk sürüm için klinik başvurusunda üç abonelik paketinden birinin seçilip seçilmeyeceği ve hangi CRM özelliklerinin zorunlu olacağı ürün kararı bekliyor. Muhasebe, faturalama, bağımsız destek talepleri, hasta yolculuğu ve sağlık turizmi operasyonları için kullanıcı akışları ayrıca tanımlanacak. [Klinik başvuru akışı](app/Http/Controllers/BusinessRegistrationController.php)
@@ -135,7 +136,7 @@ Kabul senaryosu şubede hekim ve uygunluk hazırlığından başlayıp hastanın
 3. **4.3 Sözleşme yönetim ekranı tamamlandı.** Platform yöneticisi sürümün yürürlük ve bitiş tarihlerini ayarlayabilir, taslağı yayımlayabilir ve yayımlanmış sürümü yayından kaldırabilir. Başvuru formu yürürlükteki sözleşmeyi gösterir. Yönetici önceki sürümlerin metnini ve her sürümü kabul eden kliniklerin kayıtlarını açabilir. Yayımlama, mobil başvuruda sözleşmenin kabulü ve yayından kaldırma Chromium’da test verileriyle doğrulandı. 830 test, 3.550 doğrulama ve Vite derlemesi geçti. [Sözleşme yönetimi testleri](tests/Feature/AdminPlatformContractTest.php)
 4. **4.4 Yayın öncesi onay.** Yayımlanacak sözleşme sürümünü ve yürürlük tarihini onayla. Yayımlanacak katalog kayıtlarını ve klinik bilgilerinin sunumunu sağlık tanıtımı kurallarına göre incele. [Klinik üyelik taslağı](resources/contracts/medloby-klinik-uyelik-taslak.txt) · [Sağlık Hizmetlerinde Tanıtım ve Bilgilendirme Faaliyetleri Hakkında Yönetmelik](https://www.resmigazete.gov.tr/eskiler/2025/11/12/20251112-2.htm)
 
-Kamuya açılış için içeriğin uygunluğu, onaylı sözleşme ve kişisel veri süreçleri doğrulanır. Tıbbi kayıt, bekleme listesi, platform içi ödeme ve varsa uluslararası sağlık turizmi akışı için kapsam ayrıca kararlaştırılır.
+Kamuya açılış için içeriğin uygunluğu, onaylı sözleşme ve kişisel veri süreçleri doğrulanır. Tıbbi kayıt, dijital onam, platform içi ödeme ve varsa uluslararası sağlık turizmi akışı için kapsam ayrıca kararlaştırılır.
 
 ### 5. Yayına hazırlık ve kontrollü açılış
 
@@ -166,6 +167,13 @@ Kamuya açılış için içeriğin uygunluğu, onaylı sözleşme ve kişisel ve
 25. **5.25 Klinik onayı ve geçici şifre kuyruğu doğrulandı.** Veritabanı kuyruğu uygulamayla aynı bağlantıyı kullandığında onay ve şifreli e-posta işi birlikte kaydedilir. Kuyruk işi kaydedilemezse onay beklemede kalır ve yeniden denenebilir. Kuyruk işçisi gönderimden önce kliniğin durumunu ve alıcının o klinikteki sahipliğini kontrol eder. Geçici e-posta hatasından sonra ikinci gönderim ve klinik sahibinin CRM’e girişi sınandı. [Klinik onay testleri](tests/Feature/ClinicAccountOnboardingTest.php)
 26. **5.26 Şifre yenileme kuyruğu kesinti senaryosunda doğrulandı.** Form, e-posta veya kuyruk hatasında kayıtlı ve kayıtsız adreslere aynı yanıtı verir. Kuyruk uygulamayla aynı veritabanı bağlantısını kullandığında şifre yenileme kaydı ile şifreli e-posta işi birlikte kaydedilir. Kuyruk geri geldikten sonra yeni bağlantı isteme ve e-postanın işlenmesi sınandı. [Şifre yenileme testleri](tests/Feature/AccountPasswordResetTest.php)
 27. **5.27 Yayın ayarları yerel kopyada prova edildi.** Geçici SQLite veritabanı, HTTPS adresi ve kapalı hata ayıklama ile `php artisan optimize` çalıştırıldı. Önbellekler açıkken ana sayfa, paket ekranı, şifre yenileme formu ve `/up` açıldı. Güvenli oturum çerezi, misafir kullanıcının yönetim API’sine erişim engeli ve iki hatırlatma komutunun zamanlayıcıdan çalışması doğrulandı. [Yayın öncesi kontrol listesi](README.md#medloby-yayına-çıkmadan-önce)
+
+### 6. Yeni modüller
+
+1. **6.1 Randevu bekleme bildirimi tamamlandı.** Hasta klinik sayfasından açılan randevu ekranında uygun saat bulunmayan gün için bildirim isteyebilir. İstek kendi hesabına ve seçtiği şube, hekim, tedavi ile güne bağlıdır. Hasta aynı ekrandan isteği kaldırabilir. Zamanlayıcı güncel randevu uygunluğunu kontrol eder ve saat açılırsa bir kez uygulama içi bildirim gönderir. Bildirim seçilen günü açar, hasta güncel saatlerden randevusunu kendisi seçer. [Bekleme listesi testleri](tests/Feature/AppointmentWaitingListTest.php)
+2. **6.2 Dijital onam ve tıbbi kayıt.** Onam metinleri, kullanacak roller, işlemlerin hasta ve randevuyla ilişkisi, erişim ve saklama koşulları belirlenecek.
+3. **6.3 Klinik üyelik planları, muhasebe ve faturalama.** İlk sürümdeki plan seçimi, planların CRM yetkileri ve ücretlendirme kapsamı belirlenecek.
+4. **6.4 Destek, hasta yolculuğu ve sağlık turizmi operasyonları.** Kullanacak roller, işlem adımları ve ilk sürümde yer alacak özellikler belirlenecek.
 
 ## Uygulama düzeni
 

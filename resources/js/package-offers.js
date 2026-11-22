@@ -299,8 +299,8 @@ export function mountPackageOffers(root) {
     window.addEventListener('hashchange', () => syncPage());
 
     function clinicBookingSelection() {
-        const match = /^#randevu-al\/([1-9][0-9]*)(?:\/([1-9][0-9]*))?$/.exec(window.location.hash);
-        return match ? { branch: match[1], doctor: match[2] ?? null } : null;
+        const match = /^#randevu-al\/([1-9][0-9]*)(?:\/([1-9][0-9]*)(?:\/([1-9][0-9]*)\/(\d{4}-\d{2}-\d{2}))?)?$/.exec(window.location.hash);
+        return match ? { branch: match[1], doctor: match[2] ?? null, treatment: match[3] ?? null, date: match[4] ?? null } : null;
     }
 
     function rememberPackage(pkg) {
@@ -372,6 +372,11 @@ export function mountPackageOffers(root) {
 
     async function openNotificationTarget(data) {
         const actor = user;
+        const waitingListId = Number(data.waiting_list_id);
+        if (Number.isSafeInteger(waitingListId) && waitingListId > 0) {
+            const booking = await api(patientAppointmentsPath + '/waiting-list/' + waitingListId);
+            return user === actor ? { booking } : null;
+        }
         const followUpId = Number(data.crm_follow_up_id);
         if (Number.isSafeInteger(followUpId) && followUpId > 0) {
             const followUp = await api('/branches/' + Number(data.branch_id) + '/crm/follow-ups/' + followUpId);
@@ -434,6 +439,13 @@ export function mountPackageOffers(root) {
     }
 
     function focusNotificationTarget(target) {
+        if (target.booking) {
+            const { branch_id, doctor_id, treatment_id, date } = target.booking;
+            window.location.hash = `randevu-al/${branch_id}/${doctor_id}/${treatment_id}/${date}`;
+            syncPage();
+            get('page-title').focus();
+            return;
+        }
         if (target.patientAppointment) {
             window.location.hash = 'randevular/' + target.patientAppointment.id;
             syncPage(target.patientAppointment);
