@@ -102,7 +102,8 @@ export function mountClinicAdministration(dialog, trigger, { api, timeLabel, ope
     }
 
     function clinicContext(clinic) {
-        return [statusLabels[clinic.status] ?? clinic.status, clinic.city, clinic.district].filter(Boolean).join(' · ');
+        const plan = clinic.membership_plan ? 'Plan ' + clinic.membership_plan + ' (Ücretsiz)' : 'Plan seçilmedi';
+        return [statusLabels[clinic.status] ?? clinic.status, clinic.city, clinic.district, plan].filter(Boolean).join(' · ');
     }
 
     const clinics = pagedList(find('directory-list'), (page) => {
@@ -329,7 +330,8 @@ export function mountClinicAdministration(dialog, trigger, { api, timeLabel, ope
         const reason = transition.elements.namedItem('reason').value.trim();
         const action = suspending ? 'suspend' : 'reactivate';
         mutate(async () => {
-            selectedClinic = await api(endpoint + '/' + selectedClinic.id + '/' + action, { reason });
+            const updated = await api(endpoint + '/' + selectedClinic.id + '/' + action, { reason });
+            selectedClinic = { ...selectedClinic, ...updated };
         }, suspending ? 'Klinik askıya alındı.' : 'Klinik yeniden açıldı.', (message) => {
             renderClinic();
             showStatus(message);

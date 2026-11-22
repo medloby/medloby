@@ -35,8 +35,9 @@ class BranchController extends Controller
      */
     private function ensureBranchManagementPermission(
         Request $request,
-        int $businessId
-    ): void {
+        int $businessId,
+        ?Branch $branch = null
+    ): bool {
         $user = $request->user();
 
         $membership = $user->businessMemberships()
@@ -51,10 +52,8 @@ class BranchController extends Controller
             );
         }
 
-        if ($membership->role !== 'business_owner' && ! $user->hasBusinessPermission(
-            $businessId,
-            'branches.manage'
-        )) {
+        $isOwner = $membership->role === 'business_owner';
+        if (! $isOwner && ($branch?->status !== 'active' || ! $user->canManageBranchCatalog($branch))) {
             abort(
                 403,
                 'Şube yönetimi yetkiniz bulunmuyor.'
@@ -62,6 +61,8 @@ class BranchController extends Controller
         }
 
         abort_unless($membership->business?->allowsCrmAccess(), 403, 'Şube yönetimi için kliniğin aktif ve onaylı olması gerekir.');
+
+        return $isOwner;
     }
 
     /**
@@ -255,9 +256,10 @@ class BranchController extends Controller
     ): JsonResponse {
         $businessId = (int) $branch->business_id;
 
-        $this->ensureBranchManagementPermission(
+        $isOwner = $this->ensureBranchManagementPermission(
             $request,
-            $businessId
+            $businessId,
+            $branch
         );
 
         $validated = $request->validate([
@@ -341,6 +343,11 @@ class BranchController extends Controller
                 'in:active,inactive',
             ],
         ]);
+
+        if (! $isOwner) {
+            abort_if(isset($validated['status']) && $validated['status'] !== $branch->status, 403, 'Şubenin durumunu yalnızca klinik sahibi değiştirebilir.');
+            unset($validated['status']);
+        }
 
         $branch->update($validated);
 

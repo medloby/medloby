@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class BusinessRegistrationController extends Controller
 {
@@ -30,6 +31,7 @@ class BusinessRegistrationController extends Controller
         $validated = $request->validate([
             'owner_email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'business_name' => ['required', 'string', 'max:255'],
+            'membership_plan' => ['nullable', 'string', Rule::in(array_keys(Business::MEMBERSHIP_PLANS))],
             'business_phone' => ['required', 'string', 'max:30', 'regex:/\A(?=(?:\D*\d){7,})[+0-9() .\-]{7,30}\z/'],
             'contract_accepted' => ['accepted'],
             'platform_contract_id' => ['required', 'integer'],
@@ -62,6 +64,7 @@ class BusinessRegistrationController extends Controller
 
             'business_name' => ['required', 'string', 'max:255'],
             'business_type' => ['nullable', 'string', 'max:50'],
+            'membership_plan' => ['nullable', 'string', Rule::in(array_keys(Business::MEMBERSHIP_PLANS))],
             'description' => ['nullable', 'string'],
             'business_email' => ['nullable', 'email', 'max:255'],
             'business_phone' => ['nullable', 'string', 'max:30'],
@@ -122,6 +125,7 @@ class BusinessRegistrationController extends Controller
                 'name' => $validated['business_name'],
                 'slug' => $businessSlug,
                 'type' => $validated['business_type'] ?? 'clinic',
+                'membership_plan' => $validated['membership_plan'] ?? null,
                 'description' => $validated['description'] ?? null,
                 'email' => isset($validated['business_email'])
                     ? strtolower($validated['business_email'])

@@ -20,7 +20,7 @@ use Tests\TestCase;
 
 uses(RefreshDatabase::class);
 
-function submitClinicAccountApplication(TestCase $test, string $email): User
+function submitClinicAccountApplication(TestCase $test, string $email, ?string $plan = null): User
 {
     $contract = PlatformContract::create([
         'contract_type' => 'clinic_membership', 'title' => 'Test sözleşmesi', 'version' => 'pilot',
@@ -28,6 +28,7 @@ function submitClinicAccountApplication(TestCase $test, string $email): User
     ]);
     $test->postJson('/api/register/business/application', [
         'owner_email' => $email, 'business_name' => 'Örnek Klinik', 'business_phone' => '+90 312 555 01 01',
+        'membership_plan' => $plan,
         'platform_contract_id' => $contract->id, 'contract_accepted' => true,
     ])->assertCreated()->assertJsonPath('data.approval_status', 'pending')->assertJsonMissingPath('data.token');
 
@@ -38,7 +39,7 @@ test('the clinic owner gets credentials only after approval and completes the cl
     config(['app.url' => 'https://medloby.example.test', 'mail.default' => 'array', 'queue.default' => 'database']);
     $admin = User::factory()->create(['is_admin' => true]);
     $email = 'yeni-klinik@example.test';
-    $owner = submitClinicAccountApplication($this, $email);
+    $owner = submitClinicAccountApplication($this, $email, 'standard');
     $business = $owner->businessMemberships()->sole()->business;
     $branch = $business->branches()->sole();
     expect($owner->login_code)->toBeNull();
@@ -47,9 +48,16 @@ test('the clinic owner gets credentials only after approval and completes the cl
     $this->post(route('password.email'), ['email' => $email])->assertRedirectToRoute('password.request');
     $this->assertDatabaseCount('jobs', 0);
 
-    $this->actingAs($admin, 'sanctum')->postJson("/api/admin/businesses/{$business->id}/approve")
+    expect($business->membership_plan)->toBe('standard');
+    $this->actingAs($admin, 'sanctum')->getJson("/api/admin/businesses/{$business->id}")
+        ->assertOk()->assertJsonPath('data.membership_plan', 'Standart');
+    $this->getJson('/api/admin/businesses/directory?status=pending')
+        ->assertOk()->assertJsonPath('data.data.0.membership_plan', 'Standart');
+    $this->postJson("/api/admin/businesses/{$business->id}/approve")
         ->assertOk()->assertJsonMissingPath('data.password');
     $this->postJson("/api/admin/businesses/{$business->id}/approve")->assertUnprocessable();
+    $this->getJson('/api/admin/businesses/directory?status=active')
+        ->assertOk()->assertJsonPath('data.data.0.membership_plan', 'Standart');
     $loginCode = 'klinik-'.$business->id;
     $job = json_decode(DB::table('jobs')->sole()->payload, true, flags: JSON_THROW_ON_ERROR);
     expect(decrypt($job['data']['command']))->toContain(ClinicOwnerCredentialsNotification::class);
@@ -92,7 +100,8 @@ test('the clinic owner gets credentials only after approval and completes the cl
     $this->withToken($token)->getJson('/api/me')->assertOk()
         ->assertJsonPath('data.user.owner_crm_business_id', $business->id);
     $this->getJson("/api/businesses/{$business->id}/crm")->assertOk()
-        ->assertJsonPath('data.can_manage_operations', true);
+        ->assertJsonPath('data.can_manage_operations', true)
+        ->assertJsonPath('data.membership_plan', 'Standart');
     $profile = "/api/businesses/{$business->id}/crm/profile";
     $this->getJson($profile.'?branch_id='.$branch->id)->assertOk()
         ->assertJsonPath('data.clinic.phone', '+90 312 555 01 01');
@@ -102,12 +111,24 @@ test('the clinic owner gets credentials only after approval and completes the cl
         'branch' => ['name' => 'Merkez Şube', 'country_code' => 'TR', 'address' => 'Klinik adresi.'],
     ])->assertOk()->assertJsonPath('data.clinic.description', 'Klinik özellikleri.')
         ->assertJsonPath('data.branch.address', 'Klinik adresi.');
-    $this->assertDatabaseHas('businesses', ['id' => $business->id, 'name' => 'Örnek Ağız Sağlığı', 'status' => 'active']);
+    $this->assertDatabaseHas('businesses', [
+        'id' => $business->id, 'name' => 'Örnek Ağız Sağlığı', 'status' => 'active', 'membership_plan' => 'standard',
+    ]);
     $this->assertDatabaseHas('branches', ['id' => $branch->id, 'name' => 'Merkez Şube']);
     $this->assertDatabaseHas('users', ['id' => $owner->id, 'name' => 'Klinik Sahibi', 'email' => $email]);
 
     $this->postJson('/api/login', ['identifier' => $loginCode, 'password' => $newPassword])
         ->assertOk()->assertJsonPath('data.user.id', $owner->id);
+});
+
+test('clinic applications reject membership choices outside the free plans', function () {
+    $email = 'plan-hatasi@example.test';
+    $this->postJson('/api/register/business/application', [
+        'owner_email' => $email, 'business_name' => 'Örnek Klinik', 'business_phone' => '+90 312 555 01 01',
+        'membership_plan' => 'unknown', 'platform_contract_id' => 1, 'contract_accepted' => true,
+    ])->assertUnprocessable()->assertJsonValidationErrors('membership_plan');
+
+    $this->assertDatabaseMissing('users', ['email' => $email]);
 });
 
 test('clinic approval can be retried if its database queue cannot accept the credentials job', function () {

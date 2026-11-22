@@ -1,14 +1,8 @@
 const endpoint = '/treatment-prices';
-const types = [['fixed', 'Sabit tutar'], ['range', 'Fiyat aralığı']];
-const amountFields = ['price', 'min_price', 'max_price'];
 
 function options(select, choices, value = '') {
     select.replaceChildren(...choices.map(([id, label]) => new Option(label, id)));
     select.value = value;
-}
-
-function doctorName(doctor) {
-    return doctor?.person ? [doctor.person.first_name, doctor.person.last_name].filter(Boolean).join(' ') : '';
 }
 
 function amountLabel(price) {
@@ -47,15 +41,6 @@ export function mountClinicTreatmentPrices(panel, api) {
         return data?.prices.find((price) => String(price.id) === record.value);
     }
 
-    function showAmounts() {
-        const type = field('price_type').value;
-        for (const name of amountFields) {
-            const visible = type === 'fixed' ? name === 'price' : type === 'range' ? name !== 'price' : true;
-            field(name).closest('label').hidden = !visible;
-            field(name).disabled = !visible;
-        }
-    }
-
     function showRecord() {
         const price = selectedPrice();
         const canCreate = data.can_manage && data.treatments.length > 0;
@@ -68,20 +53,11 @@ export function mountClinicTreatmentPrices(panel, api) {
         if (price && !data.treatments.some(({ id }) => id === price.treatment_id)) {
             treatments.push([price.treatment_id, price.treatment.name]);
         }
-        const doctors = data.doctors.map((doctor) => [doctor.id, doctorName(doctor)]);
-        if (price?.doctor_id && !data.doctors.some(({ id }) => id === price.doctor_id)) {
-            doctors.push([price.doctor_id, doctorName(price.doctor)]);
-        }
-
         options(field('treatment_id'), [['', 'Tedavi seçin'], ...treatments], price?.treatment_id);
-        options(field('doctor_id'), [['', 'Tüm hekimler'], ...doctors], price?.doctor_id ?? '');
-        const currentType = price?.price_type ?? 'fixed';
-        const availableTypes = types.some(([type]) => type === currentType) ? types : [...types, [currentType, currentType]];
-        options(field('price_type'), availableTypes, currentType);
         field('currency').value = price?.currency ?? 'TRY';
-        for (const name of amountFields) {
-            field(name).value = price?.[name] ?? '';
-        }
+        const fixed = price?.price_type === 'fixed' ? price.price : null;
+        field('min_price').value = fixed ?? price?.min_price ?? '';
+        field('max_price').value = fixed ?? price?.max_price ?? '';
         for (const name of ['valid_from', 'valid_until']) {
             field(name).value = price?.[name]?.slice(0, 10) ?? '';
         }
@@ -90,12 +66,11 @@ export function mountClinicTreatmentPrices(panel, api) {
         actions.hidden = !data.can_manage;
         toggle.hidden = !price;
         toggle.textContent = price?.is_active ? 'Fiyatı pasife al' : 'Fiyatı etkinleştir';
-        showAmounts();
     }
 
     function render(id) {
         const entries = data.prices.map((price) => [price.id, [
-            price.treatment.name, doctorName(price.doctor), amountLabel(price), price.is_active ? '' : 'Pasif',
+            price.treatment.name, amountLabel(price), price.is_active ? '' : 'Pasif',
         ].filter(Boolean).join(' · ')]);
         const canCreate = data.can_manage && data.treatments.length > 0;
         options(record, [['', canCreate ? 'Yeni fiyat kaydı' : 'Fiyat kaydı seçin'], ...entries], id);
@@ -163,12 +138,11 @@ export function mountClinicTreatmentPrices(panel, api) {
 
         const price = selectedPrice();
         const payload = Object.fromEntries(new FormData(form));
-        for (const name of ['doctor_id', 'valid_from', 'valid_until']) {
+        for (const name of ['valid_from', 'valid_until']) {
             payload[name] ||= null;
         }
-        for (const name of amountFields) {
-            payload[name] = field(name).disabled && price?.price_type === payload.price_type ? price[name] : (payload[name] || null);
-        }
+        payload.price_type = 'range';
+        payload.price = null;
         payload.currency = payload.currency.toUpperCase();
         if (!price) {
             payload.business_id = Number(branch.businessId);
@@ -194,7 +168,6 @@ export function mountClinicTreatmentPrices(panel, api) {
         showStatus();
         showRecord();
     });
-    field('price_type').addEventListener('change', showAmounts);
     scope.addEventListener('change', () => load());
     retry.addEventListener('click', () => load());
     panel.addEventListener('toggle', () => {

@@ -12,10 +12,17 @@ class Business extends Model
 {
     use HasFactory;
 
+    public const array MEMBERSHIP_PLANS = [
+        'starter' => 'Başlangıç',
+        'standard' => 'Standart',
+        'professional' => 'Profesyonel',
+    ];
+
     protected $fillable = [
         'name',
         'slug',
         'type',
+        'membership_plan',
         'description',
         'email',
         'phone',
@@ -33,7 +40,7 @@ class Business extends Model
         'verified_at',
     ];
 
-    protected $hidden = ['public_contact_fields'];
+    protected $hidden = ['public_contact_fields', 'membership_plan'];
 
     protected function casts(): array
     {
@@ -49,6 +56,11 @@ class Business extends Model
     public function allowsCrmAccess(): bool
     {
         return $this->status === 'active' && $this->is_verified;
+    }
+
+    public function membershipPlanLabel(): ?string
+    {
+        return self::MEMBERSHIP_PLANS[$this->membership_plan ?? ''] ?? null;
     }
 
     public function branches(): HasMany

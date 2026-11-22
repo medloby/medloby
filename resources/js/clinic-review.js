@@ -123,6 +123,7 @@ export function mountClinicReview(dialog, trigger, { api, timeLabel }) {
 
             selected = business;
             title.textContent = business.name;
+            find('plan').textContent = business.membership_plan ? business.membership_plan + ' · Ücretsiz' : 'Plan seçilmedi.';
             find('date').textContent = business.created_at ? 'Başvuru tarihi · ' + timeLabel(business.created_at) : '';
             const owners = business.memberships
                 .filter((membership) => membership.role === 'business_owner' && membership.user)

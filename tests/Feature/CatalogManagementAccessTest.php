@@ -178,7 +178,7 @@ test('branch assignment without management permission does not allow catalog wri
         ->postJson("/api/branches/{$branch->id}/treatments", ['treatment_id' => $treatment->id])
         ->assertForbidden();
     $client->getJson("/api/branches/{$branch->id}/crm/treatment-prices")->assertOk()
-        ->assertJsonPath('data.can_manage', false)->assertJsonPath('data.treatments', [])->assertJsonPath('data.doctors', []);
+        ->assertJsonPath('data.can_manage', false)->assertJsonPath('data.treatments', [])->assertJsonMissingPath('data.doctors');
 
     $this->assertDatabaseMissing('branch_treatment', ['branch_id' => $branch->id, 'treatment_id' => $treatment->id]);
 });
@@ -196,13 +196,12 @@ test('the clinic price workspace keeps branch prices separate from clinic prices
     $branch->treatments()->attach($treatment, ['is_active' => true]);
     $branch->treatments()->attach($inactiveLink, ['is_active' => false]);
     $doctor = Doctor::factory()->for(Person::factory()->for($business)->for($branch))->create();
-    $otherDoctor = Doctor::factory()->for(Person::factory()->for($business)->for($otherBranch))->create();
     $doctor->branches()->attach($branch, ['status' => 'active']);
-    $otherDoctor->branches()->attach($otherBranch, ['status' => 'active']);
 
     $priceData = ['business_id' => $business->id, 'treatment_id' => $treatment->id, 'price_type' => 'fixed', 'currency' => 'TRY', 'price' => 750];
     $clinicPrice = TreatmentPrice::create($priceData);
-    $branchPrice = TreatmentPrice::create($priceData + ['branch_id' => $branch->id, 'doctor_id' => $doctor->id, 'is_active' => false]);
+    $branchPrice = TreatmentPrice::create($priceData + ['branch_id' => $branch->id, 'is_active' => false]);
+    $doctorPrice = TreatmentPrice::create($priceData + ['branch_id' => $branch->id, 'doctor_id' => $doctor->id]);
     TreatmentPrice::create($priceData + ['branch_id' => $otherBranch->id]);
     $path = "/api/branches/{$branch->id}/crm/treatment-prices";
 
@@ -211,14 +210,19 @@ test('the clinic price workspace keeps branch prices separate from clinic prices
     $client->getJson($path)->assertOk()->assertHeader('Cache-Control', 'no-store, private')
         ->assertJsonPath('data.can_manage', true)
         ->assertJsonCount(1, 'data.prices')->assertJsonPath('data.prices.0.id', $branchPrice->id)
-        ->assertJsonPath('data.prices.0.is_active', false)->assertJsonPath('data.prices.0.doctor.person.first_name', $doctor->person->first_name)
-        ->assertJsonMissingPath('data.prices.0.doctor.license_number')->assertJsonMissingPath('data.prices.0.doctor.person.email')
+        ->assertJsonPath('data.prices.0.is_active', false)->assertJsonMissingPath('data.prices.0.doctor')
         ->assertJsonPath('data.treatments', [['id' => $treatment->id, 'name' => $treatment->name]])
-        ->assertJsonCount(1, 'data.doctors')->assertJsonPath('data.doctors.0.id', $doctor->id);
+        ->assertJsonMissingPath('data.doctors');
     $client->getJson($path.'?scope=clinic')->assertOk()->assertJsonPath('data.can_manage', true)
         ->assertJsonCount(1, 'data.prices')->assertJsonPath('data.prices.0.id', $clinicPrice->id)
-        ->assertJsonCount(2, 'data.doctors')->assertJsonCount(2, 'data.treatments');
+        ->assertJsonMissingPath('data.doctors')->assertJsonCount(2, 'data.treatments');
     $client->getJson($path.'?scope=invalid')->assertUnprocessable()->assertJsonValidationErrors('scope');
+    $pricePath = "/api/treatment-prices/{$doctorPrice->id}";
+    $client->getJson('/api/treatment-prices')->assertOk()->assertJsonCount(3, 'data.prices');
+    $client->getJson($pricePath)->assertForbidden();
+    $client->putJson($pricePath, ['doctor_id' => null])->assertNotFound();
+    $client->deleteJson($pricePath)->assertNotFound();
+    $this->assertDatabaseHas('treatment_prices', ['id' => $doctorPrice->id, 'doctor_id' => $doctor->id, 'is_active' => true]);
 });
 
 test('a price scope change requires management permission in both businesses', function () {

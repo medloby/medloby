@@ -37,9 +37,16 @@ class TreatmentPrice extends Model
     }
 
     #[Scope]
+    protected function clinicPrices(Builder $query): Builder
+    {
+        return $query->whereNull('treatment_prices.doctor_id');
+    }
+
+    #[Scope]
     protected function visibleTo(Builder $query, User $user): Builder
     {
         return $query
+            ->clinicPrices()
             ->where(fn (Builder $prices) => $prices->whereNull('treatment_prices.branch_id')
                 ->orWhereHas('branch', fn (Builder $branches) => $branches
                     ->whereColumn('branches.business_id', 'treatment_prices.business_id')))

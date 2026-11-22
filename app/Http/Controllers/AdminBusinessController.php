@@ -36,7 +36,8 @@ class AdminBusinessController extends Controller
             ])
             ->latest()
             ->orderByDesc('id')
-            ->paginate($perPage);
+            ->paginate($perPage)
+            ->through($this->clinicWithPlan(...));
 
         return response()->json([
             'success' => true,
@@ -54,7 +55,8 @@ class AdminBusinessController extends Controller
             ->when(isset($filters['status']), fn ($query) => $query->where('status', $filters['status']))
             ->when(isset($filters['search']), fn ($query) => $query->whereLike('name', '%'.$filters['search'].'%'))
             ->orderBy('name')->orderBy('id')
-            ->paginate(20, ['id', 'name', 'status', 'city', 'district']);
+            ->paginate(20, ['id', 'name', 'status', 'city', 'district', 'membership_plan'])
+            ->through($this->clinicWithPlan(...));
 
         return response()->json(['success' => true, 'data' => $businesses])->header('Cache-Control', 'private, no-store');
     }
@@ -73,8 +75,13 @@ class AdminBusinessController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $business,
+            'data' => $this->clinicWithPlan($business),
         ]);
+    }
+
+    private function clinicWithPlan(Business $business): array
+    {
+        return $business->toArray() + ['membership_plan' => $business->membershipPlanLabel()];
     }
 
     /**

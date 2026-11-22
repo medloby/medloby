@@ -55,6 +55,15 @@
                 Telefon
                 <input class="offer-control" type="tel" name="business_phone" autocomplete="tel" minlength="7" maxlength="30" required>
             </label>
+            <label class="offer-field">
+                Üyelik planı
+                <select class="offer-control" name="membership_plan">
+                    <option value="">Plan seçin (isteğe bağlı)</option>
+                    @foreach (\App\Models\Business::MEMBERSHIP_PLANS as $code => $label)
+                        <option value="{{ $code }}">{{ $label }} · Ücretsiz</option>
+                    @endforeach
+                </select>
+            </label>
         </div>
         <details class="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
             <summary class="cursor-pointer text-sm font-semibold text-teal-800 dark:text-teal-300" data-contract-heading></summary>

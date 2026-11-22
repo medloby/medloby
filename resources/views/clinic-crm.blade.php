@@ -1,6 +1,9 @@
 <section id="clinic-crm" class="mt-5 grid gap-5" aria-labelledby="clinic-crm-name" hidden>
     <div class="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="clinic-crm-name" class="min-w-0 break-words text-xl font-semibold"></h2>
+        <div class="min-w-0">
+            <h2 id="clinic-crm-name" class="break-words text-xl font-semibold"></h2>
+            <p class="text-sm text-slate-600 dark:text-slate-300" data-crm-plan hidden></p>
+        </div>
         <div class="flex flex-wrap gap-2">
             <a href="#gorusmeler" class="offer-button offer-button-secondary" data-crm-return>Başvurulara dön</a>
             <button type="button" class="offer-button offer-button-secondary" data-crm-refresh>Yenile</button>

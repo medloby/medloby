@@ -2,8 +2,9 @@
 
 use App\Models\Branch;
 use App\Models\Business;
-use App\Models\Doctor;
 use App\Models\BusinessUser;
+use App\Models\Doctor;
+use App\Models\Person;
 use App\Models\Treatment;
 use App\Models\TreatmentCategory;
 use App\Models\TreatmentPrice;
@@ -443,8 +444,8 @@ test('valid until cannot be before valid from', function () {
         ]);
 });
 
-test('can create doctor specific treatment price', function () {
-    $person = \App\Models\Person::create([
+test('clinic and branch treatment prices cannot be created or updated with a doctor', function () {
+    $person = Person::create([
         'business_id' => $this->business->id,
         'branch_id' => $this->branch->id,
         'first_name' => 'Test',
@@ -457,32 +458,40 @@ test('can create doctor specific treatment price', function () {
         'status' => 'active',
     ]);
 
-    $doctor->branches()->attach(
-    $this->branch->id,
-    [
-        'status' => 'active',
-    ]
-);
+    $doctor->branches()->attach($this->branch->id, ['status' => 'active']);
+    $data = [
+        'business_id' => $this->business->id,
+        'treatment_id' => $this->treatment->id,
+        'branch_id' => $this->branch->id,
+        'price_type' => 'range',
+        'min_price' => 65000,
+        'max_price' => 75000,
+        'currency' => 'TRY',
+    ];
 
-    $response = $this->actingAs($this->user)->postJson(
-        '/api/treatment-prices',
-        [
-            'business_id' => $this->business->id,
-            'treatment_id' => $this->treatment->id,
-            'branch_id' => $this->branch->id,
-            'doctor_id' => $doctor->id,
-            'price_type' => 'fixed',
-            'price' => 75000,
-            'currency' => 'TRY',
-        ]
-    );
+    $this->actingAs($this->user)->postJson('/api/treatment-prices', $data + ['doctor_id' => $doctor->id])
+        ->assertUnprocessable()->assertJsonValidationErrors('doctor_id');
+    $price = TreatmentPrice::create($data);
+    $this->putJson("/api/treatment-prices/{$price->id}", ['doctor_id' => $doctor->id])
+        ->assertUnprocessable()->assertJsonValidationErrors('doctor_id');
+    $this->assertDatabaseMissing('treatment_prices', ['doctor_id' => $doctor->id]);
+});
 
-    $response
-        ->assertCreated()
-        ->assertJsonPath(
-            'data.doctor_id',
-            $doctor->id
-        );
+test('new ranges need both bounds and an existing range cannot lose a bound', function () {
+    $data = [
+        'business_id' => $this->business->id,
+        'treatment_id' => $this->treatment->id,
+        'price_type' => 'range',
+        'currency' => 'TRY',
+    ];
+    $client = $this->actingAs($this->user);
+    $client->postJson('/api/treatment-prices', $data)
+        ->assertUnprocessable()->assertJsonValidationErrors(['min_price', 'max_price']);
+
+    $price = TreatmentPrice::create($data + ['min_price' => 500, 'max_price' => 750]);
+    $client->putJson("/api/treatment-prices/{$price->id}", ['max_price' => null])
+        ->assertUnprocessable()->assertJsonValidationErrors('max_price');
+    expect($price->fresh()->max_price)->toBe('750.00');
 });
 
 test('can show treatment price with relationships', function () {

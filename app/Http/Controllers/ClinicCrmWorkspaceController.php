@@ -44,13 +44,18 @@ class ClinicCrmWorkspaceController extends Controller
             ->orderBy('name')->orderBy('id')->get(['id', 'name']);
         abort_if(! $ownsClinic && $branches->isEmpty(), 403, 'Bu kliniğin aktif şubelerine erişim yetkiniz yok.');
 
+        $workspace = [
+            'name' => $business->name,
+            'branches' => $branches,
+            'can_manage_operations' => $ownsClinic,
+        ];
+        if ($ownsClinic && ($plan = $business->membershipPlanLabel()) !== null) {
+            $workspace['membership_plan'] = $plan;
+        }
+
         return response()->json([
             'success' => true,
-            'data' => [
-                'name' => $business->name,
-                'branches' => $branches,
-                'can_manage_operations' => $ownsClinic,
-            ],
+            'data' => $workspace,
         ])->header('Cache-Control', 'private, no-store');
     }
 }

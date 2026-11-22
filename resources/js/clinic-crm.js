@@ -18,6 +18,7 @@ const metricLabels = {
 export function mountClinicCrm(section, api, appointmentDialogs) {
     const find = (part) => section.querySelector('[data-crm-' + part + ']');
     const title = section.querySelector('#clinic-crm-name');
+    const plan = find('plan');
     const branchField = find('branch-field');
     const branch = find('branch');
     const refresh = find('refresh');
@@ -124,6 +125,7 @@ export function mountClinicCrm(section, api, appointmentDialogs) {
         setBranchPanels(null);
         clearSummary();
         title.textContent = '';
+        plan.hidden = true;
         branchField.hidden = true;
         branch.replaceChildren();
         setLoading(true);
@@ -139,6 +141,8 @@ export function mountClinicCrm(section, api, appointmentDialogs) {
             workspaceLoaded = true;
             title.textContent = clinic.name;
             canManageOperations = clinic.can_manage_operations;
+            plan.textContent = clinic.membership_plan ? 'Üyelik planı · ' + clinic.membership_plan + ' · Ücretsiz' : 'Üyelik planı seçilmedi.';
+            plan.hidden = !canManageOperations;
             branchManagement.setBusiness(canManageOperations ? businessId : null);
             find('return').textContent = canManageOperations ? 'Başvurulara dön' : 'Çalışma alanına dön';
             const branches = clinic.branches;

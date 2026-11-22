@@ -157,7 +157,7 @@ test('legacy branch writes return forbidden when the clinic cannot access CRM', 
     'suspended clinic' => ['suspended', true],
 ]);
 
-test('staff with branch management permission can create a branch', function () {
+test('only the owner can open or change branch status even when staff has branch management permission', function () {
     BusinessUserPermission::create([
         'business_id' => $this->business->id,
         'user_id' => $this->staff->id,
@@ -166,20 +166,24 @@ test('staff with branch management permission can create a branch', function () 
         'is_allowed' => true,
     ]);
 
-    $response = $this->actingAs($this->staff)
+    $this->actingAs($this->staff)
         ->postJson('/api/branches', [
             'business_id' => $this->business->id,
             'name' => 'Personel Tarafından Açılan Şube',
             'slug' => 'personel-acilan-sube',
             'status' => 'active',
-        ]);
+        ])->assertForbidden();
+    $path = "/api/branches/{$this->branch->id}";
+    $this->putJson($path, ['status' => 'inactive'])->assertForbidden();
+    $this->deleteJson($path)->assertForbidden();
 
-    $response
-        ->assertCreated()
-        ->assertJsonPath(
-            'data.name',
-            'Personel Tarafından Açılan Şube'
-        );
+    $this->assertDatabaseMissing('branches', ['slug' => 'personel-acilan-sube']);
+    $this->assertDatabaseHas('branches', ['id' => $this->branch->id, 'status' => 'active']);
+
+    $this->actingAs($this->owner)->deleteJson($path)->assertOk();
+    $this->actingAs($this->staff)->putJson($path, ['status' => 'active'])->assertForbidden();
+    $this->actingAs($this->owner)->putJson($path, ['status' => 'active'])
+        ->assertOk()->assertJsonPath('data.status', 'active');
 });
 
 test('staff without branch management permission cannot create a branch', function () {
@@ -279,7 +283,7 @@ test('business owner can update a branch', function () {
     ]);
 });
 
-test('staff with branch management permission can update a branch', function () {
+test('staff with branch management permission can update only the assigned branch profile', function () {
     BusinessUserPermission::create([
         'business_id' => $this->business->id,
         'user_id' => $this->staff->id,
@@ -302,6 +306,10 @@ test('staff with branch management permission can update a branch', function () 
             'data.name',
             'Personel Güncelledi'
         );
+
+    $otherBranch = Branch::factory()->for($this->business)->create();
+    $this->putJson("/api/branches/{$otherBranch->id}", ['name' => 'Yetkisiz değişiklik'])->assertForbidden();
+    expect($otherBranch->fresh()->name)->toBe($otherBranch->name);
 });
 
 test('staff without branch management permission cannot update a branch', function () {

@@ -31,6 +31,10 @@
                     <dd class="whitespace-pre-line break-words" data-clinic-owners></dd>
                 </div>
                 <div class="min-w-0">
+                    <dt class="font-semibold">Üyelik planı</dt>
+                    <dd class="break-words" data-clinic-plan></dd>
+                </div>
+                <div class="min-w-0">
                     <dt class="font-semibold">Klinik iletişim bilgileri</dt>
                     <dd class="whitespace-pre-line break-words" data-clinic-contact></dd>
                 </div>

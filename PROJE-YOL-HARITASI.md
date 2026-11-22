@@ -2,7 +2,7 @@
 
 **İnceleme tarihi** 22 Kasım 2026 · **Envanterin dayandığı sürüm** `main / eb56f3d`
 
-**Güncel durum** Klinik ve personel hesapları, CRM takip hatırlatmaları, adaydan şube randevusuna geçiş, sözleşme yönetimi ve platform yöneticisinin klinik yönetim ekranı test ortamında tamamlandı. Canlı e-posta, üretim zamanlayıcısı ve yedeklemesi, işletmeci bilgileri ve KVKK onayları yayın öncesi kontrol listesinde takip ediliyor. [Yayın öncesi kontrol listesi](README.md#medloby-yayına-çıkmadan-önce)
+**Güncel durum** İlk sürümde ücretsiz klinik planı seçimi, tedavi fiyat aralıkları, şube yönetim yetkileri ve randevu bekleme bildirimleri test ortamında hazır. Canlı e-posta, üretim zamanlayıcısı ve yedeklemesi, işletmeci bilgileri ve KVKK onayları yayın öncesi kontrol listesinde takip ediliyor. [Yayın öncesi kontrol listesi](README.md#medloby-yayına-çıkmadan-önce)
 
 ## Kapsam ve doğrulama
 
@@ -10,7 +10,7 @@ Envanter, Git'in izlediği 476 dosyayı kapsadı. Depoda 152 uygulama dosyası, 
 
 - Kilitli PHP ortam gereksinimleri, 371 PHP dosyasının sözdizimi ve Vite derlemesi geçti.
 - Envanterin dayandığı sürümde SQLite ve PostgreSQL 17 yapılandırmalarıyla **879’ar test** geçti. Sonraki uygulama sonuçları geliştirme sırasındaki ilgili maddede yer alır.
-- Bekleme listesi doğrulamalarından sonra SQLite ve PostgreSQL 17.12 üzerinde **937’şer test** geçti.
+- İlk sürümdeki plan, şube ve fiyat kurallarıyla birlikte SQLite ve PostgreSQL 17.12 üzerinde **939’ar test** geçti.
 - Klinik üyeliği için `0.2-draft` hazırlandı. Başvuru formu, geçerli ve yayımlanmış zorunlu sözleşme olduğunda açılır.
 - npm taramasında ve kilitli 133 PHP paket sürümü için GitHub Advisory Database taramasında eşleşen bildirim bulunmadı.
 
@@ -65,7 +65,7 @@ flowchart LR
 | Sağlık verisi ve onam | Tıbbi kayıt ve onam için şema ve modeller | Kullanıcı akışları, erişim, onam içeriği ve saklama kararları |
 | Yayın ve operasyon | Yerel kurulum, otomatik derleme ve test, yerel font ve lisans bildirimleri, SQLite ve PostgreSQL 17 yedekleme ve geri yükleme provaları, `/up` adresinden uygulama ve veritabanı erişim kontrolü | Üretim kurulumu ve yedekleme, canlı izleme ve yayın öncesi kontroller |
 
-İlk sürüm için klinik başvurusunda üç abonelik paketinden birinin seçilip seçilmeyeceği ve hangi CRM özelliklerinin zorunlu olacağı ürün kararı bekliyor. Muhasebe, faturalama, bağımsız destek talepleri, hasta yolculuğu ve sağlık turizmi operasyonları için kullanıcı akışları ayrıca tanımlanacak. [Klinik başvuru akışı](app/Http/Controllers/BusinessRegistrationController.php)
+İlk sürümde klinik başvurusunda **Başlangıç**, **Standart** ve **Profesyonel** üyelik planları ücretsiz ve isteğe bağlıdır. Seçim klinik sahibinin CRM’inde ve platform yönetim ekranlarında görünür. Muhasebe, faturalama, bağımsız destek talepleri, hasta yolculuğu ve sağlık turizmi operasyonları için kullanıcı akışları ayrıca tanımlanacak. [Klinik başvuru akışı](app/Http/Controllers/BusinessRegistrationController.php)
 
 Adayı sonuçlandırma işlemi durum ve tarih kaydeder. Adayın profil bağlantısı şubeyle ilişkisi doğrulanabilen hastalar için kurulur. Aday ayrıntısındaki randevu listesi bu profilin adayın şubesindeki kayıtlarıyla sınırlıdır. CRM özeti başarılı ve sonuçsuz adayları kayıtlı sonuca göre sayar. [CRM aday işlemleri](app/Http/Controllers/CrmLeadController.php) · [Aday randevuları](app/Http/Controllers/CrmLeadAppointmentController.php) · [CRM raporu](app/Http/Controllers/CrmDashboardController.php)
 
@@ -80,8 +80,8 @@ Adayı sonuçlandırma işlemi durum ve tarih kaydeder. Adayın profil bağlant�
   - [x] Görüşme ve teklif yanıtlarında kişi, klinik ve ek dosya bilgileri sınırlandı. Hastanın telefonu ve doğum tarihi, personelin hesap e-postası ve dosyanın depolama bilgileri bu yanıtlardan çıkarıldı. CRM aday bağlantısı şube yetkisiyle açılan CRM işleminde görülür. Hasta ve klinik yetkileri, dosya açma, teklif yanıtı ve paket seanslarının kaydı test edildi. 836 test, 3.679 doğrulama ve Vite derlemesi geçti. [Görüşme testi](tests/Feature/ConversationTest.php) · [Teklif testi](tests/Feature/OfferTest.php)
 - [x] **1.3** Güvenlik duyurularına göre iki PHP ve dört JavaScript paketinin kilitli sürümleri güncellendi. Güncel kilit dosyalarında `npm audit` ve GitHub Advisory Database taramaları eşleşen güvenlik bildirimi bulmadı. PHP ortam gereksinimleri, 795 test ve Vite derlemesi geçti. [Bağımlılık güncellemeleri](https://github.com/medloby/medloby/commit/214a18389834151e15f136f317b4a1e534e9af87)
 - [x] **1.4** Eski ve güncel takvim uçları aynı klinik ve şube erişim kontrolünü kullanır. Takvim kuralı, tarih istisnası, saat engeli, hekim çalışma saati ve izin değişiklikleri aktif klinik sahibine açıktır. Şubeye atanmış personel mevcut görüntüleme, randevu ayarı ve kendisine verilen işlem yetkilerini kullanmaya devam eder. Takvim engeli gerekçesini klinik sahibi görür. 245 mevcut rota korunmuştur. SQLite ve PostgreSQL yapılandırmalarıyla 887’şer test geçti. Yerel SQLite üyelik tablosu boştu. Eski `owner` kayıtlarının üretim verisi varsa rol eşlemesi o veri üzerinden doğrulanacak. [Takvim yetki testleri](tests/Feature/ClinicCalendarTest.php)
-- [ ] **1.5** Hekime özel fiyatın tedavi atamasından önce tanımlanıp tanımlanamayacağını kararlaştır. Mevcut fiyat kaydı hekim, klinik, şube ve tedavinin ilgili kontrollerini yapar. Mevcut test, aktif hekim–tedavi ataması henüz eklenmeden fiyat kaydına izin verir. Randevu uygunluğu aktif hekim–tedavi atamasını ayrıca gerektirir. [Fiyat testi](tests/Feature/TreatmentPriceControllerTest.php) · [Randevu uygunluğu](app/Services/AppointmentAvailabilityService.php)
-- [ ] **1.6** Eski şube yönetimindeki işletme geneli `branches.manage` izninin kapsamını doğrula. Eski API bu izinle şube oluşturma ve güncellemeyi destekler. CRM’de şube oluşturma ve durum değiştirme klinik sahibine açıktır. Yetkiyi kullanan hesaplar ve istemciler belirlendikten sonra şube yönetimi kuralı ortaklaştırılacak. [Eski şube işlemleri](app/Http/Controllers/BranchController.php) · [CRM şube yönetimi](app/Http/Controllers/ClinicProfileController.php)
+- [x] **1.5** Tedavi fiyatı CRM’de klinik veya şube için alt ve üst tutar olarak kaydedilir. Hekime özel fiyatlar ekran ve API işlemlerinden kaldırıldı. Önceki hekim kayıtları veritabanında korunur. Eski sabit klinik ve şube fiyatları okunabilir, CRM’de düzenlenirse aralık olarak kaydedilir. [Fiyat testi](tests/Feature/TreatmentPriceControllerTest.php)
+- [x] **1.6** Şube açma, pasife alma ve yeniden açma CRM ve eski API’de klinik sahibine aittir. Personel, kendisine atanmış aktif şubede verilmiş işlem izinlerini kullanır. [Şube işlemleri](app/Http/Controllers/BranchController.php) · [CRM şube yönetimi](app/Http/Controllers/ClinicProfileController.php)
   - [x] Eski şube API’sinde şube açma, düzenleme ve pasife alma için CRM’deki aktif ve onaylı klinik koşulu uygulanır. Onayı bekleyen, onaysız ve askıdaki kliniklerde bu işlemlerin reddedildiği test edildi. [Şube API testleri](tests/Feature/BranchControllerTest.php)
   - Yerel SQLite veritabanında işletme geneli `branches.manage` izni verilmiş hesap veya eski `owner` rolünde üyelik bulunmadı. Gerçek hesap ve istemci kullanımı yayın ortamı seçildiğinde doğrulanacak.
 - [x] **1.7** Herkese açık şube tedavi listesi onaylı kliniklerin aktif şubelerini açar. Tedavinin katalogda ve ilgili şubede aktif olması gerekir. Klinik CRM’i pasif şube tedavilerini yetkiyle yönetebilir. [Şube tedavi testleri](tests/Feature/BranchTreatmentControllerTest.php)
@@ -172,7 +172,7 @@ Kamuya açılış için içeriğin uygunluğu, onaylı sözleşme ve kişisel ve
 
 1. **6.1 Randevu bekleme bildirimi tamamlandı.** Hasta klinik sayfasından açılan randevu ekranında uygun saat bulunmayan gün için bildirim isteyebilir. İstek kendi hesabına ve seçtiği şube, hekim, tedavi ile güne bağlıdır. Hasta aynı ekrandan isteği kaldırabilir. Zamanlayıcı güncel randevu uygunluğunu kontrol eder ve saat açılırsa bir kez uygulama içi bildirim gönderir. Bildirim seçilen günü açar, hasta güncel saatlerden randevusunu kendisi seçer. [Bekleme listesi testleri](tests/Feature/AppointmentWaitingListTest.php)
 2. **6.2 Dijital onam ve tıbbi kayıt.** Onam metinleri, kullanacak roller, işlemlerin hasta ve randevuyla ilişkisi, erişim ve saklama koşulları belirlenecek.
-3. **6.3 Klinik üyelik planları, muhasebe ve faturalama.** İlk sürümdeki plan seçimi, planların CRM yetkileri ve ücretlendirme kapsamı belirlenecek.
+3. **6.3 Klinik üyelik planı seçimi tamamlandı.** Üç ücretsiz plandan yapılan seçim klinik kaydında saklanır. Seçilen plan başvuru incelemesinde, yönetim listesindeki klinik ayrıntılarında ve klinik sahibinin CRM’inde görünür. Ücretlendirme, muhasebe ve faturalama akışları daha sonra tanımlanacak. [Klinik üyelik testi](tests/Feature/ClinicAccountOnboardingTest.php)
 4. **6.4 Destek, hasta yolculuğu ve sağlık turizmi operasyonları.** Kullanacak roller, işlem adımları ve ilk sürümde yer alacak özellikler belirlenecek.
 
 ## Uygulama düzeni

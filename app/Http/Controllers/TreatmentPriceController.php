@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Branch;
-use App\Models\Doctor;
 use App\Models\Treatment;
 use App\Models\TreatmentPrice;
 use App\Rules\PriceAmount;
@@ -26,7 +25,6 @@ class TreatmentPriceController extends Controller
                 'business',
                 'treatment',
                 'branch',
-                'doctor',
             ])
             ->orderByDesc('id');
 
@@ -86,7 +84,7 @@ class TreatmentPriceController extends Controller
         $canManage = $this->catalogAccess->canManage($request->user(), $branch->business_id, $branchId);
         $prices = TreatmentPrice::query()->visibleTo($request->user())
             ->where('business_id', $branch->business_id)->where('branch_id', $branchId)
-            ->with(['treatment:id,name', 'doctor:id,person_id', 'doctor.person:id,first_name,last_name'])
+            ->with('treatment:id,name')
             ->latest('id')->get();
 
         return response()->json([
@@ -98,11 +96,6 @@ class TreatmentPriceController extends Controller
                     ->when($branchId !== null, fn (Builder $treatments) => $treatments->whereHas('branches', fn (Builder $branches) => $branches
                         ->whereKey($branchId)->where('branch_treatment.is_active', true)))
                     ->orderBy('name')->get(['id', 'name']) : [],
-                'doctors' => $canManage ? Doctor::query()
-                    ->whereHas('branches', fn (Builder $branches) => $branches->where('branches.business_id', $branch->business_id)
-                        ->when($branchId !== null, fn (Builder $branches) => $branches->whereKey($branchId))
-                        ->where('doctor_branch.status', 'active'))
-                    ->with('person:id,first_name,last_name')->orderBy('id')->get(['id', 'person_id']) : [],
             ],
         ])->header('Cache-Control', 'private, no-store');
     }
@@ -127,8 +120,8 @@ class TreatmentPriceController extends Controller
             ],
             'doctor_id' => [
                 'nullable',
+                'prohibited',
                 'integer',
-                'exists:doctors,id',
             ],
             'price_type' => [
                 'required',
@@ -140,10 +133,12 @@ class TreatmentPriceController extends Controller
                 ...PriceAmount::RULES,
             ],
             'min_price' => [
+                'required_if:price_type,range',
                 'nullable',
                 ...PriceAmount::RULES,
             ],
             'max_price' => [
+                'required_if:price_type,range',
                 'nullable',
                 ...PriceAmount::RULES,
                 'gte:min_price',
@@ -217,40 +212,6 @@ class TreatmentPriceController extends Controller
             }
         }
 
-        if (! empty($validated['doctor_id'])) {
-            $doctor = Doctor::findOrFail(
-                $validated['doctor_id']
-            );
-
-            if (
-                ! $doctor->branches()
-                    ->where(
-                        'branches.business_id',
-                        $validated['business_id']
-                    )
-                    ->wherePivot('status', 'active')
-                    ->exists()
-            ) {
-                abort(
-                    422,
-                    'Doctor does not belong to the selected business.'
-                );
-            }
-
-            if (
-                $branch &&
-                ! $doctor->branches()
-                    ->where('branches.id', $branch->id)
-                    ->wherePivot('status', 'active')
-                    ->exists()
-            ) {
-                abort(
-                    422,
-                    'Doctor is not assigned to the selected branch.'
-                );
-            }
-        }
-
         $validated['currency'] = strtoupper(
             $validated['currency']
         );
@@ -266,7 +227,6 @@ class TreatmentPriceController extends Controller
                 'business',
                 'treatment',
                 'branch',
-                'doctor',
             ]),
         ], 201);
     }
@@ -276,7 +236,7 @@ class TreatmentPriceController extends Controller
         TreatmentPrice $treatmentPrice
     ): JsonResponse {
         $price = TreatmentPrice::query()->visibleTo($request->user())
-            ->with(['business', 'treatment', 'branch', 'doctor'])
+            ->with(['business', 'treatment', 'branch'])
             ->find($treatmentPrice->id);
 
         abort_unless($price, 403, 'Bu tedavi fiyatına erişim yetkiniz yok.');
@@ -317,8 +277,8 @@ class TreatmentPriceController extends Controller
             ],
             'doctor_id' => [
                 'nullable',
+                'prohibited',
                 'integer',
-                'exists:doctors,id',
             ],
             'price_type' => [
                 'sometimes',
@@ -358,8 +318,13 @@ class TreatmentPriceController extends Controller
 
         $changesMinimum = array_key_exists('min_price', $validated);
         $changesMaximum = array_key_exists('max_price', $validated);
-        if ($changesMinimum || $changesMaximum) {
+        if ($changesMinimum || $changesMaximum || ($validated['price_type'] ?? null) === 'range') {
             $range = $validated + $treatmentPrice->only(['min_price', 'max_price']);
+            if (($validated['price_type'] ?? $treatmentPrice->price_type) === 'range' && ! isset($range['min_price'], $range['max_price'])) {
+                throw ValidationException::withMessages([
+                    isset($range['min_price']) ? 'max_price' : 'min_price' => 'Fiyat aralığının alt ve üst sınırlarını girin.',
+                ]);
+            }
             if (isset($range['min_price'], $range['max_price']) && $range['min_price'] > $range['max_price']) {
                 throw ValidationException::withMessages([
                     ($changesMaximum ? 'max_price' : 'min_price') => 'En düşük fiyat, en yüksek fiyattan büyük olamaz.',
@@ -383,13 +348,6 @@ class TreatmentPriceController extends Controller
 
         $treatmentId = $validated['treatment_id']
             ?? $treatmentPrice->treatment_id;
-
-        $doctorId = array_key_exists(
-            'doctor_id',
-            $validated
-        )
-            ? $validated['doctor_id']
-            : $treatmentPrice->doctor_id;
 
         $branch = null;
 
@@ -430,38 +388,6 @@ class TreatmentPriceController extends Controller
             }
         }
 
-        if ($doctorId !== null) {
-            $doctor = Doctor::findOrFail($doctorId);
-
-            if (
-                ! $doctor->branches()
-                    ->where(
-                        'branches.business_id',
-                        $businessId
-                    )
-                    ->wherePivot('status', 'active')
-                    ->exists()
-            ) {
-                abort(
-                    422,
-                    'Doctor does not belong to the selected business.'
-                );
-            }
-
-            if (
-                $branch &&
-                ! $doctor->branches()
-                    ->where('branches.id', $branch->id)
-                    ->wherePivot('status', 'active')
-                    ->exists()
-            ) {
-                abort(
-                    422,
-                    'Doctor is not assigned to the selected branch.'
-                );
-            }
-        }
-
         if (isset($validated['currency'])) {
             $validated['currency'] = strtoupper(
                 $validated['currency']
@@ -485,7 +411,6 @@ class TreatmentPriceController extends Controller
                 'business',
                 'treatment',
                 'branch',
-                'doctor',
             ]),
         ]);
     }
@@ -509,7 +434,7 @@ class TreatmentPriceController extends Controller
 
     private function lockPriceForManagement(Request $request, TreatmentPrice $price): TreatmentPrice
     {
-        $price = TreatmentPrice::query()->lockForUpdate()->findOrFail($price->getKey());
+        $price = TreatmentPrice::query()->clinicPrices()->lockForUpdate()->findOrFail($price->getKey());
         $this->catalogAccess->authorizeManagement($request->user(), $price->business_id, $price->branch_id);
 
         return $price;

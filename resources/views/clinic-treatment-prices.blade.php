@@ -22,23 +22,14 @@
                         <label class="offer-field">Tedavi
                             <select class="offer-control" name="treatment_id" required></select>
                         </label>
-                        <label class="offer-field">Hekim
-                            <select class="offer-control" name="doctor_id"></select>
-                        </label>
-                        <label class="offer-field">Fiyat türü
-                            <select class="offer-control" name="price_type"></select>
-                        </label>
                         <label class="offer-field">Para birimi
                             <input class="offer-control" name="currency" minlength="3" maxlength="3" pattern="[A-Za-z]{3}" autocapitalize="characters" required>
                         </label>
-                        <label class="offer-field">Tutar
-                            <input class="offer-control" type="number" name="price" min="0" max="9999999999.99" step="0.01">
-                        </label>
                         <label class="offer-field">En düşük tutar
-                            <input class="offer-control" type="number" name="min_price" min="0" max="9999999999.99" step="0.01">
+                            <input class="offer-control" type="number" name="min_price" min="0" max="9999999999.99" step="0.01" required>
                         </label>
                         <label class="offer-field">En yüksek tutar
-                            <input class="offer-control" type="number" name="max_price" min="0" max="9999999999.99" step="0.01">
+                            <input class="offer-control" type="number" name="max_price" min="0" max="9999999999.99" step="0.01" required>
                         </label>
                         <label class="offer-field">Geçerlilik başlangıcı
                             <input class="offer-control" type="date" name="valid_from">
