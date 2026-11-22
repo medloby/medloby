@@ -9,6 +9,7 @@ use App\Models\Doctor;
 use App\Models\Offer;
 use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -16,7 +17,8 @@ class AppointmentLifecycleService
 {
     public function __construct(
         protected AppointmentAvailabilityService $availabilityService,
-        protected AppointmentNotificationService $notificationService
+        protected AppointmentNotificationService $notificationService,
+        protected AppointmentSlotAvailabilityService $slotAvailabilityService,
     ) {}
 
     private function ensurePermission(
@@ -41,6 +43,47 @@ class AppointmentLifecycleService
                 'Bu randevu işlemi için yetkiniz bulunmuyor.'
             );
         }
+    }
+
+    private function ensurePatientAction(Appointment $appointment, ?User $patient, string $action): void
+    {
+        abort_unless($patient && $appointment->belongsToPatient($patient), 404);
+
+        if (! in_array($action, $appointment->patientActions(Appointment::clinicLocalNow()), true)) {
+            throw new RuntimeException('Bu işlem için şubenizle iletişime geçin. Çevrimiçi işlem kapalı veya süresi dolmuş olabilir.');
+        }
+    }
+
+    /** @return list<string> */
+    public function patientRescheduleSlots(Appointment $appointment, User $patient, Carbon $date): array
+    {
+        $this->ensurePatientAction($appointment, $patient, 'reschedule');
+
+        $doctor = $appointment->doctor;
+        $treatment = $appointment->treatment;
+        $duration = $this->availabilityService->getDurationMinutes($doctor, $appointment->branch_id, $treatment);
+        if ($duration === null || $duration <= 0) {
+            return [];
+        }
+
+        $offer = $appointment->offer;
+        $otherSessions = $offer?->package_snapshot !== null
+            ? $this->otherPackageSessions($offer, $appointment)
+                ->where('starts_at', '<', $date->copy()->addDay()->startOfDay())
+                ->where('ends_at', '>', $date->copy()->startOfDay())
+                ->get(['starts_at', 'ends_at'])
+            : collect();
+
+        $slots = $this->slotAvailabilityService->getAvailableSlots($doctor, $appointment->branch_id, $treatment, $date,
+            ignoreAppointmentId: $appointment->id);
+
+        return collect($slots)
+            ->reject(function (Carbon $start) use ($appointment, $otherSessions, $duration): bool {
+                $end = $start->copy()->addMinutes($duration);
+
+                return $start->equalTo($appointment->starts_at) || $otherSessions->contains(fn (Appointment $other): bool => $other->starts_at->lt($end) && $other->ends_at->gt($start));
+            })
+            ->map(fn (Carbon $start): string => $start->toDateTimeString())->values()->all();
     }
 
     public function confirm(
@@ -170,23 +213,24 @@ class AppointmentLifecycleService
         string $cancellationReason,
         ?User $changedBy = null,
         ?string $notes = null,
-        ?Branch $calendarBranch = null
+        ?Branch $calendarBranch = null,
+        bool $byPatient = false,
     ): Appointment {
         $result = DB::transaction(function () use (
             $appointment,
             $cancellationReason,
             $changedBy,
             $notes,
-            $calendarBranch
+            $calendarBranch,
+            $byPatient,
         ) {
             $appointment = Appointment::query()->lockForUpdate()->findOrFail($appointment->id);
 
-            $this->ensurePermission(
-                $appointment,
-                $changedBy,
-                'appointments.cancel',
-                $calendarBranch
-            );
+            if ($byPatient) {
+                $this->ensurePatientAction($appointment, $changedBy, 'cancel');
+            } else {
+                $this->ensurePermission($appointment, $changedBy, 'appointments.cancel', $calendarBranch);
+            }
 
             if (! in_array(
                 $appointment->status,
@@ -237,7 +281,7 @@ class AppointmentLifecycleService
         });
 
         $this->notificationService
-            ->notifyAppointmentCancelled($result);
+            ->notifyAppointmentCancelled($result, $byPatient);
 
         return $result;
     }
@@ -310,7 +354,8 @@ class AppointmentLifecycleService
         ?string $reason = null,
         ?string $notes = null,
         bool $requireOnlineBookable = true,
-        ?Branch $calendarBranch = null
+        ?Branch $calendarBranch = null,
+        bool $byPatient = false,
     ): Appointment {
         $newAppointment = DB::transaction(function () use (
             $appointment,
@@ -319,19 +364,19 @@ class AppointmentLifecycleService
             $reason,
             $notes,
             $requireOnlineBookable,
-            $calendarBranch
+            $calendarBranch,
+            $byPatient,
         ) {
             $offer = $appointment->offer_id ? Offer::query()->lockForUpdate()->find($appointment->offer_id) : null;
             $packageOffer = $offer?->package_snapshot !== null ? $offer : null;
             $doctor = Doctor::query()->lockForUpdate()->find($appointment->doctor_id);
             $appointment = Appointment::query()->lockForUpdate()->findOrFail($appointment->id);
 
-            $this->ensurePermission(
-                $appointment,
-                $changedBy,
-                'appointments.reschedule',
-                $calendarBranch
-            );
+            if ($byPatient) {
+                $this->ensurePatientAction($appointment, $changedBy, 'reschedule');
+            } else {
+                $this->ensurePermission($appointment, $changedBy, 'appointments.reschedule', $calendarBranch);
+            }
 
             if (! in_array(
                 $appointment->status,
@@ -373,7 +418,7 @@ class AppointmentLifecycleService
                 $treatment,
                 $newStartsAt,
                 $appointment->id,
-                $requireOnlineBookable
+                $byPatient || $requireOnlineBookable
             )) {
                 throw new RuntimeException(
                     'Seçilen yeni tarih ve saat için randevu müsait değil.'
@@ -384,9 +429,7 @@ class AppointmentLifecycleService
                 ->copy()
                 ->addMinutes($durationMinutes);
 
-            if ($packageOffer && $packageOffer->appointments()
-                ->where('id', '!=', $appointment->id)
-                ->whereIn('status', ['pending', 'confirmed'])
+            if ($packageOffer && $this->otherPackageSessions($packageOffer, $appointment)
                 ->where('starts_at', '<', $newEndsAt)
                 ->where('ends_at', '>', $newStartsAt)
                 ->exists()) {
@@ -401,7 +444,7 @@ class AppointmentLifecycleService
                 'patient_profile_id' => $appointment->patient_profile_id,
                 'doctor_id' => $appointment->doctor_id,
                 'treatment_id' => $appointment->treatment_id,
-                'offer_id' => $packageOffer?->id,
+                'offer_id' => $offer?->id,
                 'starts_at' => $newStartsAt,
                 'ends_at' => $newEndsAt,
                 'status' => $oldStatus,
@@ -459,8 +502,13 @@ class AppointmentLifecycleService
          * takvimde aktif olan kayıt yeni randevudur.
          */
         $this->notificationService
-            ->notifyAppointmentRescheduled($newAppointment);
+            ->notifyAppointmentRescheduled($newAppointment, $byPatient);
 
         return $newAppointment;
+    }
+
+    private function otherPackageSessions(Offer $offer, Appointment $appointment): HasMany
+    {
+        return $offer->appointments()->where('id', '!=', $appointment->id)->whereIn('status', ['pending', 'confirmed']);
     }
 }

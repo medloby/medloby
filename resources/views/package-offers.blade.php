@@ -217,6 +217,16 @@
                         Yeni tarih ve saat
                         <input class="offer-control" type="datetime-local" name="starts_at">
                     </label>
+                    <div class="grid gap-3 sm:grid-cols-2" data-action-slots hidden>
+                        <label class="offer-field">
+                            Yeni randevu günü
+                            <input class="offer-control" type="date" name="slot_date">
+                        </label>
+                        <label class="offer-field">
+                            Uygun saat
+                            <select class="offer-control" name="slot_start"></select>
+                        </label>
+                    </div>
                     <label class="offer-field" data-action-reason hidden>
                         <span data-action-reason-label></span>
                         <textarea class="offer-control" name="reason" rows="3" maxlength="1000"></textarea>

@@ -58,6 +58,43 @@ class Appointment extends Model
         };
     }
 
+    public function patientActions(Carbon $now): array
+    {
+        if (! in_array($this->status, ['pending', 'confirmed'], true) || $this->starts_at->lte($now)) {
+            return [];
+        }
+
+        $branch = $this->branch;
+        if (! $branch || $branch->id !== $this->branch_id || $branch->business_id !== $this->business_id
+            || $branch->status !== 'active' || ! $branch->business?->allowsCrmAccess()) {
+            return [];
+        }
+
+        $settings = $branch->appointmentSetting;
+        if (! $settings?->is_active) {
+            $settings = null;
+        }
+
+        $actions = [];
+        $defaultNotice = BranchAppointmentSetting::DEFAULT_PATIENT_ACTION_NOTICE_MINUTES;
+        if (($settings?->cancellation_enabled ?? true)
+            && $this->starts_at->gte($now->copy()->addMinutes($settings?->cancellation_before_minutes ?? $defaultNotice))) {
+            $actions[] = 'cancel';
+        }
+        if (($settings?->rescheduling_enabled ?? true) && ($settings?->online_booking_enabled ?? true)
+            && $this->starts_at->gte($now->copy()->addMinutes($settings?->rescheduling_before_minutes ?? $defaultNotice))
+            && $this->doctor?->is_public && $this->doctor->status === 'active' && $this->treatment?->is_active) {
+            $actions[] = 'reschedule';
+        }
+
+        return $actions;
+    }
+
+    public function belongsToPatient(User $user): bool
+    {
+        return $this->patientProfile?->user_id === $user->id;
+    }
+
     public static function clinicLocalNow(): Carbon
     {
         // Takvim saatleri veritabanında yerel duvar saati olarak tutulur.

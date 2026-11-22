@@ -26,12 +26,14 @@ class AppointmentBookingController extends Controller
     public function index(Request $request, Offer $offer): JsonResponse
     {
         $user = $request->user();
+        $isPatient = $this->isOfferPatient($request, $offer);
+        $includePatientActions = $isPatient && $request->boolean('include_patient_actions');
         $clinicBranchIds = $offer->hasActiveClinic() && $offer->conversation()->accessibleToClinic($user)->exists()
             ? $user->accessibleBranchIds($offer->business_id)
             : [];
         $branchIds = null;
 
-        if (! $this->isOfferPatient($request, $offer)) {
+        if (! $isPatient) {
             $branchIds = $clinicBranchIds;
             $offerBranchId = $offer->package_snapshot['branch_id'] ?? $offer->branch_id;
             abort_if(
@@ -50,6 +52,13 @@ class AppointmentBookingController extends Controller
             }
         }
 
+        $relations = ['branch:id,business_id,name,status', 'doctor.person:id,first_name,last_name', 'treatment:id,name,is_active'];
+        if ($includePatientActions) {
+            $relations[] = 'branch.appointmentSetting';
+            $relations[] = 'branch.business:id,status,is_verified';
+        }
+
+        $now = Appointment::clinicLocalNow();
         $appointments = $offer->appointments()
             ->where('business_id', $offer->business_id)
             ->where('patient_profile_id', $offer->patient_profile_id)
@@ -57,11 +66,16 @@ class AppointmentBookingController extends Controller
             ->whereDoesntHave('rescheduledAppointments', fn ($query) => $query
                 ->where('offer_id', $offer->id)
                 ->where('patient_profile_id', $offer->patient_profile_id))
-            ->with(['branch:id,name', 'doctor.person:id,first_name,last_name', 'treatment:id,name'])
             ->orderBy('starts_at')
             ->orderBy('id')
-            ->get()
-            ->map(function (Appointment $appointment) use ($clinicBranchIds, $permittedActions) {
+            ->get();
+
+        if ($offer->package_snapshot === null) {
+            $appointments = $appointments->map($this->currentSingleAppointment(...));
+        }
+
+        $summaries = $appointments->loadMissing($relations)
+            ->map(function (Appointment $appointment) use ($clinicBranchIds, $permittedActions, $includePatientActions, $now) {
                 $person = $appointment->doctor?->person;
 
                 $summary = [
@@ -82,11 +96,34 @@ class AppointmentBookingController extends Controller
                     }
                 }
 
+                if ($includePatientActions && ($patientActions = $appointment->patientActions($now)) !== []) {
+                    $summary['patient_actions'] = $patientActions;
+                }
+
                 return $summary;
             });
 
-        return response()->json(['success' => true, 'data' => $appointments])
+        return response()->json(['success' => true, 'data' => $summaries])
             ->header('Cache-Control', 'private, no-store');
+    }
+
+    private function currentSingleAppointment(Appointment $appointment): Appointment
+    {
+        while ($appointment->status === 'rescheduled') {
+            $replacement = $appointment->rescheduledAppointments()
+                ->where('id', '>', $appointment->id)
+                ->where('business_id', $appointment->business_id)
+                ->where('branch_id', $appointment->branch_id)
+                ->where('patient_profile_id', $appointment->patient_profile_id)
+                ->whereNull('offer_id')->latest('id')->first();
+            if (! $replacement) {
+                break;
+            }
+
+            $appointment = $replacement;
+        }
+
+        return $appointment;
     }
 
     public function store(

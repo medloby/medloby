@@ -9,6 +9,8 @@ class BranchAppointmentSetting extends Model
 {
     public const int MAX_BUFFER_MINUTES = 1440;
 
+    public const int DEFAULT_PATIENT_ACTION_NOTICE_MINUTES = 120;
+
     protected $fillable = [
         'branch_id',
         'slot_interval_minutes',

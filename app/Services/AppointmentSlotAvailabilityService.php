@@ -38,7 +38,8 @@ class AppointmentSlotAvailabilityService
         Treatment $treatment,
         Carbon $date,
         ?int $slotIntervalMinutes = null,
-        bool $requireOnlineBookable = true
+        bool $requireOnlineBookable = true,
+        ?int $ignoreAppointmentId = null
     ): array {
         $settings = BranchAppointmentSetting::query()
             ->where('branch_id', $branchId)
@@ -126,6 +127,7 @@ class AppointmentSlotAvailabilityService
                             branchId: $branchId,
                             treatment: $treatment,
                             startsAt: $slot,
+                            ignoreAppointmentId: $ignoreAppointmentId,
                             requireOnlineBookable: $requireOnlineBookable
                         )
                     ) {

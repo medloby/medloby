@@ -1,6 +1,7 @@
 <?php
 
 use App\Mail\NewPatientAppointmentMail;
+use App\Models\Appointment;
 use App\Models\Branch;
 use App\Models\BranchAppointmentSetting;
 use App\Models\Business;
@@ -12,6 +13,8 @@ use App\Models\Treatment;
 use App\Models\TreatmentCategory;
 use App\Models\User;
 use App\Notifications\NewPatientAppointmentNotification;
+use App\Notifications\NotificationType;
+use App\Notifications\PatientAppointmentChangedNotification;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
@@ -49,6 +52,130 @@ function clinicAppointmentFixture(): array
 
     return [$business, $owner, $branch, $other, $doctor, $treatment, $calendar, $otherCalendar];
 }
+
+test('patients can move and cancel their own package session from the offered schedule', function () {
+    $this->travelTo(Carbon::parse('2026-12-01 00:00:00', 'UTC'));
+    Notification::fake();
+    [$business, $owner, $branch, $otherBranch, $doctor, $treatment, $calendar] = clinicAppointmentFixture();
+    $doctor->update(['is_public' => true]);
+    $branch->treatments()->updateExistingPivot($treatment->id, ['is_online_bookable' => true]);
+    $branch->appointmentSetting()->update(['online_booking_enabled' => true, 'slot_interval_minutes' => 15]);
+    $otherDoctor = Doctor::factory()->for(Person::factory()->for($business)->for($branch))->create();
+    $patientUser = User::factory()->create();
+    $patient = $patientUser->patientProfile()->create(['first_name' => 'Deneme', 'last_name' => 'Hastası']);
+    $conversation = $patient->conversations()->create(['business_id' => $business->id, 'branch_id' => $branch->id]);
+    $offer = $conversation->offers()->create([
+        'business_id' => $business->id, 'branch_id' => $branch->id, 'patient_profile_id' => $patient->id,
+        'created_by' => $owner->id, 'title' => 'İki seanslık paket', 'status' => 'accepted', 'amount' => 100,
+        'package_snapshot' => ['branch_id' => $branch->id, 'treatments' => [['treatment_id' => $treatment->id, 'quantity' => 2]]],
+    ]);
+    $visit = [
+        'business_id' => $business->id, 'branch_id' => $branch->id, 'patient_profile_id' => $patient->id,
+        'doctor_id' => $doctor->id, 'treatment_id' => $treatment->id, 'status' => 'confirmed',
+        'starts_at' => '2026-12-04 10:00:00', 'ends_at' => '2026-12-04 10:30:00', 'notes' => 'Eski randevu açıklaması',
+    ];
+    $appointment = $offer->appointments()->create($visit);
+    $otherSession = $offer->appointments()->create([
+        ...$visit, 'doctor_id' => $otherDoctor->id, 'starts_at' => '2026-12-04 11:00:00', 'ends_at' => '2026-12-04 11:30:00',
+    ]);
+    $otherStaff = User::factory()->create();
+    $business->memberships()->create(['user_id' => $otherStaff->id, 'role' => 'staff', 'is_active' => true])
+        ->branches()->attach($otherBranch->id, ['is_active' => true]);
+    $schedule = '/api/offers/'.$offer->id.'/appointments?include_patient_actions=1';
+    $action = '/api/patient/appointments/'.$appointment->id;
+    $options = $action.'/reschedule-options?date=2026-12-04';
+
+    $this->getJson($options)->assertUnauthorized();
+    $this->actingAs(User::factory()->unverified()->create(), 'sanctum')->getJson($options)->assertForbidden();
+    $this->actingAs($otherStaff, 'sanctum')->getJson($options)->assertNotFound();
+    $this->postJson($action.'/cancel')->assertNotFound();
+    $this->actingAs($patientUser, 'sanctum')->getJson($schedule)->assertOk()
+        ->assertJsonPath('data.0.patient_actions', ['cancel', 'reschedule']);
+    $slots = $this->getJson($options)->assertOk()->json('data.slots');
+    expect($slots)->toContain('2026-12-04 09:45:00')->not->toContain('2026-12-04 10:00:00', '2026-12-04 11:00:00');
+    $this->postJson($action.'/reschedule', ['starts_at' => '2026-12-04 11:00:00'])->assertUnprocessable();
+    $moved = $this->postJson($action.'/reschedule', ['starts_at' => '2026-12-04 09:45:00'])
+        ->assertOk()->assertJsonPath('data.status', 'confirmed')->assertJsonMissingPath('data.notes')->json('data.id');
+    $this->postJson($action.'/reschedule', ['starts_at' => '2026-12-04 09:30:00'])->assertUnprocessable();
+    $this->assertDatabaseHas('appointments', ['id' => $moved, 'rescheduled_from_appointment_id' => $appointment->id,
+        'offer_id' => $offer->id, 'notes' => 'Eski randevu açıklaması']);
+    $this->getJson($schedule)->assertOk()->assertJsonCount(2, 'data')->assertJsonPath('data.0.id', $moved);
+
+    $this->postJson('/api/patient/appointments/'.$moved.'/cancel', ['cancellation_reason' => 'Program değişikliği'])
+        ->assertOk()->assertJsonPath('data.status', 'cancelled');
+    $this->assertDatabaseHas('appointment_status_histories', ['appointment_id' => $moved, 'changed_by_user_id' => $patientUser->id,
+        'new_status' => 'cancelled', 'reason' => 'Program değişikliği']);
+    $this->assertDatabaseHas('appointments', ['id' => $otherSession->id, 'status' => 'confirmed']);
+    $this->getJson($schedule)->assertOk()->assertJsonMissingPath('data.0.patient_actions');
+    $this->actingAs($owner, 'sanctum')->getJson($calendar.'?date=2026-12-04')->assertOk()
+        ->assertJsonPath('data.appointments.0.status', 'cancelled');
+    Notification::assertSentTo($owner, PatientAppointmentChangedNotification::class,
+        fn (PatientAppointmentChangedNotification $notification): bool => $notification->toArray($owner)['notification_type'] === NotificationType::APPOINTMENT_RESCHEDULED);
+    Notification::assertSentTo($owner, PatientAppointmentChangedNotification::class,
+        fn (PatientAppointmentChangedNotification $notification): bool => $notification->toArray($owner)['notification_type'] === NotificationType::APPOINTMENT_CANCELLED);
+    Notification::assertNotSentTo($otherStaff, PatientAppointmentChangedNotification::class);
+});
+
+test('patient changes enforce enabled settings and Istanbul notice cutoffs without restricting clinic staff', function () {
+    $this->travelTo(Carbon::parse('2026-12-04 05:00:00', 'UTC'));
+    [$business, $owner, $branch, , $doctor, $treatment, $calendar] = clinicAppointmentFixture();
+    $patient = User::factory()->create()->patientProfile()->create(['first_name' => 'Deneme', 'last_name' => 'Hastası']);
+    $doctor->update(['is_public' => true]);
+    $branch->treatments()->updateExistingPivot($treatment->id, ['is_online_bookable' => true]);
+    $settings = $branch->appointmentSetting;
+    $settings->update(['online_booking_enabled' => true, 'rescheduling_enabled' => false, 'cancellation_before_minutes' => 121]);
+    $appointment = Appointment::create([
+        'business_id' => $business->id, 'branch_id' => $branch->id, 'patient_profile_id' => $patient->id,
+        'doctor_id' => $doctor->id, 'treatment_id' => $treatment->id, 'status' => 'pending',
+        'starts_at' => '2026-12-04 10:00:00', 'ends_at' => '2026-12-04 10:30:00',
+    ]);
+    $path = '/api/patient/appointments/'.$appointment->id;
+
+    $this->actingAs($patient->user, 'sanctum')->postJson($path.'/cancel', ['cancellation_reason' => 'Deneme'])->assertUnprocessable();
+    $this->getJson($path.'/reschedule-options?date=2026-12-04')->assertUnprocessable();
+    $this->postJson($path.'/reschedule', ['starts_at' => '2026-12-04 11:00:00'])->assertUnprocessable();
+    $settings->update(['rescheduling_enabled' => true, 'rescheduling_before_minutes' => 121, 'cancellation_enabled' => false]);
+    $this->postJson($path.'/cancel', ['cancellation_reason' => 'Deneme'])->assertUnprocessable();
+    $this->postJson($path.'/reschedule', ['starts_at' => '2026-12-04 11:00:00'])->assertUnprocessable();
+    $settings->update(['cancellation_enabled' => true, 'cancellation_before_minutes' => 120]);
+    $this->postJson($path.'/cancel', ['cancellation_reason' => 'Sınırda iptal'])->assertOk();
+
+    $past = $appointment->replicate()->fill(['starts_at' => '2026-12-04 08:00:00', 'ends_at' => '2026-12-04 08:30:00']);
+    $past->save();
+    $settings->update(['cancellation_before_minutes' => 0]);
+    $this->postJson('/api/patient/appointments/'.$past->id.'/cancel', ['cancellation_reason' => 'Deneme'])->assertUnprocessable();
+    $this->actingAs($owner, 'sanctum')->postJson($calendar.'/appointments/'.$past->id.'/cancel', ['cancellation_reason' => 'Klinik iptali'])
+        ->assertOk()->assertJsonPath('data.status', 'cancelled');
+});
+
+test('patients see the current appointment when a legacy single offer was moved before replacements kept the link', function () {
+    $this->travelTo(Carbon::parse('2026-12-01 00:00:00', 'UTC'));
+    [$business, $owner, $branch, , $doctor, $treatment] = clinicAppointmentFixture();
+    $branch->appointmentSetting()->update(['is_active' => false, 'cancellation_enabled' => false]);
+    $patient = User::factory()->create()->patientProfile()->create(['first_name' => 'Deneme', 'last_name' => 'Hastası']);
+    $conversation = $patient->conversations()->create(['business_id' => $business->id, 'branch_id' => $branch->id]);
+    $offer = $conversation->offers()->create([
+        'business_id' => $business->id, 'branch_id' => $branch->id, 'patient_profile_id' => $patient->id,
+        'created_by' => $owner->id, 'title' => 'Tekil tedavi teklifi', 'status' => 'accepted', 'amount' => 100,
+        'treatment_id' => $treatment->id,
+    ]);
+    $original = $offer->appointments()->create([
+        'business_id' => $business->id, 'branch_id' => $branch->id, 'patient_profile_id' => $patient->id,
+        'doctor_id' => $doctor->id, 'treatment_id' => $treatment->id, 'status' => 'rescheduled',
+        'starts_at' => '2026-12-04 10:00:00', 'ends_at' => '2026-12-04 10:30:00',
+    ]);
+    $current = $original->rescheduledAppointments()->create([
+        'business_id' => $business->id, 'branch_id' => $branch->id, 'patient_profile_id' => $patient->id,
+        'doctor_id' => $doctor->id, 'treatment_id' => $treatment->id, 'status' => 'confirmed',
+        'starts_at' => '2026-12-11 10:00:00', 'ends_at' => '2026-12-11 10:30:00',
+    ]);
+
+    $this->actingAs($patient->user, 'sanctum')->getJson('/api/offers/'.$offer->id.'/appointments?include_patient_actions=1')
+        ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $current->id)
+        ->assertJsonPath('data.0.patient_actions', ['cancel']);
+    $this->postJson('/api/patient/appointments/'.$current->id.'/cancel', ['cancellation_reason' => 'Deneme'])
+        ->assertOk()->assertJsonPath('data.status', 'cancelled');
+});
 
 test('online package sessions use the branch confirmation setting and clinic bookings still start pending', function () {
     $this->travelTo(Carbon::parse('2026-12-01 00:00:00', 'UTC'));

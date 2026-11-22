@@ -49,6 +49,28 @@
                 </div>
                 <p id="appointment-buffer-help" class="text-xs text-slate-600 dark:text-slate-300">Hazırlık ve temizlik için bu süreler hekimin takviminde ayrılır. Hasta kendi tedavisinin başlangıç ve bitiş saatini görür.</p>
             </div>
+            <div class="grid gap-4 border-t border-slate-200 pt-4 sm:grid-cols-2 dark:border-slate-700">
+                <div class="grid gap-2">
+                    <label class="flex items-start gap-2 text-sm font-medium">
+                        <input class="mt-0.5 h-4 w-4 accent-teal-700" type="checkbox" name="cancellation_enabled">
+                        Hasta randevusunu iptal edebilsin
+                    </label>
+                    <label class="offer-field">
+                        İptal için son süre (randevudan kaç dakika önce)
+                        <input class="offer-control" type="number" name="cancellation_before_minutes" min="0" max="525600" required>
+                    </label>
+                </div>
+                <div class="grid gap-2">
+                    <label class="flex items-start gap-2 text-sm font-medium">
+                        <input class="mt-0.5 h-4 w-4 accent-teal-700" type="checkbox" name="rescheduling_enabled">
+                        Hasta randevusunun tarihini değiştirebilsin
+                    </label>
+                    <label class="offer-field">
+                        Tarih değişikliği için son süre (randevudan kaç dakika önce)
+                        <input class="offer-control" type="number" name="rescheduling_before_minutes" min="0" max="525600" required>
+                    </label>
+                </div>
+            </div>
             <button type="submit" class="offer-button justify-self-start" data-appointment-settings-save>Ayarları kaydet</button>
         </fieldset>
     </form>

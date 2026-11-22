@@ -107,6 +107,9 @@ export function mountPackageOffers(root) {
     const appointmentDialog = get('appointment-action-dialog');
     const appointmentForm = get('appointment-action-form');
     const appointmentNotice = appointmentDialog.querySelector('[data-status]');
+    const appointmentDay = appointmentForm.elements.namedItem('slot_date');
+    const appointmentSlot = appointmentForm.elements.namedItem('slot_start');
+    let appointmentSlotRequest = 0;
     const sessionList = get('booking-sessions');
     const conversationList = get('conversation-list');
     const branchField = bookingForm.elements.namedItem('branch');
@@ -624,13 +627,13 @@ export function mountPackageOffers(root) {
         actions.hidden = !actions.childElementCount;
 
         if (booked) {
-            connectSchedule(card.querySelector('[data-schedule]'), offer);
+            connectSchedule(card.querySelector('[data-schedule]'), offer, isPatient(item));
         }
 
         return card;
     }
 
-    function connectSchedule(details, offer) {
+    function connectSchedule(details, offer, patient) {
         details.hidden = false;
         const list = details.querySelector('[data-schedule-entries]');
         const status = details.querySelector('[data-schedule-status]');
@@ -646,7 +649,7 @@ export function mountPackageOffers(root) {
             showStatus(status, 'Randevular yükleniyor…');
 
             try {
-                const appointments = await api('/offers/' + offer.id + '/appointments');
+                const appointments = await api('/offers/' + offer.id + '/appointments' + (patient ? '?include_patient_actions=1' : ''));
                 list.replaceChildren(...appointments.map((appointment) => {
                     const row = element('li', '', 'grid gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-900');
                     const date = element('time', appointmentDateLabel(appointment.starts_at, appointment.ends_at));
@@ -659,12 +662,14 @@ export function mountPackageOffers(root) {
                         element('span', appointmentStatusLabels[appointment.status] ?? appointment.status, 'text-xs font-semibold text-slate-600 dark:text-slate-300'),
                     );
 
-                    if (appointment.actions?.length) {
+                    const actions = patient ? appointment.patient_actions : appointment.actions;
+                    if (actions?.length) {
                         const controls = element('div', '', 'mt-2 flex flex-wrap gap-2');
-                        for (const action of appointment.actions) {
+                        for (const action of actions) {
                             const button = element('button', appointmentActionLabels[action], 'offer-button offer-button-secondary');
                             button.type = 'button';
-                            button.addEventListener('click', () => openAppointmentAction(appointment, action, refresh));
+                            button.addEventListener('click', () => openAppointmentAction(appointment, action, refresh,
+                                patient ? '/patient/appointments' : undefined, patient));
                             controls.append(button);
                         }
                         row.append(controls);
@@ -683,8 +688,8 @@ export function mountPackageOffers(root) {
         details.addEventListener('toggle', refresh);
     }
 
-    function openAppointmentAction(appointment, action, refresh, path = '/appointments') {
-        appointmentAction = { appointment, action, refresh, path };
+    function openAppointmentAction(appointment, action, refresh, path = '/appointments', patient = false) {
+        appointmentAction = { appointment, action, refresh, path, patient };
         appointmentForm.reset();
         showStatus(appointmentNotice);
         get('appointment-action-title').textContent = appointmentActionLabels[action];
@@ -695,19 +700,55 @@ export function mountPackageOffers(root) {
         ].filter(Boolean).join(' · ');
 
         const needsDate = action === 'reschedule';
+        const needsSlots = needsDate && patient;
         const needsReason = action === 'cancel';
         const date = appointmentForm.elements.namedItem('starts_at');
         const reason = appointmentForm.elements.namedItem('reason');
-        date.disabled = !needsDate;
-        date.required = needsDate;
-        date.value = needsDate ? appointment.starts_at.replace(' ', 'T').slice(0, 16) : '';
+        date.disabled = !needsDate || needsSlots;
+        date.required = !date.disabled;
+        date.value = date.disabled ? '' : appointment.starts_at.replace(' ', 'T').slice(0, 16);
+        appointmentDay.disabled = !needsSlots;
+        appointmentDay.required = needsSlots;
+        appointmentDay.value = needsSlots ? appointment.starts_at.slice(0, 10) : '';
+        appointmentSlot.disabled = !needsSlots;
+        appointmentSlot.required = needsSlots;
         reason.disabled = !needsDate && !needsReason;
         reason.required = needsReason;
-        appointmentForm.querySelector('[data-action-start]').hidden = !needsDate;
+        appointmentForm.querySelector('[data-action-start]').hidden = date.disabled;
+        appointmentForm.querySelector('[data-action-slots]').hidden = !needsSlots;
         appointmentForm.querySelector('[data-action-reason]').hidden = reason.disabled;
         appointmentForm.querySelector('[data-action-reason-label]').textContent = needsReason ? 'İptal nedeni' : 'Neden (isteğe bağlı)';
         appointmentDialog.showModal();
+        if (needsSlots) {
+            loadAppointmentSlots();
+        }
     }
+
+    async function loadAppointmentSlots() {
+        const request = ++appointmentSlotRequest;
+        const current = appointmentAction;
+        const date = appointmentDay.value;
+        const isCurrent = () => appointmentDialog.open && current === appointmentAction && request === appointmentSlotRequest;
+        setOptions(appointmentSlot, 'Saat seçin', []);
+        showStatus(appointmentNotice, date ? 'Uygun saatler yükleniyor…' : 'Randevu gününü seçin.');
+        if (!date) {
+            return;
+        }
+
+        try {
+            const { slots } = await api(current.path + '/' + current.appointment.id + '/reschedule-options?' + new URLSearchParams({ date }));
+            if (isCurrent()) {
+                setOptions(appointmentSlot, 'Saat seçin', slots.map((slot) => [slot, slot.slice(11, 16)]));
+                showStatus(appointmentNotice, slots.length ? '' : 'Bu günde uygun saat yok. Başka bir gün seçin.');
+            }
+        } catch (error) {
+            if (isCurrent()) {
+                showStatus(appointmentNotice, error.message);
+            }
+        }
+    }
+
+    appointmentDay.addEventListener('change', loadAppointmentSlots);
 
     async function openOfferDialog(item) {
         const request = ++dialogRequest;
@@ -1098,7 +1139,7 @@ export function mountPackageOffers(root) {
     });
 
     onSubmit(appointmentForm, appointmentNotice, async (fields) => {
-        const { appointment, action, refresh, path } = appointmentAction;
+        const { appointment, action, refresh, path, patient } = appointmentAction;
         const body = {};
         const reason = (fields.get('reason') ?? '').trim();
 
@@ -1109,7 +1150,7 @@ export function mountPackageOffers(root) {
             body.cancellation_reason = reason;
         }
         if (action === 'reschedule') {
-            body.starts_at = fields.get('starts_at');
+            body.starts_at = fields.get(patient ? 'slot_start' : 'starts_at');
             body.reason = reason || null;
         }
 

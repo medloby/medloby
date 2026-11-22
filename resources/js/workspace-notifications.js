@@ -2,6 +2,8 @@ const clinicNotifications = new Set([
     'patient_request',
     'new_message',
     'new_appointment',
+    'appointment_cancelled',
+    'appointment_rescheduled',
     'offer_accepted',
     'offer_rejected',
 ]);

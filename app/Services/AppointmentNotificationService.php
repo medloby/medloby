@@ -13,6 +13,7 @@ use App\Notifications\AppointmentRescheduledNotification;
 use App\Notifications\NewAppointmentNotification;
 use App\Notifications\NewPatientAppointmentNotification;
 use App\Notifications\NotificationType;
+use App\Notifications\PatientAppointmentChangedNotification;
 use Illuminate\Support\Facades\Mail;
 
 class AppointmentNotificationService
@@ -117,31 +118,41 @@ class AppointmentNotificationService
     /**
      * Randevu iptal edildi.
      *
-     * Sadece hastaya sistem içi bildirim.
+     * Hasta işlemi kendisi yaptıysa ilgili şubeye de bildirim gider.
      */
     public function notifyAppointmentCancelled(
-        Appointment $appointment
+        Appointment $appointment,
+        bool $byPatient = false,
     ): void {
         $this->notifyPatient(
             $appointment,
             NotificationType::APPOINTMENT_CANCELLED,
             new AppointmentCancelledNotification($appointment)
         );
+
+        if ($byPatient) {
+            $this->notifyBusinessUsers($appointment->business, $appointment, NotificationType::APPOINTMENT_CANCELLED);
+        }
     }
 
     /**
      * Randevu yeniden planlandı.
      *
-     * Sadece hastaya sistem içi bildirim.
+     * Hasta işlemi kendisi yaptıysa ilgili şubeye de bildirim gider.
      */
     public function notifyAppointmentRescheduled(
-        Appointment $appointment
+        Appointment $appointment,
+        bool $byPatient = false,
     ): void {
         $this->notifyPatient(
             $appointment,
             NotificationType::APPOINTMENT_RESCHEDULED,
             new AppointmentRescheduledNotification($appointment)
         );
+
+        if ($byPatient) {
+            $this->notifyBusinessUsers($appointment->business, $appointment, NotificationType::APPOINTMENT_RESCHEDULED);
+        }
     }
 
     /**
@@ -193,6 +204,7 @@ class AppointmentNotificationService
 
         $notification = match ($notificationType) {
             NotificationType::NEW_APPOINTMENT => new NewAppointmentNotification($appointment),
+            NotificationType::APPOINTMENT_CANCELLED, NotificationType::APPOINTMENT_RESCHEDULED => new PatientAppointmentChangedNotification($appointment, $notificationType),
 
             default => null,
         };

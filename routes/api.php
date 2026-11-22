@@ -98,6 +98,8 @@ use App\Http\Controllers\OfferController;
 
 use App\Http\Controllers\PatientRegistrationController;
 
+use App\Http\Controllers\PatientAppointmentController;
+
 use App\Http\Controllers\NotificationController;
 
 use App\Http\Middleware\EnsureBranchCatalogManagementAccess;
@@ -597,6 +599,12 @@ Route::prefix('notifications')->group(function () {
             AppointmentBookingController::class,
             'index',
         ]);
+
+        Route::controller(PatientAppointmentController::class)->prefix('patient/appointments/{appointment}')->group(function () {
+            Route::post('/cancel', 'cancel');
+            Route::get('/reschedule-options', 'options');
+            Route::post('/reschedule', 'reschedule');
+        });
 
         Route::post('/offers/{offer}/appointments', [
 

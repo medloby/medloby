@@ -13,6 +13,10 @@ export function mountClinicCalendarSettings(panel, api, onSaved) {
     const interval = form.elements.namedItem('slot_interval_minutes');
     const bufferBefore = form.elements.namedItem('buffer_before_minutes');
     const bufferAfter = form.elements.namedItem('buffer_after_minutes');
+    const cancellation = form.elements.namedItem('cancellation_enabled');
+    const cancellationNotice = form.elements.namedItem('cancellation_before_minutes');
+    const rescheduling = form.elements.namedItem('rescheduling_enabled');
+    const reschedulingNotice = form.elements.namedItem('rescheduling_before_minutes');
     let scope = null;
 
     function showStatus(message = '') {
@@ -29,6 +33,10 @@ export function mountClinicCalendarSettings(panel, api, onSaved) {
         interval.value = settings.slot_interval_minutes;
         bufferBefore.value = settings.buffer_before_minutes;
         bufferAfter.value = settings.buffer_after_minutes;
+        cancellation.checked = settings.cancellation_enabled;
+        cancellationNotice.value = settings.cancellation_before_minutes;
+        rescheduling.checked = settings.rescheduling_enabled;
+        reschedulingNotice.value = settings.rescheduling_before_minutes;
         inactive.hidden = settings.is_active;
         save.textContent = settings.is_active ? 'Ayarları kaydet' : 'Etkinleştir ve kaydet';
         form.hidden = false;
@@ -77,6 +85,10 @@ export function mountClinicCalendarSettings(panel, api, onSaved) {
                 slot_interval_minutes: interval.valueAsNumber,
                 buffer_before_minutes: bufferBefore.valueAsNumber,
                 buffer_after_minutes: bufferAfter.valueAsNumber,
+                cancellation_enabled: cancellation.checked,
+                cancellation_before_minutes: cancellationNotice.valueAsNumber,
+                rescheduling_enabled: rescheduling.checked,
+                rescheduling_before_minutes: reschedulingNotice.valueAsNumber,
                 is_active: true,
             }, 'PUT');
             if (scope === current) {
