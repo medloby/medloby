@@ -79,13 +79,28 @@ test('a verified platform administrator can manage global catalog definitions us
 
     $category = $this->withToken($token)
         ->postJson('/api/treatment-categories', ['name' => 'Katalog Test Kategorisi', 'is_active' => true])
-        ->assertCreated();
+        ->assertCreated()->assertJsonPath('data.slug', 'katalog-test-kategorisi');
     $categoryId = $category->json('data.id');
 
     $this->postJson('/api/treatments', [
         'treatment_category_id' => $categoryId,
         'name' => 'Katalog Test Tedavisi',
-    ])->assertCreated();
+    ])->assertCreated()->assertJsonPath('data.slug', 'katalog-test-tedavisi');
+});
+
+test('generated catalog slugs return a validation error on duplicates and allow a distinct explicit slug', function () {
+    $this->actingAs(User::factory()->create(['is_admin' => true]), 'sanctum');
+    $existing = createActiveCatalogTreatment();
+
+    $this->postJson('/api/treatment-categories', ['name' => $existing->treatmentCategory->name])
+        ->assertUnprocessable()->assertJsonValidationErrors('slug');
+
+    $treatment = ['name' => $existing->name, 'treatment_category_id' => $existing->treatment_category_id];
+    $this->postJson('/api/treatments', $treatment)->assertUnprocessable()->assertJsonValidationErrors('slug');
+    $this->assertDatabaseCount('treatment_categories', 1);
+    $this->assertDatabaseCount('treatments', 1);
+    $this->postJson('/api/treatments', [...$treatment, 'slug' => 'ayri-test-tedavisi'])
+        ->assertCreated()->assertJsonPath('data.slug', 'ayri-test-tedavisi');
 });
 
 test('assigned users with branch management permission can manage the assigned branch catalog', function () {

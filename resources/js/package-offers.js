@@ -6,6 +6,7 @@ import { mountWorkspaceRegistration } from './workspace-registration';
 import { mountClinicReview } from './clinic-review';
 import { mountClinicAdministration } from './clinic-administration';
 import { mountClinicContracts } from './clinic-contracts';
+import { mountTreatmentAdministration } from './treatment-administration';
 import { mountClinicApplications } from './clinic-applications';
 import { mountClinicCrm } from './clinic-crm';
 import { clinicToday } from './clinic-calendar';
@@ -127,6 +128,7 @@ export function mountPackageOffers(root) {
         openApplication: (id) => clinicReview.open(id),
     });
     const clinicContracts = mountClinicContracts(get('clinic-contracts-dialog'), get('clinic-contracts-button'), { api });
+    const treatmentAdministration = mountTreatmentAdministration(get('treatment-administration-dialog'), get('treatment-administration-button'), { api });
     const clinicApplications = mountClinicApplications(get('clinic-applications'), {
         api,
         timeLabel: (value) => offerDeadline.format(new Date(value)),
@@ -491,6 +493,7 @@ export function mountPackageOffers(root) {
         clinicReview.stop();
         clinicAdministration.stop();
         clinicContracts.stop();
+        treatmentAdministration.stop();
         clinicApplications.stop();
         staffCrmIds.clear();
         get('staff-crm-list').replaceChildren();
@@ -1022,6 +1025,9 @@ export function mountPackageOffers(root) {
             clinicReview.start();
             clinicAdministration.start();
             clinicContracts.start();
+            if (user.email_verified_at) {
+                treatmentAdministration.start();
+            }
         }
         if (pendingPackage && !user.patient_profile_exists) {
             rememberPackage(undefined);

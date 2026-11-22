@@ -37,6 +37,10 @@ class TreatmentCategoryController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        if ($request->input('slug') === null && is_string($request->input('name'))) {
+            $request->merge(['slug' => Str::slug($request->input('name'))]);
+        }
+
         $validated = $request->validate([
             'parent_id' => [
                 'nullable',
@@ -49,7 +53,7 @@ class TreatmentCategoryController extends Controller
                 'max:255',
             ],
             'slug' => [
-                'nullable',
+                'required',
                 'string',
                 'max:255',
                 'unique:treatment_categories,slug',
@@ -77,11 +81,14 @@ class TreatmentCategoryController extends Controller
                 'sometimes',
                 'boolean',
             ],
+        ], [
+            'slug.required' => 'Kategori adı için bir adres adı girin.',
+            'slug.unique' => 'Bu kategori adres adı zaten kullanılıyor.',
         ]);
 
         if (
             isset($validated['parent_id']) &&
-            !$this->parentExistsAsValidParent($validated['parent_id'])
+            ! $this->parentExistsAsValidParent($validated['parent_id'])
         ) {
             return response()->json([
                 'success' => false,
@@ -92,8 +99,7 @@ class TreatmentCategoryController extends Controller
         $category = TreatmentCategory::create([
             'parent_id' => $validated['parent_id'] ?? null,
             'name' => $validated['name'],
-            'slug' => $validated['slug']
-                ?? Str::slug($validated['name']),
+            'slug' => $validated['slug'],
             'description' => $validated['description'] ?? null,
             'image' => $validated['image'] ?? null,
             'icon' => $validated['icon'] ?? null,
@@ -173,7 +179,7 @@ class TreatmentCategoryController extends Controller
             $validated['parent_id'] !== null
         ) {
             if (
-                !$this->parentExistsAsValidParent(
+                ! $this->parentExistsAsValidParent(
                     $validated['parent_id'],
                     $treatmentCategory->id
                 )
@@ -219,7 +225,7 @@ class TreatmentCategoryController extends Controller
 
         $parent = TreatmentCategory::find($parentId);
 
-        if (!$parent) {
+        if (! $parent) {
             return false;
         }
 

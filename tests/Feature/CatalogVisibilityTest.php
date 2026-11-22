@@ -51,9 +51,11 @@ test('public package and service reads only show published catalog data', functi
         'valid_until' => today()->subDay(),
     ]);
     $expired->services()->attach($service->id);
+    $expired->treatments()->attach($this->treatment->id);
     $pending = Business::factory()->create(['status' => 'pending', 'is_verified' => false]);
     $draft = $pending->treatmentPackages()->create(['name' => 'Taslak paket', 'slug' => 'taslak-paket']);
     $draft->services()->attach($service->id);
+    $draft->treatments()->attach($this->treatment->id);
     $draftService = $pending->packageServices()->create([
         'name' => 'Kliniğe ait taslak hizmet',
         'slug' => 'taslak-hizmet',
@@ -70,6 +72,18 @@ test('public package and service reads only show published catalog data', functi
     $this->getJson('/api/treatment-packages')
         ->assertOk()->assertJsonCount(1, 'data.packages')
         ->assertJsonMissingPath('data.packages.0.price');
+
+    $this->getJson('/api/treatments/'.$this->treatment->id)
+        ->assertOk()
+        ->assertJsonPath('data.treatment_category.id', $this->treatment->treatment_category_id)
+        ->assertJsonPath('data.packages', [[
+            'id' => $package->id,
+            'name' => 'Bakım paketi',
+            'slug' => 'bakim-paketi',
+            'package_type' => 'treatment',
+        ]])
+        ->assertJsonMissingPath('data.branches')
+        ->assertJsonMissingPath('data.doctors');
 
     $packageUrl = "/api/treatment-packages/{$package->id}";
     $this->getJson($packageUrl)
@@ -211,6 +225,7 @@ test('treatment prices require a verified clinic member and respect branch assig
     $url = '/api/treatment-prices';
     $this->getJson($url)->assertUnauthorized();
     $this->getJson($url.'/'.$prices['assigned']->id)->assertUnauthorized();
+    $this->getJson('/api/treatments/'.$this->treatment->id)->assertOk()->assertJsonMissingPath('data.prices');
 
     $staff = User::factory()->unverified()->create();
     $membership = $this->business->memberships()->create([

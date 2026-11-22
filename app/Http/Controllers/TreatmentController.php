@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Treatment;
 use App\Models\TreatmentCategory;
+use App\Models\TreatmentPackage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -49,6 +50,10 @@ class TreatmentController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        if ($request->input('slug') === null && is_string($request->input('name'))) {
+            $request->merge(['slug' => Str::slug($request->input('name'))]);
+        }
+
         $validated = $request->validate([
             'treatment_category_id' => [
                 'required',
@@ -61,7 +66,7 @@ class TreatmentController extends Controller
                 'max:255',
             ],
             'slug' => [
-                'nullable',
+                'required',
                 'string',
                 'max:255',
                 'unique:treatments,slug',
@@ -113,6 +118,9 @@ class TreatmentController extends Controller
                 'integer',
                 'min:0',
             ],
+        ], [
+            'slug.required' => 'Tedavi adı için bir adres adı girin.',
+            'slug.unique' => 'Bu tedavi adres adı zaten kullanılıyor.',
         ]);
 
         $category = TreatmentCategory::findOrFail(
@@ -129,8 +137,7 @@ class TreatmentController extends Controller
         $treatment = Treatment::create([
             'treatment_category_id' => $category->id,
             'name' => $validated['name'],
-            'slug' => $validated['slug']
-                ?? Str::slug($validated['name']),
+            'slug' => $validated['slug'],
             'description' => $validated['description'] ?? null,
             'duration_minutes' => $validated['duration_minutes'] ?? null,
             'preparation' => $validated['preparation'] ?? null,
@@ -138,14 +145,10 @@ class TreatmentController extends Controller
             'included_services' => $validated['included_services'] ?? null,
             'excluded_services' => $validated['excluded_services'] ?? null,
             'image' => $validated['image'] ?? null,
-            'is_online_bookable' =>
-                $validated['is_online_bookable'] ?? false,
-            'is_offer_enabled' =>
-                $validated['is_offer_enabled'] ?? true,
-            'is_active' =>
-                $validated['is_active'] ?? false,
-            'sort_order' =>
-                $validated['sort_order'] ?? 0,
+            'is_online_bookable' => $validated['is_online_bookable'] ?? false,
+            'is_offer_enabled' => $validated['is_offer_enabled'] ?? true,
+            'is_active' => $validated['is_active'] ?? false,
+            'sort_order' => $validated['sort_order'] ?? 0,
         ]);
 
         return response()->json([
@@ -156,17 +159,16 @@ class TreatmentController extends Controller
 
     public function show(Treatment $treatment): JsonResponse
     {
-        $treatment->load([
-            'treatmentCategory',
-            'branches',
-            'doctors',
-            'packages',
-            'prices',
-        ]);
+        $treatment->load('treatmentCategory');
+        $packages = $treatment->packages()
+            ->publishedInCatalog()
+            ->orderBy('treatment_packages.name')
+            ->get(['treatment_packages.id', 'treatment_packages.name', 'treatment_packages.slug', 'treatment_packages.package_type'])
+            ->map(fn (TreatmentPackage $package) => $package->only(['id', 'name', 'slug', 'package_type']));
 
         return response()->json([
             'success' => true,
-            'data' => $treatment,
+            'data' => [...$treatment->toArray(), 'packages' => $packages],
         ]);
     }
 
