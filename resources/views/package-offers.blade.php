@@ -11,7 +11,7 @@
         <div id="offer-workspace" data-today="{{ today()->toDateString() }}">
             <header class="border-b border-slate-800 bg-slate-950 text-white">
                 <div class="mx-auto flex min-h-18 max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-8">
-                    <a href="{{ route('package-offers') }}" class="inline-flex items-center gap-3 text-lg font-semibold tracking-tight">
+                    <a href="{{ route('home') }}" class="inline-flex items-center gap-3 text-lg font-semibold tracking-tight">
                         <span class="grid size-9 place-items-center rounded-lg bg-teal-300 text-sm font-bold text-slate-950" aria-hidden="true">M</span>
                         Medloby
                     </a>
@@ -73,6 +73,15 @@
                     <div class="mt-4 flex flex-wrap gap-2">
                         <button id="check-verification" type="button" class="offer-button">Doğrulamayı kontrol et</button>
                         <button id="resend-verification" type="button" class="offer-button offer-button-secondary">E-postayı yeniden gönder</button>
+                    </div>
+                </section>
+
+                <section id="package-request" class="mt-6 grid max-w-xl gap-3 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900" aria-labelledby="package-request-title" hidden>
+                    <h2 id="package-request-title" class="text-xl font-semibold">Paket görüşmesi</h2>
+                    <p id="package-request-name" class="break-words text-sm text-slate-700 dark:text-slate-300"></p>
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" id="package-request-confirm" class="offer-button">Görüşmeyi başlat</button>
+                        <button type="button" id="package-request-cancel" class="offer-button offer-button-secondary">Vazgeç</button>
                     </div>
                 </section>
 

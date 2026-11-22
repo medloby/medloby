@@ -85,8 +85,8 @@ class TreatmentPackage extends Model
     protected function withPublicContents(Builder $query): Builder
     {
         return $query->with([
-            'business:id,name',
-            'branch:id,name',
+            'business:id,name,city',
+            'branch:id,name,city,district',
             'treatments' => fn ($relation) => $relation->where('treatments.is_active', true)
                 ->select('treatments.id', 'treatments.name')->orderByPivot('sort_order'),
             'services' => fn ($relation) => $relation->where('package_services.is_active', true)

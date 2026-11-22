@@ -10,6 +10,7 @@ use App\Models\Treatment;
 use App\Models\TreatmentPackage;
 use App\Services\CatalogManagementAccess;
 use DateTimeInterface;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -61,14 +62,37 @@ class TreatmentPackageController extends Controller
         ]);
     }
 
-    public function discover(): JsonResponse
+    public function discover(Request $request): JsonResponse
     {
+        $filters = $request->validate([
+            'q' => ['nullable', 'string', 'max:100'],
+            'city' => ['nullable', 'string', 'max:80'],
+        ]);
+        $search = $filters['q'] ?? '';
+        $city = $filters['city'] ?? '';
+
         $packages = TreatmentPackage::query()
             ->availableForEnquiries()
             ->withPublicContents()
+            ->when($search !== '', function (Builder $packages) use ($search): void {
+                $term = '%'.$search.'%';
+                $packages->where(fn (Builder $matching) => $matching
+                    ->whereLike('treatment_packages.name', $term)
+                    ->orWhereHas('business', fn (Builder $business) => $business->whereLike('businesses.name', $term))
+                    ->orWhereHas('branch', fn (Builder $branch) => $branch->whereLike('branches.name', $term))
+                    ->orWhereHas('treatments', fn (Builder $treatment) => $treatment->whereLike('treatments.name', $term)));
+            })
+            ->when($city !== '', function (Builder $packages) use ($city): void {
+                $term = '%'.$city.'%';
+                $packages->where(fn (Builder $matching) => $matching
+                    ->whereHas('branch', fn (Builder $branch) => $branch->whereLike('branches.city', $term))
+                    ->orWhere(fn (Builder $withoutBranch) => $withoutBranch->whereNull('treatment_packages.branch_id')
+                        ->whereHas('business', fn (Builder $business) => $business->whereLike('businesses.city', $term))));
+            })
             ->orderBy('name')
             ->orderBy('id')
             ->paginate(12)
+            ->appends($filters)
             ->through(fn (TreatmentPackage $package) => new PublicTreatmentPackageResource($package));
 
         return response()->json(['success' => true, 'data' => $packages]);

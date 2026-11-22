@@ -31,6 +31,7 @@ test('public package and service reads only show published catalog data', functi
         'branch_id' => $this->branch->id,
         'name' => 'Bakım paketi',
         'slug' => 'bakim-paketi',
+        'description' => 'Kliniğin serbest metin alanı',
         'price' => 25000,
         'currency' => 'TRY',
         'included_services' => 'Klinik içi hizmet notu',
@@ -62,6 +63,7 @@ test('public package and service reads only show published catalog data', functi
         ->assertOk()->assertJsonCount(1, 'data.data')
         ->assertJsonPath('data.data.0.id', $package->id)
         ->assertJsonPath('data.data.0.treatments.0', ['name' => $this->treatment->name, 'quantity' => 2])
+        ->assertJsonMissingPath('data.data.0.description')
         ->assertJsonMissingPath('data.data.0.price')
         ->assertJsonMissingPath('data.data.0.currency');
 
@@ -73,6 +75,7 @@ test('public package and service reads only show published catalog data', functi
     $this->getJson($packageUrl)
         ->assertOk()
         ->assertJsonMissingPath('data.price')
+        ->assertJsonMissingPath('data.description')
         ->assertJsonMissingPath('data.included_services')
         ->assertJsonMissingPath('data.business.email')
         ->assertJsonMissingPath('data.branch.email');
@@ -93,6 +96,38 @@ test('public package and service reads only show published catalog data', functi
         ->assertJsonPath('data.packages.0.id', $package->id)
         ->assertJsonMissingPath('data.packages.0.price')
         ->assertJsonMissingPath('data.packages.0.pivot');
+});
+
+test('catalog search matches package and treatment names and uses the location of the listed branch', function () {
+    $this->business->update(['name' => 'Deneme Klinik', 'city' => 'Ankara']);
+    $this->branch->update(['name' => 'Sahil Şubesi', 'city' => 'İzmir', 'district' => 'Konak']);
+
+    $branchPackage = $this->business->treatmentPackages()->create([
+        'branch_id' => $this->branch->id, 'name' => 'Yıllık bakım', 'slug' => 'yillik-bakim',
+    ]);
+    $branchPackage->treatments()->attach($this->treatment->id);
+    $clinicPackage = $this->business->treatmentPackages()->create([
+        'name' => 'Genel bakım', 'slug' => 'genel-bakim',
+    ]);
+    $clinicPackage->treatments()->attach($this->treatment->id);
+    $pendingClinic = Business::factory()->create(['status' => 'pending', 'is_verified' => false]);
+    $pending = $pendingClinic->treatmentPackages()->create(['name' => 'Yıllık bakım', 'slug' => 'yillik-bakim']);
+    $pending->treatments()->attach($this->treatment->id);
+
+    $url = '/api/package-catalog?';
+    $this->getJson($url.http_build_query(['q' => 'Yıllık bakım']))->assertOk()
+        ->assertJsonPath('data.total', 1)->assertJsonPath('data.data.0.id', $branchPackage->id);
+    $this->getJson($url.http_build_query(['q' => 'Deneme Klinik']))->assertOk()->assertJsonPath('data.total', 2);
+    $this->getJson($url.http_build_query(['q' => 'Sahil Şubesi']))->assertOk()->assertJsonPath('data.total', 1);
+    $this->getJson($url.http_build_query(['q' => 'Kontrol', 'city' => 'İzmir']))->assertOk()
+        ->assertJsonPath('data.total', 1)
+        ->assertJsonPath('data.data.0.id', $branchPackage->id)
+        ->assertJsonPath('data.data.0.location', ['city' => 'İzmir', 'district' => 'Konak']);
+    $this->getJson($url.http_build_query(['city' => 'Ankara']))->assertOk()
+        ->assertJsonPath('data.total', 1)
+        ->assertJsonPath('data.data.0.id', $clinicPackage->id)
+        ->assertJsonPath('data.data.0.location', ['city' => 'Ankara', 'district' => null]);
+    $this->getJson($url.'city[]=Ankara')->assertUnprocessable()->assertJsonValidationErrors('city');
 });
 
 test('treatment prices require a verified clinic member and respect branch assignments', function () {

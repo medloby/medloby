@@ -122,7 +122,9 @@ export function mountPackageOffers(root) {
     });
     const clinicCrm = mountClinicCrm(get('clinic-crm'), api, { openBookingDialog, openAppointmentAction, appointmentActionLabels });
     const discoverySection = get('package-discovery');
-    const discovery = mountPackageDiscovery(discoverySection, { api, startConversation });
+    const discovery = mountPackageDiscovery(discoverySection, { api, continueInAccount });
+    const confirmPackage = get('package-request-confirm');
+    const cancelPackage = get('package-request-cancel');
     const thread = mountPackageConversation(get('package-conversation'), {
         api,
         downloadAttachment,
@@ -223,8 +225,11 @@ export function mountPackageOffers(root) {
         const verified = Boolean(user?.email_verified_at);
         const crmBusiness = /^#klinik-crm\/([1-9][0-9]*)$/.exec(window.location.hash)?.[1];
         const inCrm = verified && (clinicApplications.canOpenCrm(crmBusiness) || staffCrmIds.has(crmBusiness));
+        const requestingPackage = !browsing && !inCrm && verified && user.patient_profile_exists && pendingPackage;
 
         discoverySection.hidden = !browsing;
+        get('package-request').hidden = !requestingPackage;
+        get('package-request-name').textContent = requestingPackage ? pendingPackage.name : '';
         get('page-title').textContent = inCrm ? 'Klinik CRM' : (browsing ? 'Tedavi paketleri' : 'Paket teklifleri');
         document.title = get('page-title').textContent + ' | Medloby';
         get('discovery-link').setAttribute('aria-current', browsing ? 'page' : 'false');
@@ -258,30 +263,59 @@ export function mountPackageOffers(root) {
         }
     }
 
-    async function startConversation(pkg) {
-        if (!user?.email_verified_at) {
-            rememberPackage(pkg);
-            window.location.hash = 'gorusmeler';
-            syncPage();
-            if (user) {
-                showStatus(notice, pkg.name + ' için görüşme başlatmak üzere e-posta adresinizi doğrulayın.');
-                get('check-verification').focus();
-            } else {
-                showStatus(notice, pkg.name + ' için görüşme başlatmak üzere hasta hesabınızla giriş yapın veya hesap oluşturun.');
-                signIn.elements.namedItem('email').focus();
-            }
-            return;
-        }
-        if (!user.patient_profile_exists) {
-            throw new Error('Görüşme başlatmak için hasta hesabınızla giriş yapın.');
-        }
-
-        const item = await api('/conversations', { treatment_package_id: pkg.id });
+    function continueInAccount(pkg) {
+        const canRequest = !user || user.patient_profile_exists;
+        rememberPackage(canRequest ? pkg : undefined);
         window.location.hash = 'gorusmeler';
         syncPage();
-        await loadConversations(1, item);
-        showStatus(notice, 'Paket görüşmesi açıldı.');
+        if (!canRequest) {
+            showStatus(notice, 'Paket görüşmesi başlatmak için hasta hesabınızla giriş yapın.');
+        } else if (!user) {
+            showStatus(notice, pkg.name + ' için hasta hesabınızla giriş yapın veya hesap oluşturun.');
+            signIn.elements.namedItem('email').focus();
+        } else if (!user.email_verified_at) {
+            showStatus(notice, pkg.name + ' için e-posta adresinizi doğrulayın.');
+            get('check-verification').focus();
+        } else {
+            showStatus(notice);
+            confirmPackage.focus();
+        }
     }
+
+    confirmPackage.addEventListener('click', async () => {
+        const actor = user;
+        const requested = pendingPackage;
+        if (!actor?.email_verified_at || !actor.patient_profile_exists || !requested || confirmPackage.disabled) {
+            return;
+        }
+        confirmPackage.disabled = true;
+        cancelPackage.disabled = true;
+        try {
+            const item = await api('/conversations', { treatment_package_id: requested.id });
+            if (user === actor && pendingPackage === requested) {
+                rememberPackage(undefined);
+                syncPage();
+                await loadConversations(1, item);
+                if (user === actor) {
+                    showStatus(notice, 'Paket görüşmesi açıldı.');
+                }
+            }
+        } catch (error) {
+            if (user === actor) {
+                showStatus(notice, error.message);
+            }
+        } finally {
+            confirmPackage.disabled = false;
+            cancelPackage.disabled = false;
+        }
+    });
+
+    cancelPackage.addEventListener('click', () => {
+        rememberPackage(undefined);
+        syncPage();
+        showStatus(notice);
+        get('offers-link').focus();
+    });
 
     async function openNotificationTarget(data) {
         const actor = user;
@@ -830,22 +864,15 @@ export function mountPackageOffers(root) {
             clinicReview.start();
             clinicContracts.start();
         }
-        syncPage();
-
-        const requested = pendingPackage;
-        rememberPackage(undefined);
-        if (requested) {
-            try {
-                await startConversation(requested);
-            } catch (error) {
-                if (user) {
-                    await loadConversations(1);
-                }
-                throw error;
-            }
-        } else {
-            await loadConversations(1);
+        if (pendingPackage && !user.patient_profile_exists) {
+            rememberPackage(undefined);
+            showStatus(notice, 'Paket görüşmesi başlatmak için hasta hesabınızla giriş yapın.');
         }
+        syncPage();
+        if (!get('package-request').hidden) {
+            confirmPackage.focus();
+        }
+        await loadConversations(1);
     }
 
     async function activateSession(sessionToken) {
@@ -878,10 +905,12 @@ export function mountPackageOffers(root) {
     });
 
     get('patient-registration').addEventListener('click', () => registration.open('patient'));
-    get('clinic-registration').addEventListener('click', () => {
+    function openClinicRegistration() {
         rememberPackage(undefined);
+        syncPage();
         registration.open('business');
-    });
+    }
+    get('clinic-registration').addEventListener('click', openClinicRegistration);
 
     async function verifyAccount(button, action) {
         button.disabled = true;
@@ -1046,6 +1075,9 @@ export function mountPackageOffers(root) {
     }
 
     syncPage();
+    if (window.location.hash === '#clinic-registration') {
+        openClinicRegistration();
+    }
     const pageUrl = new URL(window.location.href);
     if (pageUrl.searchParams.get('email_verified') === '1') {
         showStatus(notice, 'Doğrulamayı kontrol etmek için hesabınıza giriş yapın.');

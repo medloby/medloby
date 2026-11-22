@@ -13,12 +13,13 @@ class PublicTreatmentPackageResource extends JsonResource
     {
         return [
             ...$this->resource->only([
-                'id', 'business_id', 'branch_id', 'name', 'slug', 'description', 'package_type',
+                'id', 'business_id', 'branch_id', 'name', 'slug', 'package_type',
                 'duration_days', 'includes_hotel', 'includes_transfer', 'is_offer_enabled',
                 'is_active', 'valid_from', 'valid_until',
             ]),
             'business' => $this->business->only(['id', 'name']),
             'branch' => $this->branch?->only(['id', 'name']),
+            'location' => $this->branch?->only(['city', 'district']) ?? ['city' => $this->business->city, 'district' => null],
             'treatments' => $this->treatments->map(fn (Treatment $treatment) => [
                 'name' => $treatment->name,
                 'quantity' => (int) $treatment->pivot->quantity,
