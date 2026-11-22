@@ -2,7 +2,7 @@
 
 **İnceleme tarihi** 22 Kasım 2026 · **İncelenen sürüm** `main / 668980d`
 
-**Sıradaki iş 2.2** Klinik CRM’de takip aşamasını değiştirmeyi, aşama geçmişini ve adayı sonuçlandırmayı ekrana bağlamak.
+**Sıradaki iş 3.1** Klinik personeli, şube yetkileri, hekim ve tedavi ilişkilendirme akışlarını ekrana bağlamak.
 
 ## Kapsam ve doğrulama
 
@@ -54,8 +54,8 @@ flowchart LR
 | Hesaplar | Hasta kaydı, giriş/çıkış, süreli imzalı e-posta doğrulaması ve yeniden gönderim | Şifre sıfırlama akışı, giriş ve kayıt istekleri için sınırlar, oturum davranışı ve yayın sırasında gerçek gelen kutusu testi |
 | Klinik başvurusu | Geçerli sözleşme sürümüyle başvuru, yönetici inceleme/onay/ret, klinik sahibinin durum ve kendisine yazılan açıklamayı görmesi | İşletmeci ve ruhsat doğrulama sürecini netleştirme, idari görevleri ve eksik yönetim ekranlarını bitirme |
 | Sözleşmeler ve platform yönetimi | Yönetici taslak listesi, düzenleme ve sürüm oluşturma, eşzamanlı değişiklik denetimi. Yayımlama, pasife alma, klinik askıya alma ve üyelik yetki işlemleri için sunucu uç noktaları | Yayımlama koşulları, geçmiş sözleşme ve kabul görünümü, klinik durum geçmişi ve üyelik yönetimi ekranları |
-| CRM hasta adayları | Şube seçimi ve özet, takip aşaması sayıları, aday listeleme, durum filtresi, sayfalama, aday ekleme, ayrıntı ve iletişim bilgisi düzenleme, yetkili personele atama | Aşama değişikliği, aşama geçmişi ve sonuçlandırma |
-| CRM görevleri ve takip | Görev, takip, aktivite ve görüşme ilişkilendirme uç noktaları. Takip aşaması yönetimi ve rapor verileri | Klinik ekranları, hasta ile ilişkilendirme akışı ve süresi gelen takiplerin nasıl işletileceği |
+| CRM hasta adayları | Şube seçimi ve özet, aday listeleme, durum filtresi, sayfalama, iletişim bilgilerini düzenleme ve personele atama. Takip aşaması ekleme, aşama geçmişi ve aday sonuçlandırma | Klinik takvimi ve operasyon ekranlarıyla birlikte doğrulama |
+| CRM görevleri ve takip | Adaya bağlı görev, planlı takip ve aktivite kayıtları. Görev ve takiplerin tamamlanması ve iptali. Yetkili şube görüşmesini ve hastayı adaya bağlama | Süresi gelen takipler için hatırlatma kuralları |
 | Klinik operasyonları | Şube, şube tedavileri, hekim çalışma saatleri/izinleri, takvim kuralları, istisnalar ve bloklar için sunucu işlevleri | Operasyon ekranlarını mevcut uç noktalara bağlama, personel/şube yetkilerini ve hekim kurulum akışını doğrulama |
 | Katalog ve fiyat | Tedavi, kategori ve fiyat kayıtları. Klinik paketleri, seans ve ek hizmet yönetimi. Fiyatsız kamu kataloğu, yetkili kliniğe açık fiyat kayıtları ve hastaya özel paket teklifi | Türkiye yayını için içerik incelemesi |
 | Görüşme ve teklif | Paketle görüşme başlatma, mesaj ve özel ek, teklif oluşturma, kabul/ret ve paket içeriği kaydı | Farklı şube ve rollerin görmesi gereken verileri tutarlı hale getirme, geçmiş kayıt ve dosya saklama kurallarını belirleme |
@@ -81,8 +81,8 @@ Aşama, olumsuz yetki testleri ve kendi kliniğinde çalışan olumlu akışlarl
 ### 2. Klinik CRM’i tamamla
 
 1. **2.1 Tamamlandı.** Hasta adayının ayrıntısı açılıyor ve iletişim bilgileri düzenlenebiliyor. Sorumlu personel seçimi şubenin aktif ve yetkili üyeleriyle sınırlı. Atama değişikliği ve kaldırma, güncelleme sonrası sayfa ve filtreyi koruma ve şubeler arasında geçiş mobil Chromium’da doğrulandı. 796 test ve Vite derlemesi geçti. [CRM aday ekranı](https://github.com/medloby/medloby/commit/3eff17386f692ae46db3c7503627e055f7466cef)
-2. Takip aşaması ve aşama geçmişi. Adayın sonuçlandırılması, eski kayıtların uyumu ve rapor/filtreden aynı sonucun görülmesi.
-3. Görevler, takipler ve aktiviteler. Mevcut görüşmeyi izinli şekilde adaya bağlama.
+2. **2.2 Tamamlandı.** Klinik takip aşaması ekleyebiliyor, adayı aktif bir aşamaya taşıyabiliyor ve tarih, personel ve notla birlikte aşama geçmişini görebiliyor. Başarılı ve sonuçsuz kapanışlar özet ve aday filtresinde aynı sonucu veriyor. Eski başarılı kayıtlar da bu sayımlara dahil. 798 test ve mobil Chromium akışı geçti. [Aday takibi ve sonuçlandırma](https://github.com/medloby/medloby/commit/f6385e8a429241413526fb526b21c3c93b27e170)
+3. **2.3 Tamamlandı.** Aday ayrıntısında görev, planlı takip ve aktivite oluşturulabiliyor ve düzenlenebiliyor. Görev ve takip tamamlanabiliyor ya da iptal edilebiliyor. Aynı şubedeki uygun bir görüşme seçilerek adaya bağlanıyor. Hasta bağlantısı boşsa açık seçimle görüşmedeki hasta da adaya bağlanıyor. 799 test, Vite derlemesi ve mobil Chromium akışları geçti. [Aday görevleri ve görüşme bağlantısı](https://github.com/medloby/medloby/commit/42121c523a29c4d8bc75082fdead3e6eb6137893)
 
 Kabul senaryosu e-posta doğrulama ve klinik onayıyla başlar. Klinik sahibi yalnızca yetkili olduğu şubede adayı oluşturur, izler ve sonuçlandırır. Chrome kontrolü sırasında şube değiştirme, onaydan önce erişim ve farklı klinik sınırı tekrar sınanır.
 
