@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Appointment;
+use App\Models\Branch;
 use App\Models\Doctor;
 use App\Models\Treatment;
 use Carbon\Carbon;
@@ -13,8 +14,7 @@ class AppointmentService
 {
     public function __construct(
         protected AppointmentAvailabilityService $availabilityService
-    ) {
-    }
+    ) {}
 
     /**
      * Randevu oluşturur.
@@ -28,18 +28,26 @@ class AppointmentService
             $startsAt = Carbon::parse($data['starts_at']);
 
             $doctor = Doctor::query()
-                ->find($data['doctor_id'] ?? null);
+                ->lockForUpdate()->find($data['doctor_id'] ?? null);
 
-            if (! $doctor) {
+            $branch = Branch::query()->where('business_id', $data['business_id'])->find($data['branch_id']);
+            if (! $branch || $branch->status !== 'active' || ! $branch->business?->allowsCrmAccess()) {
+                throw new RuntimeException('Bu şube şu anda randevuya açık değil.');
+            }
+
+            if (! $doctor || ! $doctor->person()->where('business_id', $branch->business_id)->exists()) {
                 throw new RuntimeException(
                     'Geçerli bir doktor seçilmelidir.'
                 );
+            }
+            if (($data['source'] ?? 'medloby') === 'medloby' && ! $doctor->is_public) {
+                throw new RuntimeException('Seçilen doktor çevrimiçi randevuya açık değil.');
             }
 
             $treatment = Treatment::query()
                 ->find($data['treatment_id'] ?? null);
 
-            if (! $treatment) {
+            if (! $treatment || ! $treatment->is_active) {
                 throw new RuntimeException(
                     'Geçerli bir tedavi seçilmelidir.'
                 );
@@ -107,7 +115,7 @@ class AppointmentService
                 'treatment',
                 'statusHistories',
             ]);
-        });
+        }, 3);
     }
 
     /**

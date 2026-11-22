@@ -36,6 +36,8 @@ use App\Http\Controllers\ClinicApplicationStatusController;
 
 use App\Http\Controllers\ClinicBranchOperationsController;
 
+use App\Http\Controllers\ClinicAppointmentController;
+
 use App\Http\Controllers\ClinicCalendarController;
 
 use App\Http\Controllers\ClinicCrmWorkspaceController;
@@ -99,6 +101,8 @@ use App\Http\Middleware\EnsureBranchCatalogManagementAccess;
 use App\Http\Middleware\EnsureClinicBranchOperationsAccess;
 
 use App\Http\Middleware\EnsureClinicCrmAccess;
+
+use App\Models\Appointment;
 
 use Illuminate\Support\Facades\Route;
 
@@ -1011,6 +1015,14 @@ Route::middleware(['auth:sanctum', 'verified', EnsureClinicCrmAccess::class, Ens
 Route::middleware(['auth:sanctum', 'verified', EnsureClinicCrmAccess::class])
     ->prefix('branches/{branch}/clinic-calendar')->group(function () {
         Route::get('/', [ClinicCalendarController::class, 'show']);
+        Route::get('/appointment-options', [ClinicAppointmentController::class, 'options']);
+        Route::get('/patients', [ClinicAppointmentController::class, 'patients']);
+        Route::get('/package-offers', [ClinicAppointmentController::class, 'packages']);
+        Route::post('/appointments', [ClinicAppointmentController::class, 'store']);
+        Route::post('/appointments/{appointment}/{action}', [AppointmentController::class, 'actFromCalendar'])
+            ->whereIn('action', array_keys(Appointment::ACTION_PERMISSIONS));
+        Route::get('/package-offers/{offer}/appointments/options', [AppointmentBookingController::class, 'optionsForClinic']);
+        Route::post('/package-offers/{offer}/appointments', [AppointmentBookingController::class, 'storeForClinic']);
 
         Route::middleware(EnsureClinicBranchOperationsAccess::class)->group(function () {
             Route::get('/rules', [BookingCalendarController::class, 'show']);

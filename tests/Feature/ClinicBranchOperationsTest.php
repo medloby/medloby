@@ -99,12 +99,14 @@ test('an owner can register a private doctor and connect active branch treatment
     $this->postJson($this->operations.'/treatments', [
         'treatment_id' => $treatment->id, 'is_online_bookable' => true,
     ])->assertCreated();
+    $this->putJson($this->operations.'/treatments/'.$treatment->id, ['duration_minutes' => 30])->assertOk();
 
     $this->putJson($link, ['is_active' => true])->assertOk();
     $this->getJson($this->operations)->assertOk()
         ->assertJsonPath('data.doctors.0.in_branch', true)
         ->assertJsonPath('data.doctors.0.treatment_ids', [$treatment->id])
-        ->assertJsonPath('data.branch_treatments.0.is_online_bookable', true);
+        ->assertJsonPath('data.branch_treatments.0.is_online_bookable', true)
+        ->assertJsonPath('data.branch_treatments.0.duration_minutes', 30);
 
     $this->putJson($link, ['is_active' => false])->assertOk();
     $this->assertDatabaseHas('doctor_treatment', ['doctor_id' => $doctor->id, 'treatment_id' => $treatment->id, 'is_active' => false]);

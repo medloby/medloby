@@ -13,8 +13,7 @@ class AppointmentAvailabilityService
 {
     public function __construct(
         protected BookingCalendarService $bookingCalendarService
-    ) {
-    }
+    ) {}
 
     /**
      * Belirli doktor, şube ve tedavi için başlangıç saatinin
@@ -28,6 +27,10 @@ class AppointmentAvailabilityService
         ?int $ignoreAppointmentId = null,
         bool $requireOnlineBookable = true
     ): bool {
+        if ($doctor->status !== 'active') {
+            return false;
+        }
+
         $durationMinutes = $this->getDurationMinutes(
             $doctor,
             $branchId,
@@ -136,7 +139,6 @@ class AppointmentAvailabilityService
         // 10. Başka aktif randevuyla çakışıyor mu?
         if ($this->hasAppointmentConflict(
             $doctor->id,
-            $branchId,
             $startsAt,
             $endsAt,
             $ignoreAppointmentId
@@ -295,11 +297,14 @@ class AppointmentAvailabilityService
                 'is_online_bookable',
             ]);
 
-        if (! $branchTreatment) {
+        if (! $branchTreatment?->is_online_bookable) {
             return false;
         }
 
-        return (bool) $branchTreatment->is_online_bookable;
+        $onlineBooking = DB::table('branch_appointment_settings')
+            ->where('branch_id', $branchId)->where('is_active', true)->value('online_booking_enabled');
+
+        return $onlineBooking === null || (bool) $onlineBooking;
     }
 
     /**
@@ -401,14 +406,12 @@ class AppointmentAvailabilityService
      */
     protected function hasAppointmentConflict(
         int $doctorId,
-        int $branchId,
         Carbon $startsAt,
         Carbon $endsAt,
         ?int $ignoreAppointmentId = null
     ): bool {
         return Appointment::query()
             ->where('doctor_id', $doctorId)
-            ->where('branch_id', $branchId)
             ->whereNotIn('status', [
                 'cancelled',
                 'completed',

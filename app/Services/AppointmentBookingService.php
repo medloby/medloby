@@ -40,6 +40,9 @@ class AppointmentBookingService
         ) {
             if ($offer) {
                 $offer = Offer::query()->lockForUpdate()->findOrFail($offer->id);
+            }
+            $doctor = Doctor::query()->lockForUpdate()->findOrFail($doctor->id);
+            if ($offer) {
                 if ($offer->package_snapshot !== null) {
                     throw new RuntimeException('Paket randevuları birlikte oluşturulmalıdır.');
                 }
@@ -52,7 +55,7 @@ class AppointmentBookingService
                 $businessId, $branchId, $patient, $doctor, $treatment,
                 $startsAt, $source, $requireOnlineBookable, $notes, $offer
             );
-        });
+        }, 3);
     }
 
     private function createBooking(
@@ -65,7 +68,8 @@ class AppointmentBookingService
         string $source = 'medloby',
         bool $requireOnlineBookable = true,
         ?string $notes = null,
-        ?Offer $offer = null
+        ?Offer $offer = null,
+        ?int $changedBy = null
     ): Appointment {
         if ($offer) {
             $this->validateOfferContext($offer, $businessId, $branchId, $patient, $treatment);
@@ -132,7 +136,7 @@ class AppointmentBookingService
 
         AppointmentStatusHistory::create([
             'appointment_id' => $appointment->id,
-            'changed_by_user_id' => null,
+            'changed_by_user_id' => $changedBy,
             'old_status' => null,
             'new_status' => 'pending',
             'reason' => 'Randevu oluşturuldu.',
@@ -163,10 +167,12 @@ class AppointmentBookingService
         ]);
     }
 
-    public function bookPackage(Offer $offer, int $branchId, array $sessions): array
+    public function bookPackage(Offer $offer, int $branchId, array $sessions, ?int $clinicUserId = null): array
     {
-        return DB::transaction(function () use ($offer, $branchId, $sessions) {
+        return DB::transaction(function () use ($offer, $branchId, $sessions, $clinicUserId) {
             $offer = Offer::query()->lockForUpdate()->findOrFail($offer->id);
+            $doctors = Doctor::query()->whereKey(array_column($sessions, 'doctor_id'))
+                ->orderBy('id')->lockForUpdate()->get()->keyBy('id');
             if ($offer->appointments()->exists()) {
                 throw new RuntimeException('Bu teklif daha önce randevuya dönüştürülmüş.');
             }
@@ -191,11 +197,14 @@ class AppointmentBookingService
                     $offer->business_id,
                     $branchId,
                     $patient,
-                    Doctor::findOrFail($session['doctor_id']),
+                    $doctors->get($session['doctor_id']) ?? throw new RuntimeException('Geçerli bir doktor seçilmelidir.'),
                     Treatment::findOrFail($session['treatment_id']),
                     Carbon::parse($session['starts_at']),
+                    source: $clinicUserId ? 'clinic' : 'medloby',
+                    requireOnlineBookable: $clinicUserId === null,
                     notes: $session['notes'] ?? null,
                     offer: $offer,
+                    changedBy: $clinicUserId,
                 );
 
                 foreach ($appointments as $previous) {
@@ -209,7 +218,7 @@ class AppointmentBookingService
             }
 
             return $appointments;
-        });
+        }, 3);
     }
 
     /**
@@ -226,6 +235,10 @@ class AppointmentBookingService
             throw new RuntimeException(
                 'Randevu oluşturmak için teklifin kabul edilmiş olması gerekir.'
             );
+        }
+
+        if (! $offer->hasActiveClinic()) {
+            throw new RuntimeException('Bu sağlık merkezi şu anda randevuya açık değil.');
         }
 
         if (
@@ -289,8 +302,14 @@ class AppointmentBookingService
             );
         }
 
-        if ($requireOnlineBookable && $branch->status !== 'active') {
-            throw new RuntimeException('Seçilen şube şu anda çevrimiçi randevuya açık değil.');
+        if ($branch->status !== 'active') {
+            throw new RuntimeException($requireOnlineBookable
+                ? 'Seçilen şube şu anda çevrimiçi randevuya açık değil.'
+                : 'Seçilen şube şu anda randevuya açık değil.');
+        }
+
+        if ($requireOnlineBookable && ! $doctor->is_public) {
+            throw new RuntimeException('Seçilen doktor çevrimiçi randevuya açık değil.');
         }
 
         $doctorBelongsToBusiness = DB::table('doctors')

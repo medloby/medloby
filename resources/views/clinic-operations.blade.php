@@ -86,4 +86,13 @@
             <div class="flex flex-wrap gap-2" data-operations-actions></div>
         </li>
     </template>
+    <template data-operations-treatment-duration>
+        <form class="mt-2 flex flex-wrap items-end gap-2">
+            <label class="offer-field">
+                Şubedeki randevu süresi (dakika)
+                <input class="offer-control" name="duration_minutes" type="number" min="1" step="1" inputmode="numeric">
+            </label>
+            <button type="submit" class="offer-button offer-button-secondary">Süreyi kaydet</button>
+        </form>
+    </template>
 </details>

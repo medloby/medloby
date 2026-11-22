@@ -120,7 +120,7 @@ export function mountPackageOffers(root) {
         timeLabel: (value) => offerDeadline.format(new Date(value)),
         onChanged: syncPage,
     });
-    const clinicCrm = mountClinicCrm(get('clinic-crm'), api);
+    const clinicCrm = mountClinicCrm(get('clinic-crm'), api, { openBookingDialog, openAppointmentAction, appointmentActionLabels });
     const discoverySection = get('package-discovery');
     const discovery = mountPackageDiscovery(discoverySection, { api, startConversation });
     const thread = mountPackageConversation(get('package-conversation'), {
@@ -159,7 +159,7 @@ export function mountPackageOffers(root) {
     let pendingPackage = restorePackageChoice();
     let currentPage = 1;
     let selectedPackageById = new Map();
-    let bookingOffer;
+    let bookingContext;
     let rejection;
     let appointmentAction;
     let sessions = [];
@@ -334,7 +334,7 @@ export function mountPackageOffers(root) {
         user = undefined;
         conversation = undefined;
         rememberPackage(undefined);
-        bookingOffer = undefined;
+        bookingContext = undefined;
         rejection = undefined;
         appointmentAction = undefined;
         sessions = [];
@@ -599,12 +599,13 @@ export function mountPackageOffers(root) {
         details.addEventListener('toggle', refresh);
     }
 
-    function openAppointmentAction(appointment, action, refresh) {
-        appointmentAction = { appointment, action, refresh };
+    function openAppointmentAction(appointment, action, refresh, path = '/appointments') {
+        appointmentAction = { appointment, action, refresh, path };
         appointmentForm.reset();
         showStatus(appointmentNotice);
         get('appointment-action-title').textContent = appointmentActionLabels[action];
         get('appointment-action-context').textContent = [
+            appointment.patient,
             appointment.treatment_name,
             appointmentDateLabel(appointment.starts_at, appointment.ends_at),
         ].filter(Boolean).join(' · ');
@@ -679,7 +680,7 @@ export function mountPackageOffers(root) {
                 treatment_id: session.treatmentId,
                 date: session.date.value,
             });
-            const result = await api('/offers/' + bookingOffer.id + '/appointments/options?' + query);
+            const result = await api(bookingContext.path + '/options?' + query);
             if (request !== session.request || !bookingDialog.open) {
                 return;
             }
@@ -720,20 +721,23 @@ export function mountPackageOffers(root) {
         sessions.push(session);
     }
 
-    async function openBookingDialog(offer) {
+    async function openBookingDialog(offer, calendar = null) {
         const request = ++dialogRequest;
-        bookingOffer = offer;
+        bookingContext = {
+            path: calendar?.path ?? '/offers/' + offer.id + '/appointments',
+            onBooked: calendar?.onBooked,
+        };
         bookingForm.reset();
         bookingForm.hidden = true;
         sessions = [];
         sessionList.replaceChildren();
-        get('booking-offer-title').textContent = offer.title;
+        get('booking-offer-title').textContent = [offer.title, offer.patient].filter(Boolean).join(' · ');
         const status = bookingDialog.querySelector('[data-status]');
         showStatus(status, 'Randevu seçenekleri yükleniyor…');
         bookingDialog.showModal();
 
         try {
-            const data = await api('/offers/' + offer.id + '/appointments/options');
+            const data = await api(bookingContext.path + '/options');
             if (request !== dialogRequest) {
                 return;
             }
@@ -756,6 +760,12 @@ export function mountPackageOffers(root) {
 
             bookingForm.hidden = false;
             showStatus(status);
+            if (calendar?.date >= root.dataset.today) {
+                for (const session of sessions) {
+                    session.date.value = calendar.date;
+                    loadSlots(session);
+                }
+            }
         } catch (error) {
             if (request === dialogRequest) {
                 showStatus(status, error.message);
@@ -974,7 +984,8 @@ export function mountPackageOffers(root) {
         }
 
         const item = conversation;
-        const result = await api('/offers/' + bookingOffer.id + '/appointments', {
+        const { path, onBooked } = bookingContext;
+        const result = await api(path, {
             branch_id: Number(branchField.value),
             sessions: sessions.map((session) => ({
                 treatment_id: session.treatmentId,
@@ -985,11 +996,15 @@ export function mountPackageOffers(root) {
 
         bookingDialog.close();
         showStatus(notice, result.appointments.length + ' seans için randevu oluşturuldu.');
-        await loadOffers(item);
+        if (onBooked) {
+            await onBooked(result);
+        } else {
+            await loadOffers(item);
+        }
     });
 
     onSubmit(appointmentForm, appointmentNotice, async (fields) => {
-        const { appointment, action, refresh } = appointmentAction;
+        const { appointment, action, refresh, path } = appointmentAction;
         const body = {};
         const reason = (fields.get('reason') ?? '').trim();
 
@@ -1004,10 +1019,10 @@ export function mountPackageOffers(root) {
             body.reason = reason || null;
         }
 
-        await api('/appointments/' + appointment.id + '/' + action, body);
+        const result = await api(path + '/' + appointment.id + '/' + action, body);
         appointmentDialog.close();
         showStatus(notice, 'Randevu güncellendi.');
-        await refresh();
+        await refresh(result);
     });
 
     for (const dialog of [offerDialog, rejectDialog, bookingDialog, appointmentDialog]) {

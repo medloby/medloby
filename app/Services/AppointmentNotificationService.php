@@ -19,8 +19,7 @@ class AppointmentNotificationService
 {
     public function __construct(
         protected BusinessNotificationPreferenceService $preferenceService
-    ) {
-    }
+    ) {}
 
     /**
      * Yeni randevu:
@@ -192,13 +191,8 @@ class AppointmentNotificationService
             return;
         }
 
-        $business->loadMissing([
-            'memberships.user',
-        ]);
-
         $notification = match ($notificationType) {
-            NotificationType::NEW_APPOINTMENT =>
-                new NewAppointmentNotification($appointment),
+            NotificationType::NEW_APPOINTMENT => new NewAppointmentNotification($appointment),
 
             default => null,
         };
@@ -207,15 +201,9 @@ class AppointmentNotificationService
             return;
         }
 
-        foreach ($business->memberships as $membership) {
-            if (
-                ! $membership->is_active ||
-                ! $membership->user
-            ) {
-                continue;
-            }
-
-            $membership->user->notify($notification);
+        $members = $business->memberships()->activeForBranch($appointment->branch)->with('user')->get();
+        foreach ($members as $membership) {
+            $membership->user?->notify($notification);
         }
     }
 

@@ -13,8 +13,7 @@ class AppointmentSlotAvailabilityService
 {
     public function __construct(
         protected AppointmentAvailabilityService $availabilityService
-    ) {
-    }
+    ) {}
 
     /**
      * Belirli bir gün için doktorun müsait randevu başlangıç saatlerini üretir.
@@ -57,7 +56,7 @@ class AppointmentSlotAvailabilityService
              * Online randevu ayarı kapalıysa
              * online müsaitlik gösterilmez.
              */
-            if (! $settings->online_booking_enabled) {
+            if ($requireOnlineBookable && ! $settings->online_booking_enabled) {
                 return [];
             }
         }

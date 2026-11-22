@@ -2,12 +2,21 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Appointment extends Model
 {
+    public const array ACTION_PERMISSIONS = [
+        'confirm' => 'appointments.confirm',
+        'cancel' => 'appointments.cancel',
+        'reschedule' => 'appointments.reschedule',
+        'complete' => 'appointments.complete',
+        'no-show' => 'appointments.mark_no_show',
+    ];
+
     protected $fillable = [
         'business_id',
         'branch_id',
@@ -38,6 +47,21 @@ class Appointment extends Model
             'cancelled_at' => 'datetime',
             'rescheduled_at' => 'datetime',
         ];
+    }
+
+    public function availableActions(): array
+    {
+        return match ($this->status) {
+            'pending' => ['confirm', 'cancel', 'reschedule'],
+            'confirmed' => ['complete', 'no-show', 'cancel', 'reschedule'],
+            default => [],
+        };
+    }
+
+    public static function clinicLocalNow(): Carbon
+    {
+        // Takvim saatleri veritabanında yerel duvar saati olarak tutulur.
+        return Carbon::now('Europe/Istanbul')->shiftTimezone(config('app.timezone'));
     }
 
     public function business(): BelongsTo

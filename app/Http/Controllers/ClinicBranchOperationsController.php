@@ -58,13 +58,15 @@ class ClinicBranchOperationsController extends Controller
 
         $branchTreatments = $branch->treatments()
             ->orderBy('treatments.name')
-            ->get(['treatments.id', 'treatments.name', 'treatments.is_active'])
+            ->get(['treatments.id', 'treatments.name', 'treatments.is_active', 'treatments.duration_minutes'])
             ->map(fn (Treatment $treatment) => [
                 'id' => $treatment->id,
                 'name' => $treatment->name,
                 'catalog_active' => $treatment->is_active,
                 'is_active' => (bool) $treatment->pivot->is_active,
                 'is_online_bookable' => (bool) $treatment->pivot->is_online_bookable,
+                'duration_minutes' => $treatment->pivot->duration_minutes,
+                'catalog_duration_minutes' => $treatment->duration_minutes,
             ]);
 
         return response()->json([

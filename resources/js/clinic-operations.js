@@ -91,12 +91,24 @@ export function mountClinicOperations(panel, api) {
         find('treatments').replaceChildren(...data.branch_treatments.map((item) => {
             const path = current.operations + '/treatments/' + item.id;
             const active = item.catalog_active && item.is_active;
-            return row(item.name, active ? (item.is_online_bookable ? 'Çevrimiçi randevu açık' : 'Çevrimiçi randevu kapalı')
-                : (item.catalog_active ? 'Şubede pasif' : 'Katalogda pasif'),
-            action(item.is_active ? 'Şubede pasife al' : 'Şubede etkinleştir',
-                () => write(current, path, { is_active: !item.is_active }, 'PUT', 'Şube tedavisi kaydedildi.'), !item.is_active && !item.catalog_active),
-            action(item.is_online_bookable ? 'Çevrimiçi randevuyu kapat' : 'Çevrimiçi randevuyu aç',
-                () => write(current, path, { is_online_bookable: !item.is_online_bookable }, 'PUT', 'Randevu ayarı kaydedildi.'), !active));
+            const availability = active ? (item.is_online_bookable ? 'Çevrimiçi randevu açık' : 'Çevrimiçi randevu kapalı')
+                : (item.catalog_active ? 'Şubede pasif' : 'Katalogda pasif');
+            const duration = item.duration_minutes ?? item.catalog_duration_minutes;
+            const entry = row(item.name, availability + ' · ' + (duration ? duration + ' dk' : 'Randevu süresi tanımsız'),
+                action(item.is_active ? 'Şubede pasife al' : 'Şubede etkinleştir',
+                    () => write(current, path, { is_active: !item.is_active }, 'PUT', 'Şube tedavisi kaydedildi.'), !item.is_active && !item.catalog_active),
+                action(item.is_online_bookable ? 'Çevrimiçi randevuyu kapat' : 'Çevrimiçi randevuyu aç',
+                    () => write(current, path, { is_online_bookable: !item.is_online_bookable }, 'PUT', 'Randevu ayarı kaydedildi.'), !active));
+            const form = find('treatment-duration').content.firstElementChild.cloneNode(true);
+            const input = form.elements.namedItem('duration_minutes');
+            input.value = item.duration_minutes ?? '';
+            input.placeholder = item.catalog_duration_minutes ?? '';
+            form.addEventListener('submit', (event) => {
+                event.preventDefault();
+                write(current, path, { duration_minutes: input.value === '' ? null : Number(input.value) }, 'PUT', 'Randevu süresi kaydedildi.');
+            });
+            entry.firstElementChild.append(form);
+            return entry;
         }));
 
         find('doctor-picker').hidden = data.doctors.length === 0;

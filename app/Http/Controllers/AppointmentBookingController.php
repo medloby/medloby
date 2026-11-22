@@ -41,13 +41,7 @@ class AppointmentBookingController extends Controller
 
         $permittedActions = [];
         if ($clinicBranchIds !== []) {
-            foreach ([
-                'confirm' => 'appointments.confirm',
-                'cancel' => 'appointments.cancel',
-                'reschedule' => 'appointments.reschedule',
-                'complete' => 'appointments.complete',
-                'no-show' => 'appointments.mark_no_show',
-            ] as $action => $permission) {
+            foreach (Appointment::ACTION_PERMISSIONS as $action => $permission) {
                 if ($user->hasBusinessPermission($offer->business_id, $permission)) {
                     $permittedActions[] = $action;
                 }
@@ -79,12 +73,7 @@ class AppointmentBookingController extends Controller
                 ];
 
                 if (in_array($appointment->branch_id, $clinicBranchIds, true)) {
-                    $actions = match ($appointment->status) {
-                        'pending' => ['confirm', 'cancel', 'reschedule'],
-                        'confirmed' => ['complete', 'no-show', 'cancel', 'reschedule'],
-                        default => [],
-                    };
-                    $actions = array_values(array_intersect($actions, $permittedActions));
+                    $actions = array_values(array_intersect($appointment->availableActions(), $permittedActions));
 
                     if ($actions !== []) {
                         $summary['actions'] = $actions;
@@ -208,13 +197,35 @@ class AppointmentBookingController extends Controller
     public function options(Request $request, Offer $offer, AppointmentSlotAvailabilityService $availability): JsonResponse
     {
         $this->ensureBookableOffer($request, $offer);
+
+        return $this->offerOptions($request, $offer, $availability);
+    }
+
+    public function optionsForClinic(Request $request, Branch $branch, Offer $offer, AppointmentSlotAvailabilityService $availability): JsonResponse
+    {
+        $this->ensurePackageForClinic($request, $branch, $offer);
+
+        return $this->offerOptions($request, $offer, $availability, $branch);
+    }
+
+    public function storeForClinic(Request $request, Branch $branch, Offer $offer): JsonResponse
+    {
+        $this->ensurePackageForClinic($request, $branch, $offer);
+        $request->merge(['branch_id' => $branch->id]);
+
+        return $this->storePackage($request, $offer, $request->user()->id);
+    }
+
+    private function offerOptions(Request $request, Offer $offer, AppointmentSlotAvailabilityService $availability, ?Branch $clinicBranch = null): JsonResponse
+    {
         abort_if($offer->appointments()->exists(), 422, 'Bu teklif daha önce randevuya dönüştürülmüş.');
+        $now = $clinicBranch ? Appointment::clinicLocalNow() : Carbon::now();
 
         $validated = $request->hasAny(['branch_id', 'treatment_id', 'date'])
             ? $request->validate([
                 'branch_id' => ['required', 'integer'],
                 'treatment_id' => ['required', 'integer'],
-                'date' => ['required', 'date_format:Y-m-d', 'after_or_equal:today'],
+                'date' => ['required', 'date_format:Y-m-d', 'after_or_equal:'.$now->toDateString()],
             ])
             : [];
 
@@ -234,14 +245,15 @@ class AppointmentBookingController extends Controller
         $branches = Branch::query()
             ->where('business_id', $offer->business_id)
             ->where('status', 'active')
+            ->when($clinicBranch, fn ($query) => $query->whereKey($clinicBranch->id))
             ->when($offerBranchId !== null, fn ($query) => $query->whereKey($offerBranchId))
             ->whereHas('treatments', fn ($query) => $query
                 ->whereIn('treatments.id', $treatmentIds)
                 ->where('treatments.is_active', true)
                 ->where('branch_treatment.is_active', true)
-                ->where('branch_treatment.is_online_bookable', true), '=', count($treatmentIds))
-            ->whereDoesntHave('appointmentSetting', fn ($query) => $query
-                ->where('is_active', true)->where('online_booking_enabled', false))
+                ->when(! $clinicBranch, fn ($available) => $available->where('branch_treatment.is_online_bookable', true)), '=', count($treatmentIds))
+            ->when(! $clinicBranch, fn ($query) => $query->whereDoesntHave('appointmentSetting', fn ($setting) => $setting
+                ->where('is_active', true)->where('online_booking_enabled', false)))
             ->orderBy('name')
             ->get(['id', 'name']);
 
@@ -260,23 +272,22 @@ class AppointmentBookingController extends Controller
 
             $date = Carbon::parse($validated['date'])->startOfDay();
             $treatment = Treatment::findOrFail($treatmentId);
-            $now = Carbon::now();
 
             $data['date'] = $date->toDateString();
             $data['doctors'] = Doctor::query()
                 ->with('person:id,first_name,last_name')
                 ->where('status', 'active')
-                ->where('is_public', true)
+                ->when(! $clinicBranch, fn ($query) => $query->where('is_public', true))
                 ->whereHas('person', fn ($query) => $query->where('business_id', $offer->business_id))
                 ->whereHas('branches', fn ($query) => $query->whereKey($branchId)->where('doctor_branch.status', 'active'))
                 ->whereHas('treatments', fn ($query) => $query->whereKey($treatmentId)->where('doctor_treatment.is_active', true))
                 ->orderBy('id')
-                ->get(['id', 'person_id', 'specialty'])
+                ->get(['id', 'person_id', 'specialty', 'status'])
                 ->map(fn (Doctor $doctor) => [
                     'id' => $doctor->id,
                     'name' => trim($doctor->person->first_name.' '.$doctor->person->last_name),
                     'specialty' => $doctor->specialty,
-                    'slots' => collect($availability->getAvailableSlots($doctor, $branchId, $treatment, $date))
+                    'slots' => collect($availability->getAvailableSlots($doctor, $branchId, $treatment, $date, requireOnlineBookable: ! $clinicBranch))
                         ->filter(fn (Carbon $slot) => $slot->gt($now))
                         ->map(fn (Carbon $slot) => $slot->toDateTimeString())
                         ->values()->all(),
@@ -325,7 +336,14 @@ class AppointmentBookingController extends Controller
         }
     }
 
-    private function storePackage(Request $request, Offer $offer): JsonResponse
+    private function ensurePackageForClinic(Request $request, Branch $branch, Offer $offer): void
+    {
+        abort_unless($request->user()->canManageClinicAppointments($branch, 'appointments.create'), 403);
+        abort_unless(Offer::query()->readyForClinicBooking($branch)->whereKey($offer->id)->exists(), 404,
+            'Bu paket bu şubede yeni randevuya dönüştürülemiyor.');
+    }
+
+    private function storePackage(Request $request, Offer $offer, ?int $clinicUserId = null): JsonResponse
     {
         $validated = $request->validate([
             'branch_id' => ['required', 'integer', 'exists:branches,id'],
@@ -333,7 +351,9 @@ class AppointmentBookingController extends Controller
             'sessions.*' => ['required', 'array:treatment_id,doctor_id,starts_at,notes'],
             'sessions.*.treatment_id' => ['required', 'integer', 'exists:treatments,id'],
             'sessions.*.doctor_id' => ['required', 'integer', 'exists:doctors,id'],
-            'sessions.*.starts_at' => ['required', 'date', 'after:now'],
+            'sessions.*.starts_at' => $clinicUserId
+                ? ['required', 'date_format:Y-m-d H:i:s', 'after:'.Appointment::clinicLocalNow()->toDateTimeString()]
+                : ['required', 'date', 'after:now'],
             'sessions.*.notes' => ['nullable', 'string', 'max:2000'],
         ]);
 
@@ -341,7 +361,8 @@ class AppointmentBookingController extends Controller
             $appointments = $this->bookingService->bookPackage(
                 $offer,
                 (int) $validated['branch_id'],
-                $validated['sessions']
+                $validated['sessions'],
+                $clinicUserId,
             );
         } catch (RuntimeException $exception) {
             return response()->json([

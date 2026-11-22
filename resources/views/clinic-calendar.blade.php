@@ -20,6 +20,8 @@
             <ol class="grid gap-2" data-calendar-appointments></ol>
         </section>
 
+        @include('clinic-calendar-booking')
+
         <section class="grid gap-2" data-calendar-day-blocks hidden>
             <h3 class="font-semibold">Saat engelleri</h3>
             <p class="text-sm text-slate-600 dark:text-slate-300" data-calendar-empty-blocks hidden>Bu günde saat engeli yok.</p>

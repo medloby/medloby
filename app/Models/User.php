@@ -139,6 +139,32 @@ class User extends Authenticatable implements MustVerifyEmail
         return $branch !== null && $this->membershipForBranch($branch) !== null;
     }
 
+    public function canManageClinicAppointments(Branch $branch, string $permission): bool
+    {
+        return in_array($permission, $this->allowedClinicAppointmentPermissions($branch, [$permission]), true);
+    }
+
+    public function allowedClinicAppointmentPermissions(Branch $branch, array $permissions): array
+    {
+        $membership = $this->membershipForBranch($branch);
+        if (! $membership) {
+            return [];
+        }
+
+        $grants = $this->permissions()
+            ->whereIn('permissions.name', $permissions)
+            ->wherePivot('business_id', $branch->business_id)
+            ->get()->keyBy('name');
+
+        return array_filter($permissions, function (string $permission) use ($grants, $membership): bool {
+            $grant = $grants->get($permission);
+
+            return $grant
+                ? $grant->is_active && (bool) $grant->pivot->is_allowed
+                : $membership->role === 'business_owner';
+        });
+    }
+
     public function membershipForBranch(Branch $branch): ?BusinessUser
     {
         return $this->businessMemberships()->activeForBranch($branch)->first();

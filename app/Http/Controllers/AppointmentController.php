@@ -3,6 +3,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Branch;
 use App\Models\Doctor;
+use App\Models\PatientProfile;
 use App\Models\Treatment;
 use App\Models\Appointment;
 use App\Services\AppointmentLifecycleService;
@@ -11,6 +12,7 @@ use App\Services\AppointmentSlotAvailabilityService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use RuntimeException;
 class AppointmentController extends Controller
 {
@@ -336,6 +338,16 @@ class AppointmentController extends Controller
             $validated['patient_profile_id'] = $user
                 ->patientProfile()
                 ->value('id');
+        } elseif (isset($validated['patient_profile_id'])) {
+            $branch = Branch::query()->where('business_id', $validated['business_id'])->findOrFail($validated['branch_id']);
+            if (! PatientProfile::query()->knownToBranch($branch)->whereKey($validated['patient_profile_id'])->exists()) {
+                throw ValidationException::withMessages(['patient_profile_id' => 'Seçilen hasta bu şubede ilişkilendirilemiyor.']);
+            }
+        }
+        if ($isPatient && ! $isBusinessUser) {
+            $validated['require_online_bookable'] = true;
+            $validated['status'] = 'pending';
+            $validated['source'] = 'medloby';
         }
         $validated['created_by_user_id'] = $user->id;
         if (! isset($validated['source'])) {
@@ -412,11 +424,28 @@ class AppointmentController extends Controller
         'data' => $appointment,
     ]);
 }
+    public function actFromCalendar(Request $request, Branch $branch, Appointment $appointment, string $action): JsonResponse
+    {
+        abort_unless($appointment->branch_id === $branch->id && $appointment->business_id === $branch->business_id, 404);
+        $request->validate([
+            'reason' => ['nullable', 'string', 'max:1000'],
+            'notes' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        return match ($action) {
+            'confirm' => $this->confirm($request, $appointment),
+            'cancel' => $this->cancel($request, $appointment),
+            'complete' => $this->complete($request, $appointment),
+            'no-show' => $this->noShow($request, $appointment),
+            'reschedule' => $this->reschedule($request, $appointment),
+        };
+    }
+
     public function confirm(
         Request $request,
         Appointment $appointment
     ): JsonResponse {
-        $this->ensureBusinessBranchAccess(
+        $branch = $this->ensureBusinessBranchAccess(
             $request,
             $appointment
         );
@@ -426,7 +455,8 @@ class AppointmentController extends Controller
                 $appointment,
                 $request->user(),
                 $request->input('reason'),
-                $request->input('notes')
+                $request->input('notes'),
+                $branch
             );
             return response()->json([
                 'success' => true,
@@ -453,7 +483,7 @@ class AppointmentController extends Controller
                 'max:2000',
             ],
         ]);
-        $this->ensureBusinessBranchAccess(
+        $branch = $this->ensureBusinessBranchAccess(
             $request,
             $appointment
         );
@@ -463,7 +493,8 @@ class AppointmentController extends Controller
                 $appointment,
                 $validated['cancellation_reason'],
                 $request->user(),
-                $validated['notes'] ?? null
+                $validated['notes'] ?? null,
+                $branch
             );
             return response()->json([
                 'success' => true,
@@ -478,7 +509,7 @@ class AppointmentController extends Controller
         Request $request,
         Appointment $appointment
     ): JsonResponse {
-        $this->ensureBusinessBranchAccess(
+        $branch = $this->ensureBusinessBranchAccess(
             $request,
             $appointment
         );
@@ -488,7 +519,8 @@ class AppointmentController extends Controller
                 $appointment,
                 $request->user(),
                 $request->input('reason'),
-                $request->input('notes')
+                $request->input('notes'),
+                $branch
             );
             return response()->json([
                 'success' => true,
@@ -737,7 +769,7 @@ public function options(Request $request): JsonResponse
         Request $request,
         Appointment $appointment
     ): JsonResponse {
-        $this->ensureBusinessBranchAccess(
+        $branch = $this->ensureBusinessBranchAccess(
             $request,
             $appointment
         );
@@ -747,7 +779,8 @@ public function options(Request $request): JsonResponse
                 $appointment,
                 $request->user(),
                 $request->input('reason'),
-                $request->input('notes')
+                $request->input('notes'),
+                $branch
             );
             return response()->json([
                 'success' => true,
@@ -762,10 +795,12 @@ public function options(Request $request): JsonResponse
         Request $request,
         Appointment $appointment
     ): JsonResponse {
+        $branch = $this->ensureBusinessBranchAccess($request, $appointment);
         $validated = $request->validate([
             'starts_at' => [
                 'required',
                 'date',
+                ...($branch ? ['date_format:Y-m-d H:i:s,Y-m-d\TH:i', 'after:'.Appointment::clinicLocalNow()->toDateTimeString()] : []),
             ],
             'reason' => [
                 'nullable',
@@ -778,11 +813,6 @@ public function options(Request $request): JsonResponse
                 'max:2000',
             ],
         ]);
-        $this->ensureBusinessBranchAccess(
-            $request,
-            $appointment
-        );
-
         try {
             $appointment = $this->lifecycleService->reschedule(
                 $appointment,
@@ -790,7 +820,8 @@ public function options(Request $request): JsonResponse
                 $request->user(),
                 $validated['reason'] ?? null,
                 $validated['notes'] ?? null,
-                false
+                false,
+                $branch
             );
             return response()->json([
                 'success' => true,
@@ -804,30 +835,17 @@ public function options(Request $request): JsonResponse
     private function ensureBusinessBranchAccess(
         Request $request,
         Appointment $appointment
-    ): void {
+    ): ?Branch {
         $user = $request->user();
 
-        $isBusinessUser = $user->businessMemberships()
-            ->where('business_id', $appointment->business_id)
-            ->where('is_active', true)
-            ->exists();
+        $calendarBranch = $request->route('branch');
+        $branch = $calendarBranch instanceof Branch ? $calendarBranch : $appointment->branch;
 
-        if (! $isBusinessUser) {
-            abort(
-                403,
-                'Bu randevu üzerinde işlem yapma yetkiniz yok.'
-            );
-        }
+        abort_unless($branch && $branch->business_id === $appointment->business_id
+            && $branch->status === 'active' && $branch->business?->allowsCrmAccess()
+            && $user->membershipForBranch($branch), 403, 'Bu randevu üzerinde işlem yapma yetkiniz yok.');
 
-        if (! $user->hasBusinessBranchAccess(
-            (int) $appointment->business_id,
-            (int) $appointment->branch_id
-        )) {
-            abort(
-                403,
-                'Bu randevu üzerinde işlem yapma yetkiniz yok.'
-            );
-        }
+        return $calendarBranch instanceof Branch ? $calendarBranch : null;
     }
 
     private function errorResponse(

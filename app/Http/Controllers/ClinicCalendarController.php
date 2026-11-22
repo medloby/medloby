@@ -21,15 +21,25 @@ class ClinicCalendarController extends Controller
         $starts = $date->toDateTimeString();
         $ends = $date->copy()->addDay()->toDateTimeString();
         $canManage = $request->attributes->get(EnsureClinicCrmAccess::class)->role === 'business_owner';
+        $permissions = $request->user()->allowedClinicAppointmentPermissions($branch, [
+            ...Appointment::ACTION_PERMISSIONS, 'create' => 'appointments.create',
+        ]);
 
         $doctorPerson = fn ($people) => $people->where('business_id', $branch->business_id)
             ->select('id', 'first_name', 'last_name');
 
         $appointments = $branch->appointments()->where('business_id', $branch->business_id)
             ->where('starts_at', '<', $ends)->where('ends_at', '>', $starts)
-            ->with(['doctor.person' => $doctorPerson, 'patientProfile:id,first_name,last_name', 'treatment:id,name'])
+            ->with([
+                'doctor.person' => $doctorPerson,
+                'patientProfile' => fn ($patients) => $patients->knownToBranch($branch)->select('id', 'first_name', 'last_name'),
+                'treatment:id,name',
+                'offer' => fn ($offers) => $offers->where('business_id', $branch->business_id)
+                    ->where(fn ($scope) => $scope->whereNull('branch_id')->orWhere('branch_id', $branch->id))
+                    ->whereNotNull('package_snapshot')->select('id', 'patient_profile_id', 'title'),
+            ])
             ->orderBy('starts_at')->orderBy('id')
-            ->get(['id', 'doctor_id', 'patient_profile_id', 'patient_name', 'treatment_id', 'starts_at', 'ends_at', 'status'])
+            ->get(['id', 'doctor_id', 'patient_profile_id', 'patient_name', 'treatment_id', 'offer_id', 'starts_at', 'ends_at', 'status'])
             ->map(fn (Appointment $appointment) => [
                 'id' => $appointment->id,
                 'starts_at' => $appointment->starts_at->toDateTimeString(),
@@ -40,6 +50,9 @@ class ClinicCalendarController extends Controller
                     : $appointment->patient_name,
                 'doctor' => $this->doctorName($appointment->doctor),
                 'treatment' => $appointment->treatment?->name,
+                'package' => $appointment->offer && $appointment->offer->patient_profile_id === $appointment->patient_profile_id
+                    ? $appointment->offer->title : null,
+                'actions' => array_values(array_intersect($appointment->availableActions(), array_keys($permissions))),
             ]);
 
         $blocks = $branch->calendarBlocks()->where('business_id', $branch->business_id)->where('is_active', true)
@@ -67,6 +80,7 @@ class ClinicCalendarController extends Controller
             'success' => true,
             'data' => [
                 'open' => $calendar->isDateOpen($branch->id, $date),
+                'can_create_appointments' => isset($permissions['create']),
                 'appointments' => $appointments,
                 'blocks' => $blocks,
                 'doctors' => $doctors,

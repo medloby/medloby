@@ -4,6 +4,9 @@ namespace App\Services;
 
 use App\Models\Appointment;
 use App\Models\AppointmentStatusHistory;
+use App\Models\Branch;
+use App\Models\Doctor;
+use App\Models\Offer;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -19,7 +22,8 @@ class AppointmentLifecycleService
     private function ensurePermission(
         Appointment $appointment,
         ?User $changedBy,
-        string $permissionName
+        string $permissionName,
+        ?Branch $calendarBranch
     ): void {
         if (! $changedBy) {
             throw new RuntimeException(
@@ -27,10 +31,12 @@ class AppointmentLifecycleService
             );
         }
 
-        if (! $changedBy->hasBusinessPermission(
-            $appointment->business_id,
-            $permissionName
-        )) {
+        $allowed = $calendarBranch
+            ? $calendarBranch->id === $appointment->branch_id
+                && $calendarBranch->business_id === $appointment->business_id
+                && $changedBy->canManageClinicAppointments($calendarBranch, $permissionName)
+            : $changedBy->hasBusinessPermission($appointment->business_id, $permissionName);
+        if (! $allowed) {
             throw new RuntimeException(
                 'Bu randevu işlemi için yetkiniz bulunmuyor.'
             );
@@ -41,20 +47,23 @@ class AppointmentLifecycleService
         Appointment $appointment,
         ?User $changedBy = null,
         ?string $reason = null,
-        ?string $notes = null
+        ?string $notes = null,
+        ?Branch $calendarBranch = null
     ): Appointment {
         $result = DB::transaction(function () use (
             $appointment,
             $changedBy,
             $reason,
-            $notes
+            $notes,
+            $calendarBranch
         ) {
-            $appointment->refresh();
+            $appointment = Appointment::query()->lockForUpdate()->findOrFail($appointment->id);
 
             $this->ensurePermission(
                 $appointment,
                 $changedBy,
-                'appointments.confirm'
+                'appointments.confirm',
+                $calendarBranch
             );
 
             if ($appointment->status !== 'pending') {
@@ -99,20 +108,23 @@ class AppointmentLifecycleService
         Appointment $appointment,
         ?User $changedBy = null,
         ?string $reason = null,
-        ?string $notes = null
+        ?string $notes = null,
+        ?Branch $calendarBranch = null
     ): Appointment {
         $result = DB::transaction(function () use (
             $appointment,
             $changedBy,
             $reason,
-            $notes
+            $notes,
+            $calendarBranch
         ) {
-            $appointment->refresh();
+            $appointment = Appointment::query()->lockForUpdate()->findOrFail($appointment->id);
 
             $this->ensurePermission(
                 $appointment,
                 $changedBy,
-                'appointments.complete'
+                'appointments.complete',
+                $calendarBranch
             );
 
             if ($appointment->status !== 'confirmed') {
@@ -157,20 +169,23 @@ class AppointmentLifecycleService
         Appointment $appointment,
         string $cancellationReason,
         ?User $changedBy = null,
-        ?string $notes = null
+        ?string $notes = null,
+        ?Branch $calendarBranch = null
     ): Appointment {
         $result = DB::transaction(function () use (
             $appointment,
             $cancellationReason,
             $changedBy,
-            $notes
+            $notes,
+            $calendarBranch
         ) {
-            $appointment->refresh();
+            $appointment = Appointment::query()->lockForUpdate()->findOrFail($appointment->id);
 
             $this->ensurePermission(
                 $appointment,
                 $changedBy,
-                'appointments.cancel'
+                'appointments.cancel',
+                $calendarBranch
             );
 
             if (! in_array(
@@ -231,20 +246,23 @@ class AppointmentLifecycleService
         Appointment $appointment,
         ?User $changedBy = null,
         ?string $reason = null,
-        ?string $notes = null
+        ?string $notes = null,
+        ?Branch $calendarBranch = null
     ): Appointment {
         $result = DB::transaction(function () use (
             $appointment,
             $changedBy,
             $reason,
-            $notes
+            $notes,
+            $calendarBranch
         ) {
-            $appointment->refresh();
+            $appointment = Appointment::query()->lockForUpdate()->findOrFail($appointment->id);
 
             $this->ensurePermission(
                 $appointment,
                 $changedBy,
-                'appointments.mark_no_show'
+                'appointments.mark_no_show',
+                $calendarBranch
             );
 
             if ($appointment->status !== 'confirmed') {
@@ -291,7 +309,8 @@ class AppointmentLifecycleService
         ?User $changedBy = null,
         ?string $reason = null,
         ?string $notes = null,
-        bool $requireOnlineBookable = true
+        bool $requireOnlineBookable = true,
+        ?Branch $calendarBranch = null
     ): Appointment {
         $newAppointment = DB::transaction(function () use (
             $appointment,
@@ -299,21 +318,19 @@ class AppointmentLifecycleService
             $changedBy,
             $reason,
             $notes,
-            $requireOnlineBookable
+            $requireOnlineBookable,
+            $calendarBranch
         ) {
-            $appointment->refresh();
-
-            $packageOffer = $appointment->offer?->package_snapshot !== null
-                ? $appointment->offer()->lockForUpdate()->first()
-                : null;
-            if ($packageOffer) {
-                $appointment->refresh();
-            }
+            $offer = $appointment->offer_id ? Offer::query()->lockForUpdate()->find($appointment->offer_id) : null;
+            $packageOffer = $offer?->package_snapshot !== null ? $offer : null;
+            $doctor = Doctor::query()->lockForUpdate()->find($appointment->doctor_id);
+            $appointment = Appointment::query()->lockForUpdate()->findOrFail($appointment->id);
 
             $this->ensurePermission(
                 $appointment,
                 $changedBy,
-                'appointments.reschedule'
+                'appointments.reschedule',
+                $calendarBranch
             );
 
             if (! in_array(
@@ -326,13 +343,15 @@ class AppointmentLifecycleService
                 );
             }
 
-            $doctor = $appointment->doctor;
             $treatment = $appointment->treatment;
 
             if (! $doctor || ! $treatment) {
                 throw new RuntimeException(
                     'Randevu tarihini değiştirmek için doktor ve tedavi bilgisi gereklidir.'
                 );
+            }
+            if ($newStartsAt->equalTo($appointment->starts_at)) {
+                throw new RuntimeException('Randevu için farklı bir tarih veya saat seçin.');
             }
 
             $durationMinutes = $this->availabilityService
@@ -431,7 +450,7 @@ class AppointmentLifecycleService
                 'rescheduledFrom',
                 'statusHistories',
             ]);
-        });
+        }, 3);
 
         /*
          * Bildirim yeni randevu kaydına gider.

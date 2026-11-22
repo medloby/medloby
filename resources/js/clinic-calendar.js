@@ -1,3 +1,5 @@
+import { mountCalendarBooking } from './clinic-calendar-booking';
+
 const weekdays = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
 const appointmentStatuses = {
     pending: 'Bekliyor', confirmed: 'Onaylandı', cancelled: 'İptal edildi',
@@ -30,7 +32,7 @@ function timeLabel(start, end) {
         : dateLabel(start) + ' ' + times[0] + ' – ' + dateLabel(end) + ' ' + times[1];
 }
 
-export function mountClinicCalendar(panel, api) {
+export function mountClinicCalendar(panel, api, { openBookingDialog, openAppointmentAction, appointmentActionLabels }) {
     const find = (part, root = panel) => root.querySelector('[data-calendar-' + part + ']');
     const day = find('day');
     const management = find('management');
@@ -40,6 +42,10 @@ export function mountClinicCalendar(panel, api) {
         .map((form) => [form.dataset.calendarForm, form]));
     const blockDoctor = forms.blocks.elements.namedItem('doctor_id');
     const weekday = forms.hours.elements.namedItem('day_of_week');
+    const booking = mountCalendarBooking(find('booking'), {
+        api, openBookingDialog, today: () => todayInClinic.format(new Date()),
+        onSaved: (start, confirmation) => selectDay(start.slice(0, 10), confirmation),
+    });
     let scope = null;
 
     weekday.replaceChildren(...[1, 2, 3, 4, 5, 6, 0].map((value) => new Option(weekdays[value], value)));
@@ -118,12 +124,23 @@ export function mountClinicCalendar(panel, api) {
     }
 
     function renderAgenda(current, data) {
-        find('day-rule').textContent = data.open ? 'Gün kuralı açık' : 'Gün kuralı kapalı';
+        find('day-rule').textContent = data.open ? 'Çevrimiçi randevu açık' : 'Çevrimiçi randevu kapalı';
         find('empty-appointments').hidden = data.appointments.length > 0;
         find('appointments').replaceChildren(...data.appointments.map((item) => row(
             [timeLabel(item.starts_at, item.ends_at), item.patient || 'Hasta adı girilmemiş'].join(' · '),
-            [item.doctor, item.treatment, appointmentStatuses[item.status] ?? item.status].filter(Boolean).join(' · '),
+            [item.doctor, item.treatment, item.package, appointmentStatuses[item.status] ?? item.status].filter(Boolean).join(' · '),
+            ...item.actions.map((key) => action(appointmentActionLabels[key], () => {
+                if (scope === current && !current.loading && !current.saving) {
+                    openAppointmentAction({ ...item, treatment_name: item.treatment }, key, (result) => {
+                        if (scope === current) {
+                            const date = key === 'reschedule' ? result.starts_at.slice(0, 10) : day.value;
+                            return selectDay(date, 'Randevu güncellendi.');
+                        }
+                    }, current.path + '/appointments');
+                }
+            })),
         )));
+        booking.show(current.path, day.value, data.can_create_appointments);
 
         find('empty-blocks').hidden = data.blocks.length > 0;
         find('blocks').replaceChildren(...data.blocks.map((item) => {
@@ -227,6 +244,7 @@ export function mountClinicCalendar(panel, api) {
         } catch (error) {
             if (isCurrent()) {
                 find('agenda').hidden = true;
+                find('booking').hidden = true;
                 find('day-blocks').hidden = true;
                 management.hidden = true;
                 showStatus([confirmation, error.message].filter(Boolean).join(' '));
@@ -266,17 +284,18 @@ export function mountClinicCalendar(panel, api) {
         }
     }
 
-    function selectDay(value) {
+    function selectDay(value, confirmation = '') {
         if (!scope) {
             return;
         }
         day.value = value || todayInClinic.format(new Date());
         find('agenda').hidden = true;
+        find('booking').hidden = true;
         find('day-blocks').hidden = true;
         resetEditor('blocks');
         resetEditor('overrides');
         resetEditor('leaves');
-        load(scope);
+        return load(scope, confirmation);
     }
 
     function moveDay(offset) {
@@ -330,6 +349,7 @@ export function mountClinicCalendar(panel, api) {
 
     return {
         setBranch(id, canManage) {
+            booking.reset();
             scope = id ? {
                 path: '/branches/' + id + '/clinic-calendar', canManage, doctorId: '', edits: {}, request: 0,
                 loading: false, loaded: false, saving: false,

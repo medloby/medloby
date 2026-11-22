@@ -11,7 +11,7 @@ const metricLabels = {
     pending_follow_ups: 'Bekleyen takip',
 };
 
-export function mountClinicCrm(section, api) {
+export function mountClinicCrm(section, api, appointmentDialogs) {
     const find = (part) => section.querySelector('[data-crm-' + part + ']');
     const title = section.querySelector('#clinic-crm-name');
     const branchField = find('branch-field');
@@ -27,7 +27,7 @@ export function mountClinicCrm(section, api) {
     const stageStatus = find('stage-status');
     const leads = mountCrmLeads(find('leads'), { api, onChanged: refreshDashboard });
     const operations = mountClinicOperations(find('operations'), api);
-    const calendar = mountClinicCalendar(find('calendar'), api);
+    const calendar = mountClinicCalendar(find('calendar'), api, appointmentDialogs);
     let businessId = null;
     let canManageOperations = false;
     let request = 0;
