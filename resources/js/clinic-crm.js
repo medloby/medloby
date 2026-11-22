@@ -6,6 +6,7 @@ import { mountClinicTreatmentPrices } from './clinic-treatment-prices';
 import { mountClinicBranchManagement } from './clinic-branch-management';
 import { mountClinicConsentTemplates } from './clinic-consent-templates';
 import { mountClinicSocialLinks } from './clinic-social-links';
+import { mountClinicLedger } from './clinic-ledger';
 
 const metricLabels = {
     total_leads: 'Toplam hasta adayı',
@@ -38,6 +39,7 @@ export function mountClinicCrm(section, api, appointmentDialogs) {
     const consentTemplates = mountClinicConsentTemplates(find('consent-templates'), api);
     const treatmentPrices = mountClinicTreatmentPrices(find('prices'), api);
     const socialLinks = mountClinicSocialLinks(find('social-links'), api);
+    const ledger = mountClinicLedger(find('ledger'), api);
     const calendar = mountClinicCalendar(find('calendar'), api, appointmentDialogs);
     const leads = mountCrmLeads(find('leads'), {
         api, onChanged: refreshDashboard,
@@ -87,6 +89,7 @@ export function mountClinicCrm(section, api, appointmentDialogs) {
         operations.setBranch(canManageOperations ? id : null);
         treatmentPrices.setBranch(id, businessId);
         socialLinks.setBranch(null);
+        ledger.setBranch(null);
         calendar.setBranch(id, canManageOperations);
         profile.setBranch(canManageOperations ? businessId : null, id);
     }
@@ -102,6 +105,7 @@ export function mountClinicCrm(section, api, appointmentDialogs) {
         const catalogBranch = dashboard.can_manage_branch_catalog ? branchId : null;
         operations.setBranch(catalogBranch);
         socialLinks.setBranch(catalogBranch);
+        ledger.setBranch(dashboard.can_view_finances ? branchId : null);
         metrics.replaceChildren(...Object.entries(metricLabels).map(([key, label]) => {
             const metric = find('metric').content.firstElementChild.cloneNode(true);
             metric.querySelector('dt').textContent = label;

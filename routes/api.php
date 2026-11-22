@@ -38,6 +38,8 @@ use App\Http\Controllers\ClinicBranchOperationsController;
 
 use App\Http\Controllers\ClinicConsentTemplateController;
 
+use App\Http\Controllers\ClinicLedgerController;
+
 use App\Http\Controllers\SupportTicketController;
 
 use App\Http\Controllers\ClinicAppointmentController;
@@ -957,6 +959,15 @@ Route::controller(SocialMediaAccountController::class)->prefix('branches/{branch
         Route::delete('/{socialMediaAccount}', 'deactivate');
     });
 });
+
+Route::middleware(['auth:sanctum', 'verified', EnsureClinicCrmAccess::class])
+    ->controller(ClinicLedgerController::class)
+    ->prefix('branches/{branch}/crm/ledger')->group(function () {
+        Route::get('/', 'index');
+        Route::post('/', 'store');
+        Route::put('/{entry}', 'update')->whereNumber('entry');
+        Route::put('/{entry}/status', 'updateStatus')->whereNumber('entry');
+    });
 
 Route::middleware(['auth:sanctum', 'verified', EnsureClinicCrmAccess::class])
     ->controller(ClinicBranchOperationsController::class)

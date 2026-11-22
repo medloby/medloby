@@ -42,6 +42,7 @@
     @include('clinic-operations')
     @include('clinic-social-links')
     @include('clinic-treatment-prices')
+    @include('clinic-ledger')
     @include('clinic-calendar')
     @include('crm-leads')
 

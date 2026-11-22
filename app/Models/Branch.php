@@ -133,6 +133,11 @@ class Branch extends Model
         return $this->hasMany(Appointment::class);
     }
 
+    public function ledgerEntries(): HasMany
+    {
+        return $this->hasMany(BranchLedgerEntry::class);
+    }
+
     public function calendarBlocks(): HasMany
     {
         return $this->hasMany(CalendarBlock::class);
