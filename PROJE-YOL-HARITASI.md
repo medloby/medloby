@@ -2,7 +2,7 @@
 
 **İnceleme tarihi** 22 Kasım 2026 · **İncelenen sürüm** `main / 668980d`
 
-**Sıradaki iş 4.1** Ana sayfa ve katalog içeriğini tamamlamak.
+**Sıradaki iş 4.2** Klinik üyelik ve KVKK metinlerini işletmeci ve iletişim bilgileriyle tamamlamak.
 
 ## Kapsam ve doğrulama
 
@@ -57,7 +57,7 @@ flowchart LR
 | CRM hasta adayları | Şube seçimi ve özet, aday listeleme, durum filtresi, sayfalama, iletişim bilgilerini düzenleme ve personele atama. Takip aşaması ekleme, aşama geçmişi ve aday sonuçlandırma | Klinik takvimi ve operasyon ekranlarıyla birlikte doğrulama |
 | CRM görevleri ve takip | Adaya bağlı görev, planlı takip ve aktivite kayıtları. Görev ve takiplerin tamamlanması ve iptali. Yetkili şube görüşmesini ve hastayı adaya bağlama | Süresi gelen takipler için hatırlatma kuralları |
 | Klinik operasyonları | Personel şube yetkisi, hekim kaydı, şube ve tedavi bağlantıları, randevu süresi. Günlük şube takvimi, hekim çalışma saatleri ve izinleri, açık ve kapalı günler, saat engelleri | Yayın ortamında ilk klinik için uçtan uca prova |
-| Katalog ve fiyat | Tedavi, kategori ve fiyat kayıtları. Klinik paketleri, seans ve ek hizmet yönetimi. Fiyatsız kamu kataloğu, yetkili kliniğe açık fiyat kayıtları ve hastaya özel paket teklifi | Türkiye yayını için içerik incelemesi |
+| Katalog ve fiyat | Tedavi, kategori ve fiyat kayıtları. Klinik paketleri, seans ve ek hizmet yönetimi. Paket, klinik, tedavi ve il araması. Yetkili kliniğe açık fiyat kayıtları ve hastaya özel paket teklifi | Yayımlanacak katalog kayıtlarının içerik incelemesi |
 | Görüşme ve teklif | Paketle görüşme başlatma, mesaj ve özel ek, teklif oluşturma, kabul/ret ve paket içeriği kaydı | Farklı şube ve rollerin görmesi gereken verileri tutarlı hale getirme, geçmiş kayıt ve dosya saklama kurallarını belirleme |
 | Randevu | Uygun saat arama, tekil randevu ve kabul edilen paket seanslarının planlanması. Klinik takviminde onay, iptal, tarih değişikliği, tamamlanma ve hasta gelmedi işlemleri | Seçilecek üretim veritabanında eşzamanlı rezervasyon testi |
 | Bildirim | Görüşme, teklif ve randevu bildirimleri, okunma durumu ve klinik tercihleri | Klinik başvuru bildirimleri ve takip hatırlatmalarının kapsamı, kuyruk işçisi ve canlı e-posta teslimatı |
@@ -96,9 +96,9 @@ Kabul senaryosu şubede hekim ve uygunluk hazırlığından başlayıp hastanın
 
 ### 4. Kamuya açık site ve yayın içeriği
 
-1. Ana sayfa ve katalog içeriğini bitir. Türkiye için sağlık tanıtımı ve bilgilendirme kurallarına göre kamuya açık içerik ve özel teklif görünümünü incele.
-2. Klinik üyelik sözleşmesinin işletmeci, destek ve tebligat bilgilerini doldur. Hasta ve klinik için gerekli KVKK aydınlatması, başvuru kanalı, saklama ve erişim kurallarını tamamla.
-3. Yayımlanacak sürümü ve yürürlük tarihini onayla. Sözleşme ve katalog incelemesinde bu kaynaklar kullanılır. [Klinik üyelik taslağı](resources/contracts/medloby-klinik-uyelik-taslak.txt) · [Sağlık Hizmetlerinde Tanıtım ve Bilgilendirme Faaliyetleri Hakkında Yönetmelik](https://www.resmigazete.gov.tr/eskiler/2025/11/12/20251112-2.htm)
+1. **4.1 Uygulama tamamlandı.** Medloby ana sayfasından tedavi paketi arama, hesap ve klinik başvurusu açılıyor. Katalog klinik, konum, tedavi seansları ve ek hizmetleri gösteriyor. Fiyat teklifleri ilgili hastanın hesabında görüntüleniyor. Hasta, katalogdan seçtiği paketin görüşmesini doğrulanmış hesabında başlatabiliyor. 808 test ve 3.155 doğrulama, Vite derlemesi ve masaüstü ile mobil Chromium kontrolleri geçti. [Ana sayfa ve katalog](https://github.com/medloby/medloby/commit/2c1a937c756527e89c862bfd30779e205602ca86)
+2. Klinik üyelik sözleşmesinin işletmeci, destek ve tebligat bilgilerini doldur. Site içerik editörünün doğrulanmış iletişim kanalını kamuya açık sayfada belirt. Hasta ve klinik için gerekli KVKK aydınlatması, başvuru kanalı, saklama ve erişim kurallarını tamamla.
+3. Yayımlanacak sözleşme sürümünü ve yürürlük tarihini onayla. Yayımlanacak katalog kayıtlarını ve klinik bilgilerinin sunumunu sağlık tanıtımı kurallarına göre incele. [Klinik üyelik taslağı](resources/contracts/medloby-klinik-uyelik-taslak.txt) · [Sağlık Hizmetlerinde Tanıtım ve Bilgilendirme Faaliyetleri Hakkında Yönetmelik](https://www.resmigazete.gov.tr/eskiler/2025/11/12/20251112-2.htm)
 
 Kamuya açılış için içeriğin uygunluğu, onaylı sözleşme ve kişisel veri süreçleri doğrulanır. Tıbbi kayıt, bekleme listesi, platform içi ödeme ve varsa uluslararası sağlık turizmi akışı için kapsam ayrıca kararlaştırılır.
 
