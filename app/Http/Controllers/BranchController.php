@@ -31,8 +31,7 @@ class BranchController extends Controller
     }
 
     /**
-     * İşletme sahibinin veya ilgili izne sahip kullanıcının
-     * şube yönetimi yapabilmesini kontrol eder.
+     * Aktif ve onaylı klinikte şube yönetimi yetkisini kontrol eder.
      */
     private function ensureBranchManagementPermission(
         Request $request,
@@ -52,11 +51,7 @@ class BranchController extends Controller
             );
         }
 
-        if ($membership->role === 'business_owner') {
-            return;
-        }
-
-        if (! $user->hasBusinessPermission(
+        if ($membership->role !== 'business_owner' && ! $user->hasBusinessPermission(
             $businessId,
             'branches.manage'
         )) {
@@ -65,6 +60,8 @@ class BranchController extends Controller
                 'Şube yönetimi yetkiniz bulunmuyor.'
             );
         }
+
+        abort_unless($membership->business?->allowsCrmAccess(), 403, 'Şube yönetimi için kliniğin aktif ve onaylı olması gerekir.');
     }
 
     /**

@@ -137,6 +137,26 @@ test('business owner can create a branch', function () {
     ]);
 });
 
+test('legacy branch writes return forbidden when the clinic cannot access CRM', function (string $status, bool $verified) {
+    $this->business->update(['status' => $status, 'is_verified' => $verified]);
+    $this->actingAs($this->owner);
+
+    $this->postJson('/api/branches', [
+        'business_id' => $this->business->id,
+        'name' => 'Yeni Şube',
+        'slug' => 'kapali-klinik-yeni-sube',
+    ])->assertForbidden()->assertJsonPath('message', 'Şube yönetimi için kliniğin aktif ve onaylı olması gerekir.');
+    $this->putJson("/api/branches/{$this->branch->id}", ['name' => 'Değiştirilen Şube'])->assertForbidden();
+    $this->deleteJson("/api/branches/{$this->branch->id}")->assertForbidden();
+
+    $this->assertDatabaseMissing('branches', ['business_id' => $this->business->id, 'slug' => 'kapali-klinik-yeni-sube']);
+    $this->assertDatabaseHas('branches', ['id' => $this->branch->id, 'name' => 'Ana Şube', 'status' => 'active']);
+})->with([
+    'pending approval' => ['pending', false],
+    'active without approval' => ['active', false],
+    'suspended clinic' => ['suspended', true],
+]);
+
 test('staff with branch management permission can create a branch', function () {
     BusinessUserPermission::create([
         'business_id' => $this->business->id,
