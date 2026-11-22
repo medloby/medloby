@@ -4,8 +4,11 @@ namespace App\Providers;
 
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Foundation\Events\DiagnosingHealth;
 use Illuminate\Http\Request;
 use Illuminate\Notifications\Messages\MailMessage;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
@@ -25,6 +28,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Event::listen(DiagnosingHealth::class, function (): void {
+            DB::connection()->selectOne('select 1', useReadPdo: false);
+        });
+
         RateLimiter::for('login', function (Request $request): array {
             $email = $request->input('identifier', $request->input('email'));
             $account = is_string($email) ? Str::lower(substr($email, 0, 255)) : '';
