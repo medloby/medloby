@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Notifications\AccountVerificationNotification;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -30,6 +31,11 @@ class User extends Authenticatable implements MustVerifyEmail
             'clinic_onboarding_pending' => 'boolean',
             'temporary_password_expires_at' => 'datetime',
         ];
+    }
+
+    public function sendEmailVerificationNotification(): void
+    {
+        $this->notify((new AccountVerificationNotification)->afterCommit());
     }
 
     public function businessMemberships(): HasMany

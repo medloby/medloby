@@ -1110,7 +1110,7 @@ export function mountPackageOffers(root) {
 
     get('resend-verification').addEventListener('click', (event) => verifyAccount(event.currentTarget, async () => {
         await api('/email/verification-notification', {});
-        showStatus(notice, 'Doğrulama e-postası yeniden gönderildi.');
+        showStatus(notice, 'Doğrulama e-postası gönderim sırasına alındı.');
     }));
 
     get('check-verification').addEventListener('click', (event) => verifyAccount(event.currentTarget, async () => {

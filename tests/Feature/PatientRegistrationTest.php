@@ -3,8 +3,14 @@
 use App\Models\PatientProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Mail\Events\MessageSending;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Laravel\Sanctum\PersonalAccessToken;
+use Symfony\Component\Mailer\Exception\TransportException;
 
 uses(RefreshDatabase::class);
 
@@ -71,6 +77,53 @@ test('can register a patient', function () {
             $user->id
         )->count()
     )->toBe(1);
+});
+
+test('a registered patient can verify their account after the queue retries a failed email', function () {
+    config(['queue.default' => 'database', 'mail.default' => 'array']);
+    Exceptions::fake();
+    $offline = true;
+    Event::listen(MessageSending::class, function () use (&$offline): void {
+        if ($offline) {
+            throw new TransportException('Mail transport unavailable');
+        }
+    });
+
+    $payload = validPatientRegistrationPayload();
+    $userId = $this->postJson('/api/register/patient', $payload)->assertCreated()->json('data.user.id');
+    $this->assertDatabaseHas('users', ['id' => $userId, 'email_verified_at' => null]);
+    $this->assertDatabaseHas('patient_profiles', ['user_id' => $userId]);
+    $this->assertDatabaseCount('jobs', 1);
+    expect(DB::table('jobs')->sole()->payload)->not->toContain($payload['email']);
+
+    $workerOptions = ['--once' => true, '--tries' => 2, '--backoff' => 0];
+    $this->artisan('queue:work', $workerOptions)->assertSuccessful();
+    Exceptions::assertReported(TransportException::class);
+    $this->assertDatabaseHas('jobs', ['attempts' => 1]);
+
+    $offline = false;
+    $this->artisan('queue:work', $workerOptions)->assertSuccessful();
+    $this->assertDatabaseCount('jobs', 0);
+    $this->assertDatabaseCount('failed_jobs', 0);
+    $mail = Mail::mailer('array')->getSymfonyTransport()->messages()->sole()->getOriginalMessage();
+    expect($mail->getTo()[0]->getAddress())->toBe($payload['email']);
+    expect(preg_match('~href="([^"]*/email/verify/[^"]+)"~', $mail->getHtmlBody(), $match))->toBe(1);
+    $this->getJson(html_entity_decode($match[1]))->assertOk();
+    expect(User::findOrFail($userId)->hasVerifiedEmail())->toBeTrue();
+});
+
+test('registration succeeds during a synchronous mail outage and resend reports that it can be retried', function () {
+    config(['queue.default' => 'sync', 'mail.default' => 'array']);
+    Exceptions::fake();
+    Event::listen(MessageSending::class, function (): never {
+        throw new TransportException('Mail transport unavailable');
+    });
+
+    $registration = $this->postJson('/api/register/patient', validPatientRegistrationPayload())->assertCreated();
+    $this->assertDatabaseHas('patient_profiles', ['user_id' => $registration->json('data.user.id')]);
+    $this->withToken($registration->json('data.token'))->postJson('/api/email/verification-notification')
+        ->assertServiceUnavailable()->assertJsonPath('success', false);
+    Exceptions::assertReportedCount(2);
 });
 
 test('patient registration validates required fields', function () {

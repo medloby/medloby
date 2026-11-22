@@ -5,6 +5,7 @@ use App\Models\Business;
 use App\Models\BusinessUser;
 use App\Models\Conversation;
 use App\Models\CrmLead;
+use App\Models\MessageAttachment;
 use App\Models\PatientProfile;
 use App\Models\Treatment;
 use App\Models\TreatmentCategory;
@@ -12,6 +13,7 @@ use App\Models\User;
 use App\Notifications\NotificationType;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Storage;
 
 uses(RefreshDatabase::class);
@@ -504,6 +506,26 @@ test('patient cannot send message to another patients conversation', function ()
     ]);
 });
 
+test('a message rollback removes the file written before the attachment record failed', function () {
+    $storage = Storage::fake('private');
+    Exceptions::fake();
+    $data = createConversationTestData();
+    $conversation = createConversation($data);
+    MessageAttachment::creating(function (): never {
+        throw new RuntimeException('Attachment record could not be saved');
+    });
+
+    $this->actingAs($data['patientUser'])->post(
+        "/api/conversations/{$conversation->id}/messages",
+        ['attachment' => UploadedFile::fake()->create('deneme.pdf', 5, 'application/pdf')],
+        ['Accept' => 'application/json'],
+    )->assertInternalServerError();
+
+    $this->assertDatabaseCount('messages', 0);
+    $this->assertDatabaseCount('message_attachments', 0);
+    $storage->assertDirectoryEmpty('conversations/'.$conversation->id);
+});
+
 test('patient can send jpg attachment to their own conversation', function () {
     Storage::fake('private');
 
@@ -718,7 +740,7 @@ test('message attachment is stored under the conversation directory', function (
 
     $response->assertCreated();
 
-    $attachment = \App\Models\MessageAttachment::first();
+    $attachment = MessageAttachment::first();
 
     expect($attachment)->not->toBeNull();
     expect($attachment->disk)->toBe('private');

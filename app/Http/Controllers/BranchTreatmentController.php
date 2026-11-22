@@ -14,12 +14,12 @@ class BranchTreatmentController extends Controller
         Request $request,
         Branch $branch
     ): JsonResponse {
-        $query = $branch->treatments()
-            ->orderBy('name');
+        abort_unless($branch->status === 'active' && $branch->business?->allowsCrmAccess(), 404);
 
-        if ($request->boolean('active_only')) {
-            $query->wherePivot('is_active', true);
-        }
+        $query = $branch->treatments()
+            ->where('treatments.is_active', true)
+            ->wherePivot('is_active', true)
+            ->orderBy('name');
 
         if ($request->boolean('online_bookable')) {
             $query->wherePivot('is_online_bookable', true);

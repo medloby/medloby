@@ -53,11 +53,16 @@ class EmailVerificationController extends Controller
             ]);
         }
 
-        $request->user()->sendEmailVerificationNotification();
+        if (rescue(fn () => $request->user()->sendEmailVerificationNotification(), false) === false) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Doğrulama e-postası şu anda sıraya alınamıyor. Biraz sonra tekrar deneyin.',
+            ], 503);
+        }
 
         return response()->json([
             'success' => true,
-            'message' => 'Doğrulama e-postası gönderildi.',
+            'message' => 'Doğrulama e-postası gönderim sırasına alındı.',
         ]);
     }
 }

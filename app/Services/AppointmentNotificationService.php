@@ -51,14 +51,14 @@ class AppointmentNotificationService
             return;
         }
 
-        /*
-         * KLİNİK
-         */
         $this->notifyBusinessUsers(
             $business,
             $appointment,
             NotificationType::NEW_APPOINTMENT
         );
+
+        $patientUser = $appointment->patientProfile?->user;
+        $patientUser?->notify(new NewPatientAppointmentNotification($appointment));
 
         if (
             $this->preferenceService->isEmailEnabled(
@@ -67,36 +67,11 @@ class AppointmentNotificationService
             )
             && filled($business->email)
         ) {
-            Mail::to($business->email)
-                ->send(
-                    new NewAppointmentMail($appointment)
-                );
+            rescue(fn () => Mail::to($business->email)->queue(new NewAppointmentMail($appointment)));
         }
 
-        /*
-         * HASTA
-         */
-        $patientUser = $appointment
-            ->patientProfile
-            ?->user;
-
-        if (! $patientUser) {
-            return;
-        }
-
-        $patientUser->notify(
-            new NewPatientAppointmentNotification(
-                $appointment
-            )
-        );
-
-        if (filled($patientUser->email)) {
-            Mail::to($patientUser->email)
-                ->send(
-                    new NewPatientAppointmentMail(
-                        $appointment
-                    )
-                );
+        if (filled($patientUser?->email)) {
+            rescue(fn () => Mail::to($patientUser->email)->queue(new NewPatientAppointmentMail($appointment)));
         }
     }
 

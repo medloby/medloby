@@ -77,7 +77,7 @@ class PatientRegistrationController extends Controller
             ];
         });
 
-        event(new Registered($result['user']));
+        rescue(fn () => event(new Registered($result['user'])));
 
         return response()->json([
             'success' => true,

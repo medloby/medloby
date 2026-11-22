@@ -12,11 +12,18 @@ use App\Models\Person;
 use App\Models\Treatment;
 use App\Models\TreatmentCategory;
 use App\Models\User;
+use App\Notifications\NewAppointmentNotification;
+use App\Notifications\NewPatientAppointmentNotification;
 use App\Notifications\NotificationType;
 use App\Services\AppointmentBookingService;
+use App\Services\BusinessNotificationPreferenceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Mail\Events\MessageSending;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Mail;
+use Symfony\Component\Mailer\Exception\TransportException;
 
 uses(RefreshDatabase::class);
 
@@ -36,7 +43,7 @@ function createAppointmentNotificationTestData(): array
     BusinessUser::create([
         'business_id' => $business->id,
         'user_id' => $businessUser->id,
-        'role' => 'owner',
+        'role' => 'business_owner',
         'is_active' => true,
     ]);
 
@@ -168,7 +175,55 @@ function createAppointmentNotificationTestData(): array
     ];
 }
 
-test('new appointment sends email to business email address', function () {
+test('online booking and both in-app notifications survive an email outage', function (string $queue) {
+    config(['queue.default' => $queue, 'mail.default' => 'array']);
+    Exceptions::fake();
+    $offline = true;
+    Event::listen(MessageSending::class, function () use (&$offline): void {
+        if ($offline) {
+            throw new TransportException('Mail transport unavailable');
+        }
+    });
+    $this->travelTo(now()->setDate(2026, 12, 1)->startOfDay());
+    $data = createAppointmentNotificationTestData();
+    $data['doctor']->update(['is_public' => true]);
+
+    $appointment = $this->actingAs($data['patientUser'], 'sanctum')
+        ->postJson("/api/patient/appointments/booking-branches/{$data['branch']->id}", [
+            'doctor_id' => $data['doctor']->id,
+            'treatment_id' => $data['treatment']->id,
+            'starts_at' => now()->addDay()->setTime(10, 0)->toDateTimeString(),
+        ])->assertCreated()->json('data.id');
+
+    $this->assertDatabaseHas('appointments', ['id' => $appointment, 'patient_profile_id' => $data['patientProfile']->id]);
+    $this->assertDatabaseHas('appointment_status_histories', ['appointment_id' => $appointment]);
+    expect($data['businessUser']->notifications()->where('type', NewAppointmentNotification::class)->count())->toBe(1);
+    expect($data['patientUser']->notifications()->where('type', NewPatientAppointmentNotification::class)->count())->toBe(1);
+
+    if ($queue === 'sync') {
+        Exceptions::assertReportedCount(2);
+
+        return;
+    }
+
+    Exceptions::assertNothingReported();
+    $this->assertDatabaseCount('jobs', 2);
+    $workerOptions = ['--once' => true, '--tries' => 2, '--backoff' => 0];
+    $this->artisan('queue:work', $workerOptions)->assertSuccessful();
+    Exceptions::assertReported(TransportException::class);
+    $this->assertDatabaseHas('jobs', ['attempts' => 1]);
+
+    $offline = false;
+    $this->artisan('queue:work', $workerOptions)->assertSuccessful();
+    $this->artisan('queue:work', $workerOptions)->assertSuccessful();
+    $this->assertDatabaseCount('jobs', 0);
+    $messages = Mail::mailer('array')->getSymfonyTransport()->messages();
+    $recipients = $messages->map(fn ($mail) => $mail->getOriginalMessage()->getTo()[0]->getAddress());
+    expect($recipients->all())->toEqualCanonicalizing([$data['business']->email, $data['patientUser']->email]);
+    $this->assertDatabaseCount('notifications', 2);
+})->with(['database', 'sync']);
+
+test('new appointment queues email to business email address', function () {
     Mail::fake();
 
     $data = createAppointmentNotificationTestData();
@@ -188,7 +243,7 @@ test('new appointment sends email to business email address', function () {
     expect($appointment)
         ->toBeInstanceOf(Appointment::class);
 
-    Mail::assertSent(
+    Mail::assertQueued(
         NewAppointmentMail::class,
         function (NewAppointmentMail $mail) use ($data, $appointment) {
             return $mail->hasTo($data['business']->email)
@@ -197,13 +252,13 @@ test('new appointment sends email to business email address', function () {
     );
 });
 
-test('new appointment does not send business email when email notification is disabled', function () {
+test('new appointment skips the business email when the email preference is off', function () {
     Mail::fake();
 
     $data = createAppointmentNotificationTestData();
 
     $preferenceService = app(
-        \App\Services\BusinessNotificationPreferenceService::class
+        BusinessNotificationPreferenceService::class
     );
 
     $preferenceService->update(
@@ -228,20 +283,20 @@ test('new appointment does not send business email when email notification is di
     expect($appointment)
         ->toBeInstanceOf(Appointment::class);
 
-    Mail::assertNotSent(
+    Mail::assertNotQueued(
         NewAppointmentMail::class
     );
 
-    Mail::assertSent(
-        \App\Mail\NewPatientAppointmentMail::class,
-        function (\App\Mail\NewPatientAppointmentMail $mail) use ($data, $appointment) {
+    Mail::assertQueued(
+        NewPatientAppointmentMail::class,
+        function (NewPatientAppointmentMail $mail) use ($data, $appointment) {
             return $mail->hasTo($data['patientUser']->email)
                 && $mail->appointment->id === $appointment->id;
         }
     );
 });
 
-test('new appointment email contains appointment information', function () {
+test('queued appointment email references the correct appointment', function () {
     Mail::fake();
 
     $data = createAppointmentNotificationTestData();
@@ -258,7 +313,7 @@ test('new appointment email contains appointment information', function () {
         'Hasta özel notu.'
     );
 
-    Mail::assertSent(
+    Mail::assertQueued(
         NewAppointmentMail::class,
         function (NewAppointmentMail $mail) use ($appointment) {
             return $mail->appointment->id === $appointment->id

@@ -1,10 +1,11 @@
 <?php
 
 use App\Models\User;
+use App\Notifications\AccountVerificationNotification;
 use Illuminate\Auth\Events\Verified;
-use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\URL;
 
@@ -122,12 +123,12 @@ test('unverified user can request verification email again', function () {
         ->assertSuccessful()
         ->assertJson([
             'success' => true,
-            'message' => 'Doğrulama e-postası gönderildi.',
+            'message' => 'Doğrulama e-postası gönderim sırasına alındı.',
         ]);
 
     Notification::assertSentTo(
         $user,
-        VerifyEmail::class
+        AccountVerificationNotification::class
     );
 });
 
@@ -155,6 +156,19 @@ test('verified user does not receive another verification email', function () {
 test('verification email resend requires authentication', function () {
     $this->postJson('/api/email/verification-notification')
         ->assertUnauthorized();
+});
+
+test('a verification job skips an account that was verified while waiting', function () {
+    config(['queue.default' => 'database', 'mail.default' => 'array']);
+    $user = User::factory()->unverified()->create();
+
+    $this->actingAs($user, 'sanctum')->postJson('/api/email/verification-notification')->assertOk();
+    $this->assertDatabaseCount('jobs', 1);
+    $this->getJson(emailVerificationUrl($user->id, emailVerificationHash($user)))->assertOk();
+
+    $this->artisan('queue:work', ['--once' => true])->assertSuccessful();
+    expect(Mail::mailer('array')->getSymfonyTransport()->messages())->toBeEmpty();
+    $this->assertDatabaseCount('jobs', 0);
 });
 
 test('changing user email invalidates the old verification hash', function () {
@@ -194,7 +208,7 @@ test('a browser verification link returns to the workspace after verifying the a
 test('medloby verification email includes a working signed link', function () {
     $user = User::factory()->unverified()->create();
 
-    $mail = (new VerifyEmail)->toMail($user);
+    $mail = (new AccountVerificationNotification)->toMail($user);
 
     expect($mail->subject)->toBe('Medloby e-posta doğrulama');
     expect($mail->actionText)->toBe('E-posta adresimi doğrula');

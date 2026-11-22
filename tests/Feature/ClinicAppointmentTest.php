@@ -402,7 +402,7 @@ test('online package sessions use the branch confirmation setting and clinic boo
     $this->getJson('/api/offers/'.$offer->id.'/appointments')->assertOk()->assertJsonPath('data.0.status', 'confirmed');
     Notification::assertSentTo($patientUser, NewPatientAppointmentNotification::class,
         fn (NewPatientAppointmentNotification $notification): bool => $notification->toArray($patientUser)['title'] === 'Randevunuz onaylandı');
-    Mail::assertSent(NewPatientAppointmentMail::class, 2);
+    Mail::assertQueued(NewPatientAppointmentMail::class, 2);
 
     $clinicAppointment = $this->actingAs($owner, 'sanctum')->postJson($calendar.'/appointments', [
         ...$session, 'starts_at' => '2026-12-04 11:00:00', 'patient_name' => 'Danışma Hastası',

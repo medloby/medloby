@@ -247,11 +247,13 @@ class ConversationController extends Controller
 
             if ($request->hasFile('attachment')) {
                 $file = $request->file('attachment');
+                $disk = Storage::disk('private');
+                $directory = 'conversations/'.$conversation->id;
+                $filename = $file->hashName();
+                $path = $directory.'/'.$filename;
 
-                $path = Storage::disk('private')->putFile(
-                    'conversations/'.$conversation->id,
-                    $file
-                );
+                DB::afterRollBack(fn () => rescue(fn () => $disk->delete($path)));
+                abort_if($disk->putFileAs($directory, $file, $filename) === false, 503, 'Dosya kaydedilemedi. Lütfen tekrar deneyin.');
 
                 MessageAttachment::create([
                     'message_id' => $message->id,

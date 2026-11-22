@@ -13,6 +13,8 @@ beforeEach(function () {
     $this->business = Business::create([
         'name' => 'Test Klinik',
         'slug' => 'test-klinik-' . uniqid(),
+        'status' => 'active',
+        'is_verified' => true,
     ]);
 
     $this->branch = Branch::create([
@@ -74,7 +76,7 @@ test('can list branch treatments', function () {
         );
 });
 
-test('can list only active branch treatments', function () {
+test('the public branch list always hides inactive treatments and branch assignments', function () {
     $active = createTreatment($this, [
         'name' => 'Aktif Tedavi',
     ]);
@@ -95,8 +97,11 @@ test('can list only active branch treatments', function () {
         'is_offer_enabled' => true,
     ]);
 
+    $unpublished = createTreatment($this, ['is_active' => false]);
+    $this->branch->treatments()->attach($unpublished->id, ['is_active' => true]);
+
     $response = $this->getJson(
-        "/api/branches/{$this->branch->id}/treatments?active_only=1"
+        "/api/branches/{$this->branch->id}/treatments?active_only=0"
     );
 
     $response
@@ -107,6 +112,18 @@ test('can list only active branch treatments', function () {
             'Aktif Tedavi'
         );
 });
+
+test('the public branch list hides unpublished clinics and branches', function (array $branch, array $business) {
+    $this->branch->treatments()->attach(createTreatment($this)->id, ['is_active' => true]);
+    $this->branch->update($branch);
+    $this->business->update($business);
+
+    $this->getJson("/api/branches/{$this->branch->id}/treatments")->assertNotFound();
+})->with([
+    'inactive branch' => [['status' => 'inactive'], []],
+    'suspended clinic' => [[], ['status' => 'suspended']],
+    'unapproved clinic' => [[], ['is_verified' => false]],
+]);
 
 test('can list only online bookable branch treatments', function () {
     $online = createTreatment($this, [
