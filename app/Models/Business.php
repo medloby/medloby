@@ -20,6 +20,7 @@ class Business extends Model
         'email',
         'phone',
         'website',
+        'public_contact_fields',
         'country_code',
         'city',
         'district',
@@ -32,12 +33,15 @@ class Business extends Model
         'verified_at',
     ];
 
+    protected $hidden = ['public_contact_fields'];
+
     protected function casts(): array
     {
         return [
             'latitude' => 'decimal:7',
             'longitude' => 'decimal:7',
             'is_verified' => 'boolean',
+            'public_contact_fields' => 'array',
             'verified_at' => 'datetime',
         ];
     }

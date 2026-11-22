@@ -8,6 +8,7 @@ use App\Models\Business;
 use App\Models\Doctor;
 use App\Models\SocialMediaAccount;
 use App\Models\Treatment;
+use App\Services\ClinicContactPublication;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -48,11 +49,11 @@ class ClinicDirectoryController extends Controller
         return view('welcome', compact('name', 'location', 'treatment', 'clinics'));
     }
 
-    public function show(string $clinic): View
+    public function show(string $clinic, ClinicContactPublication $publication): View
     {
         $clinic = $this->publicClinics()->where('slug', $clinic)
             ->whereHas('branches', fn (Builder $branches) => $branches->where('status', 'active'))
-            ->firstOrFail(['id', 'name', 'slug']);
+            ->firstOrFail(['id', 'name', 'slug', 'phone', 'email', 'website', 'public_contact_fields']);
         $today = Appointment::clinicLocalNow()->toDateString();
         $branches = $clinic->branches()->where('status', 'active')
             ->with([
@@ -69,14 +70,16 @@ class ClinicDirectoryController extends Controller
                     ->with(['person:id,first_name,last_name,title,specialty', 'treatments' => fn (BelongsToMany $treatments) => $treatments
                         ->wherePivot('is_active', true)->where('treatments.is_active', true)->select('treatments.id')]),
             ])
-            ->orderBy('name')->orderBy('id')->get(['id', 'name', 'city', 'district', 'address']);
+            ->orderBy('name')->orderBy('id')->get(['id', 'name', 'city', 'district', 'address', 'phone', 'email', 'public_contact_fields']);
         $bookable = $clinic->branches()->bookableOnline()->pluck('branches.id');
         $roster = $branches->mapWithKeys(fn (Branch $branch): array => [$branch->id => $this->doctorList($branch, $bookable->contains($branch->id))]);
         $socialLinks = $branches->mapWithKeys(fn (Branch $branch): array => [$branch->id => $branch->socialMediaAccounts
             ->filter(fn (SocialMediaAccount $account) => $account->hasWebProfile())]);
+        $clinicContact = $publication->links($clinic);
+        $branchContacts = $branches->mapWithKeys(fn (Branch $branch): array => [$branch->id => $publication->links($branch)]);
         $hasPackages = $clinic->treatmentPackages()->availableForEnquiries()->exists();
 
-        return view('clinic-directory.show', compact('clinic', 'branches', 'bookable', 'roster', 'socialLinks', 'hasPackages'));
+        return view('clinic-directory.show', compact('clinic', 'branches', 'bookable', 'roster', 'socialLinks', 'clinicContact', 'branchContacts', 'hasPackages'));
     }
 
     /** @return Collection<int, array{id: int, name: string, specialty: ?string, treatments: string, bookable: bool}> */

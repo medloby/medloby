@@ -48,6 +48,21 @@
                             <input class="offer-control" name="{{ $section }}.longitude" type="number" min="-180" max="180" step="any">
                         </label>
                     </div>
+                    <fieldset class="mt-4 grid gap-2">
+                        <legend class="mb-2 text-sm font-semibold">Klinik sayfasında göster</legend>
+                        @foreach (['phone' => 'Telefonu göster', 'email' => 'İletişim e-postasını göster'] as $field => $label)
+                            <label class="flex items-center gap-2 text-sm">
+                                <input class="size-4 accent-teal-800" type="checkbox" name="{{ $section }}.public_contact_fields" value="{{ $field }}">
+                                {{ $label }}
+                            </label>
+                        @endforeach
+                        @if ($section === 'clinic')
+                            <label class="flex items-center gap-2 text-sm">
+                                <input class="size-4 accent-teal-800" type="checkbox" name="clinic.public_contact_fields" value="website">
+                                Web sitesini göster
+                            </label>
+                        @endif
+                    </fieldset>
                 </fieldset>
             @endforeach
             <button type="submit" class="offer-button justify-self-start">Klinik ve şube bilgilerini kaydet</button>

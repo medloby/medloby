@@ -9,6 +9,52 @@ use Illuminate\Support\Facades\Notification;
 
 uses(RefreshDatabase::class);
 
+test('the owner controls which clinic and branch contacts appear on the public profile', function () {
+    $clinic = Business::factory()->create([
+        'phone' => '+90 (312) 555 01 02', 'email' => 'basvuru@example.test', 'website' => 'https://example.test/klinik',
+    ]);
+    $branch = Branch::factory()->for($clinic)->create(['phone' => '0312 555 03 04', 'email' => 'randevu+merkez@example.test']);
+    $other = Branch::factory()->for($clinic)->create(['email' => 'baska-sube@example.test']);
+    $owner = User::factory()->create();
+    $staff = User::factory()->create();
+    $clinic->memberships()->create(['user_id' => $owner->id, 'role' => 'business_owner', 'is_active' => true]);
+    $clinic->memberships()->create(['user_id' => $staff->id, 'role' => 'staff', 'is_active' => true])->branches()->attach($branch);
+    $url = "/api/businesses/{$clinic->id}/crm/profile";
+    $directory = route('clinics.show', $clinic->slug);
+    $details = [
+        'branch_id' => $branch->id, 'owner_name' => $owner->name,
+        'clinic' => ['name' => $clinic->name, 'country_code' => 'TR', 'public_contact_fields' => ['phone', 'website']],
+        'branch' => ['name' => $branch->name, 'country_code' => 'TR', 'public_contact_fields' => ['email']],
+    ];
+
+    $this->get($directory)->assertOk()->assertDontSee('tel:+903125550102')->assertDontSee('https://example.test/klinik')
+        ->assertDontSeeText($branch->email)->assertDontSeeText($clinic->email);
+    $this->actingAs($staff, 'sanctum')->putJson($url, $details)->assertForbidden();
+    $this->actingAs($owner, 'sanctum')->getJson($url.'?branch_id='.$branch->id)->assertOk()
+        ->assertJsonPath('data.clinic.public_contact_fields', [])->assertJsonPath('data.branch.public_contact_fields', []);
+
+    $invalid = $details;
+    $invalid['branch']['public_contact_fields'] = ['website'];
+    $this->putJson($url, $invalid)->assertUnprocessable()->assertJsonValidationErrors('branch.public_contact_fields.0');
+    $invalid = $details;
+    $invalid['clinic']['phone'] = 'Ulaşmak için danışmayı arayın';
+    $this->putJson($url, $invalid)->assertUnprocessable()->assertJsonValidationErrors('clinic.public_contact_fields');
+    $this->putJson($url, $details)->assertOk()->assertJsonPath('data.clinic.public_contact_fields', ['phone', 'website'])
+        ->assertJsonPath('data.branch.public_contact_fields', ['email']);
+    $this->get($directory)->assertOk()->assertSee('tel:+903125550102')->assertSee('https://example.test/klinik')
+        ->assertSee('mailto:randevu%2Bmerkez@example.test')->assertDontSeeText($clinic->email)
+        ->assertDontSeeText($branch->phone)->assertDontSeeText($other->email);
+
+    $legacy = $details;
+    unset($legacy['clinic']['public_contact_fields'], $legacy['branch']['public_contact_fields']);
+    $this->putJson($url, $legacy)->assertOk()->assertJsonPath('data.clinic.public_contact_fields', ['phone', 'website']);
+    $details['clinic']['public_contact_fields'] = [];
+    $details['branch']['public_contact_fields'] = [];
+    $this->putJson($url, $details)->assertOk()->assertJsonPath('data.branch.public_contact_fields', []);
+    $this->get($directory)->assertOk()->assertDontSee('tel:+903125550102')
+        ->assertDontSee('https://example.test/klinik')->assertDontSee('mailto:randevu%2Bmerkez@example.test');
+});
+
 test('the clinic owner can add branches and restore inactive branches from the crm', function () {
     $business = Business::factory()->create(['country_code' => 'TR']);
     $branch = Branch::factory()->for($business)->create(['name' => 'Merkez Şube', 'slug' => 'merkez-sube']);

@@ -24,6 +24,7 @@
                     <a href="{{ route('package-offers', ['clinic' => $clinic->slug]) }}#katalog" class="offer-button offer-button-secondary">Kliniğin paketlerini incele</a>
                 @endif
             </div>
+            @include('clinic-directory.contact-links', ['links' => $clinicContact, 'label' => 'Klinik iletişimi'])
             <section class="grid gap-4" aria-labelledby="clinic-branches-title">
                 <h2 id="clinic-branches-title" class="text-2xl font-semibold tracking-tight">Şubeler</h2>
                 <div class="grid items-start gap-4 sm:grid-cols-2">
@@ -38,6 +39,7 @@
                                     <p class="text-sm text-slate-600 dark:text-slate-300">{{ $branch->address }}</p>
                                 @endif
                             </div>
+                            @include('clinic-directory.contact-links', ['links' => $branchContacts[$branch->id], 'label' => $branch->name.' iletişimi'])
                             @if ($branch->treatments->isNotEmpty())
                                 <div class="grid gap-1 break-words">
                                     <h4 class="text-sm font-semibold">Tedaviler</h4>

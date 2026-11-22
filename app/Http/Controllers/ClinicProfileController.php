@@ -5,9 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\Branch;
 use App\Models\Business;
 use App\Models\User;
+use App\Services\ClinicContactPublication;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class ClinicProfileController extends Controller
 {
@@ -32,6 +35,8 @@ class ClinicProfileController extends Controller
 
     private const BRANCH_SUMMARY = ['id', 'name', 'city', 'district', 'status'];
 
+    public function __construct(private ClinicContactPublication $publication) {}
+
     public function show(Request $request, Business $business): JsonResponse
     {
         $this->authorizeOwner($request, $business);
@@ -53,19 +58,25 @@ class ClinicProfileController extends Controller
             foreach ($fields as $field => $fieldRules) {
                 $rules[$section.'.'.$field] = $fieldRules;
             }
+
+            $allowed = $section === 'clinic' ? ClinicContactPublication::CLINIC_FIELDS : ClinicContactPublication::BRANCH_FIELDS;
+            $rules[$section.'.public_contact_fields'] = ['sometimes', 'array', 'list', 'max:'.count($allowed)];
+            $rules[$section.'.public_contact_fields.*'] = ['required', 'string', 'distinct', Rule::in(array_keys($allowed))];
         }
 
         $validated = $request->validate($rules);
         $owner = $request->user();
 
-        [$business, $branch] = DB::transaction(function () use ($business, $owner, $validated): array {
+        [$business, $branch] = DB::transaction(function () use ($request, $business, $owner, $validated): array {
             $business = Business::query()->lockForUpdate()->findOrFail($business->id);
-            abort_unless($business->allowsCrmAccess(), 403, 'CRM erişimi için klinik onayı gereklidir.');
+            $this->authorizeOwner($request, $business);
             $branch = $business->branches()->where('status', 'active')->lockForUpdate()->findOrFail($validated['branch_id']);
             $clinic = $validated['clinic'];
             if (array_key_exists('type', $clinic) && $clinic['type'] === null) {
                 $clinic['type'] = 'clinic';
             }
+            $this->validatePublication($business, $clinic);
+            $this->validatePublication($branch, $validated['branch']);
             $business->update($clinic);
             $branch->update($validated['branch']);
             $owner->update(['name' => $validated['owner_name']]);
@@ -74,6 +85,21 @@ class ClinicProfileController extends Controller
         }, attempts: 3);
 
         return $this->profile($owner, $business, $branch);
+    }
+
+    private function validatePublication(Business|Branch $profile, array $changes): void
+    {
+        $isClinic = $profile instanceof Business;
+        $fields = $isClinic ? ClinicContactPublication::CLINIC_FIELDS : ClinicContactPublication::BRANCH_FIELDS;
+        foreach ($changes['public_contact_fields'] ?? [] as $field) {
+            $value = array_key_exists($field, $changes) ? $changes[$field] : $profile->{$field};
+            if ($this->publication->href($field, $value) === null) {
+                $section = $isClinic ? 'clinic' : 'branch';
+                throw ValidationException::withMessages([
+                    $section.'.public_contact_fields' => 'Klinik sayfasında göstermek için “'.$fields[$field].'” alanına geçerli bir değer girin.',
+                ]);
+            }
+        }
     }
 
     public function branches(Request $request, Business $business): JsonResponse
@@ -133,8 +159,10 @@ class ClinicProfileController extends Controller
     {
         return response()->json(['success' => true, 'data' => [
             'owner_name' => $owner->name,
-            'clinic' => $business->only(array_keys(self::CONTACT_FIELDS + self::CLINIC_FIELDS)),
-            'branch' => $branch->only(array_keys(self::CONTACT_FIELDS)),
+            'clinic' => $business->only(array_keys(self::CONTACT_FIELDS + self::CLINIC_FIELDS))
+                + ['public_contact_fields' => $business->public_contact_fields ?? []],
+            'branch' => $branch->only(array_keys(self::CONTACT_FIELDS))
+                + ['public_contact_fields' => $branch->public_contact_fields ?? []],
         ]])->header('Cache-Control', 'private, no-store');
     }
 }

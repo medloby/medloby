@@ -11,6 +11,21 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
+test('public contact links omit malformed values and contacts from inactive branches', function () {
+    $clinic = Business::factory()->create([
+        'website' => 'ftp://example.test/klinik', 'public_contact_fields' => ['website'],
+    ]);
+    Branch::factory()->for($clinic)->create([
+        'phone' => 'Santralden sorunuz', 'public_contact_fields' => ['phone'],
+    ]);
+    Branch::factory()->for($clinic)->create([
+        'status' => 'inactive', 'email' => 'pasif-sube@example.test', 'public_contact_fields' => ['email'],
+    ]);
+
+    $this->get(route('clinics.show', $clinic->slug))->assertOk()
+        ->assertDontSee('ftp://example.test/klinik')->assertDontSeeText('Santralden sorunuz')->assertDontSeeText('pasif-sube@example.test');
+});
+
 test('the public clinic page links only to published web profiles of active branches', function () {
     $clinic = Business::factory()->create();
     $branch = Branch::factory()->for($clinic)->create(['name' => 'Merkez']);

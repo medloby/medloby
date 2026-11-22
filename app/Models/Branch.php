@@ -21,6 +21,7 @@ class Branch extends Model
         'slug',
         'phone',
         'email',
+        'public_contact_fields',
         'country_code',
         'city',
         'district',
@@ -31,11 +32,14 @@ class Branch extends Model
         'status',
     ];
 
+    protected $hidden = ['public_contact_fields'];
+
     protected function casts(): array
     {
         return [
             'latitude' => 'decimal:7',
             'longitude' => 'decimal:7',
+            'public_contact_fields' => 'array',
         ];
     }
 

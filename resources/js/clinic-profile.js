@@ -13,7 +13,14 @@ export function mountClinicProfile(panel, api, onSaved) {
         form.elements.namedItem('owner_name').value = profile.owner_name;
         for (const section of ['clinic', 'branch']) {
             for (const [field, value] of Object.entries(profile[section])) {
-                form.elements.namedItem(section + '.' + field).value = value ?? '';
+                const name = section + '.' + field;
+                if (field === 'public_contact_fields') {
+                    for (const checkbox of form.elements.namedItem(name)) {
+                        checkbox.checked = value.includes(checkbox.value);
+                    }
+                } else {
+                    form.elements.namedItem(name).value = value ?? '';
+                }
             }
         }
     }
@@ -51,10 +58,12 @@ export function mountClinicProfile(panel, api, onSaved) {
             return;
         }
 
-        const data = { branch_id: Number(current.branchId), clinic: {}, branch: {} };
+        const data = { branch_id: Number(current.branchId), clinic: { public_contact_fields: [] }, branch: { public_contact_fields: [] } };
         for (const [name, value] of new FormData(form)) {
             const [section, field] = name.split('.');
-            if (field) {
+            if (field === 'public_contact_fields') {
+                data[section].public_contact_fields.push(value);
+            } else if (field) {
                 data[section][field] = field === 'country_code' ? value.trim().toUpperCase() : value.trim();
             } else {
                 data[name] = value.trim();
