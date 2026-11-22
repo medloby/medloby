@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\AppointmentRuleViolation;
 use App\Models\Branch;
 use App\Models\Doctor;
 use App\Models\PatientProfile;
@@ -13,7 +14,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use RuntimeException;
 
 class PatientBookingController extends Controller
 {
@@ -79,11 +79,7 @@ class PatientBookingController extends Controller
         try {
             $appointment = $booking->book($branch->business_id, $branch->id, $patient, $doctor, $treatment,
                 Carbon::parse($data['starts_at']), notes: $data['notes'] ?? null, changedBy: $request->user()->id);
-        } catch (RuntimeException $exception) {
-            if ($exception::class !== RuntimeException::class) {
-                throw $exception;
-            }
-
+        } catch (AppointmentRuleViolation $exception) {
             return response()->json(['success' => false, 'message' => $exception->getMessage()], 422)->header('Cache-Control', 'private, no-store');
         }
 

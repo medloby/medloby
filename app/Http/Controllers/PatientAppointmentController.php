@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\AppointmentRuleViolation;
 use App\Models\Appointment;
 use App\Services\AppointmentLifecycleService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use RuntimeException;
 
 class PatientAppointmentController extends Controller
 {
@@ -33,7 +33,9 @@ class PatientAppointmentController extends Controller
                     ->where('patient_profile_id', $patient->id)
                     ->whereColumn($replacement->qualifyColumn('id'), '>', 'appointments.id')
                     ->whereColumn($replacement->qualifyColumn('business_id'), 'appointments.business_id')
-                    ->whereColumn($replacement->qualifyColumn('branch_id'), 'appointments.branch_id')));
+                    ->whereColumn($replacement->qualifyColumn('branch_id'), 'appointments.branch_id')
+                    ->where(fn (Builder $offers) => $offers->whereNull($replacement->qualifyColumn('offer_id'))
+                        ->orWhereColumn($replacement->qualifyColumn('offer_id'), 'appointments.offer_id'))));
 
         if (($filters['view'] ?? 'upcoming') === 'history') {
             $appointments->where(fn (Builder $query) => $query->whereNotIn('status', ['pending', 'confirmed'])
@@ -65,7 +67,7 @@ class PatientAppointmentController extends Controller
 
         try {
             $cancelled = $this->lifecycle->cancel($appointment, $data['cancellation_reason'], $request->user(), byPatient: true);
-        } catch (RuntimeException $exception) {
+        } catch (AppointmentRuleViolation $exception) {
             return $this->unavailable($exception);
         }
 
@@ -79,7 +81,7 @@ class PatientAppointmentController extends Controller
 
         try {
             $slots = $this->lifecycle->patientRescheduleSlots($appointment, $request->user(), Carbon::parse($data['date']));
-        } catch (RuntimeException $exception) {
+        } catch (AppointmentRuleViolation $exception) {
             return $this->unavailable($exception);
         }
 
@@ -97,7 +99,7 @@ class PatientAppointmentController extends Controller
         try {
             $moved = $this->lifecycle->reschedule($appointment, Carbon::parse($data['starts_at']), $request->user(),
                 reason: $data['reason'] ?? null, byPatient: true);
-        } catch (RuntimeException $exception) {
+        } catch (AppointmentRuleViolation $exception) {
             return $this->unavailable($exception);
         }
 
@@ -131,12 +133,8 @@ class PatientAppointmentController extends Controller
         return response()->json(['success' => true, 'data' => $data])->header('Cache-Control', 'private, no-store');
     }
 
-    private function unavailable(RuntimeException $exception): JsonResponse
+    private function unavailable(AppointmentRuleViolation $exception): JsonResponse
     {
-        if ($exception::class !== RuntimeException::class) {
-            throw $exception;
-        }
-
         return response()->json(['success' => false, 'message' => $exception->getMessage()], 422)->header('Cache-Control', 'private, no-store');
     }
 }

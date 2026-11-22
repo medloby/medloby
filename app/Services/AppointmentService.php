@@ -2,13 +2,13 @@
 
 namespace App\Services;
 
+use App\Exceptions\AppointmentRuleViolation;
 use App\Models\Appointment;
 use App\Models\Branch;
 use App\Models\BranchAppointmentSetting;
 use App\Models\Doctor;
 use App\Models\Treatment;
 use Carbon\Carbon;
-use RuntimeException;
 
 class AppointmentService
 {
@@ -34,23 +34,23 @@ class AppointmentService
 
             $branch = Branch::query()->where('business_id', $data['business_id'])->find($data['branch_id']);
             if (! $branch || $branch->status !== 'active' || ! $branch->business?->allowsCrmAccess()) {
-                throw new RuntimeException('Bu şube şu anda randevuya açık değil.');
+                throw new AppointmentRuleViolation('Bu şube şu anda randevuya açık değil.');
             }
 
             if (! $doctor || ! $doctor->person()->where('business_id', $branch->business_id)->exists()) {
-                throw new RuntimeException(
+                throw new AppointmentRuleViolation(
                     'Geçerli bir doktor seçilmelidir.'
                 );
             }
             if ($source === 'medloby' && ! $doctor->is_public) {
-                throw new RuntimeException('Seçilen doktor çevrimiçi randevuya açık değil.');
+                throw new AppointmentRuleViolation('Seçilen doktor çevrimiçi randevuya açık değil.');
             }
 
             $treatment = Treatment::query()
                 ->find($data['treatment_id'] ?? null);
 
             if (! $treatment || ! $treatment->is_active) {
-                throw new RuntimeException(
+                throw new AppointmentRuleViolation(
                     'Geçerli bir tedavi seçilmelidir.'
                 );
             }
@@ -62,7 +62,7 @@ class AppointmentService
             );
 
             if ($durationMinutes === null || $durationMinutes <= 0) {
-                throw new RuntimeException(
+                throw new AppointmentRuleViolation(
                     'Randevu süresi belirlenemedi.'
                 );
             }
@@ -78,7 +78,7 @@ class AppointmentService
             );
 
             if (! $available) {
-                throw new RuntimeException(
+                throw new AppointmentRuleViolation(
                     'Seçilen tarih ve saat için randevu uygun değil.'
                 );
             }
@@ -141,7 +141,7 @@ class AppointmentService
         );
 
         if ($durationMinutes === null || $durationMinutes <= 0) {
-            throw new RuntimeException(
+            throw new AppointmentRuleViolation(
                 'Randevu süresi belirlenemedi.'
             );
         }

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\AppointmentRuleViolation;
 use App\Models\Appointment;
 use App\Models\AppointmentStatusHistory;
 use App\Models\Branch;
@@ -11,7 +12,6 @@ use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
-use RuntimeException;
 
 class AppointmentLifecycleService
 {
@@ -28,7 +28,7 @@ class AppointmentLifecycleService
         ?Branch $calendarBranch
     ): void {
         if (! $changedBy) {
-            throw new RuntimeException(
+            throw new AppointmentRuleViolation(
                 'Bu randevu işlemi için yetkili kullanıcı gereklidir.'
             );
         }
@@ -39,7 +39,7 @@ class AppointmentLifecycleService
                 && $changedBy->canManageClinicAppointments($calendarBranch, $permissionName)
             : $changedBy->hasBusinessPermission($appointment->business_id, $permissionName);
         if (! $allowed) {
-            throw new RuntimeException(
+            throw new AppointmentRuleViolation(
                 'Bu randevu işlemi için yetkiniz bulunmuyor.'
             );
         }
@@ -50,7 +50,7 @@ class AppointmentLifecycleService
         abort_unless($patient && $appointment->belongsToPatient($patient), 404);
 
         if (! in_array($action, $appointment->patientActions(Appointment::clinicLocalNow()), true)) {
-            throw new RuntimeException('Bu işlem için şubenizle iletişime geçin. Çevrimiçi işlem kapalı veya süresi dolmuş olabilir.');
+            throw new AppointmentRuleViolation('Bu işlem için şubenizle iletişime geçin. Çevrimiçi işlem kapalı veya süresi dolmuş olabilir.');
         }
     }
 
@@ -110,7 +110,7 @@ class AppointmentLifecycleService
             );
 
             if ($appointment->status !== 'pending') {
-                throw new RuntimeException(
+                throw new AppointmentRuleViolation(
                     'Yalnızca bekleyen randevular onaylanabilir.'
                 );
             }
@@ -171,7 +171,7 @@ class AppointmentLifecycleService
             );
 
             if ($appointment->status !== 'confirmed') {
-                throw new RuntimeException(
+                throw new AppointmentRuleViolation(
                     'Yalnızca onaylanmış randevular tamamlanabilir.'
                 );
             }
@@ -237,7 +237,7 @@ class AppointmentLifecycleService
                 ['pending', 'confirmed'],
                 true
             )) {
-                throw new RuntimeException(
+                throw new AppointmentRuleViolation(
                     'Yalnızca bekleyen veya onaylanmış randevular iptal edilebilir.'
                 );
             }
@@ -245,7 +245,7 @@ class AppointmentLifecycleService
             $cancellationReason = trim($cancellationReason);
 
             if ($cancellationReason === '') {
-                throw new RuntimeException(
+                throw new AppointmentRuleViolation(
                     'Randevu iptal nedeni boş bırakılamaz.'
                 );
             }
@@ -310,7 +310,7 @@ class AppointmentLifecycleService
             );
 
             if ($appointment->status !== 'confirmed') {
-                throw new RuntimeException(
+                throw new AppointmentRuleViolation(
                     'Yalnızca onaylanmış randevular gelmedi olarak işaretlenebilir.'
                 );
             }
@@ -383,7 +383,7 @@ class AppointmentLifecycleService
                 ['pending', 'confirmed'],
                 true
             )) {
-                throw new RuntimeException(
+                throw new AppointmentRuleViolation(
                     'Yalnızca bekleyen veya onaylanmış randevuların tarihi değiştirilebilir.'
                 );
             }
@@ -391,12 +391,12 @@ class AppointmentLifecycleService
             $treatment = $appointment->treatment;
 
             if (! $doctor || ! $treatment) {
-                throw new RuntimeException(
+                throw new AppointmentRuleViolation(
                     'Randevu tarihini değiştirmek için doktor ve tedavi bilgisi gereklidir.'
                 );
             }
             if ($newStartsAt->equalTo($appointment->starts_at)) {
-                throw new RuntimeException('Randevu için farklı bir tarih veya saat seçin.');
+                throw new AppointmentRuleViolation('Randevu için farklı bir tarih veya saat seçin.');
             }
 
             $durationMinutes = $this->availabilityService
@@ -407,7 +407,7 @@ class AppointmentLifecycleService
                 );
 
             if ($durationMinutes === null || $durationMinutes <= 0) {
-                throw new RuntimeException(
+                throw new AppointmentRuleViolation(
                     'Randevu süresi belirlenemedi.'
                 );
             }
@@ -420,7 +420,7 @@ class AppointmentLifecycleService
                 $appointment->id,
                 $byPatient || $requireOnlineBookable
             )) {
-                throw new RuntimeException(
+                throw new AppointmentRuleViolation(
                     'Seçilen yeni tarih ve saat için randevu müsait değil.'
                 );
             }
@@ -433,7 +433,7 @@ class AppointmentLifecycleService
                 ->where('starts_at', '<', $newEndsAt)
                 ->where('ends_at', '>', $newStartsAt)
                 ->exists()) {
-                throw new RuntimeException('Paket randevularının saatleri çakışamaz.');
+                throw new AppointmentRuleViolation('Paket randevularının saatleri çakışamaz.');
             }
 
             $oldStatus = $appointment->status;

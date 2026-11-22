@@ -2,6 +2,7 @@
 
 use App\Mail\NewPatientAppointmentMail;
 use App\Models\Appointment;
+use App\Models\AppointmentStatusHistory;
 use App\Models\Branch;
 use App\Models\BranchAppointmentSetting;
 use App\Models\Business;
@@ -17,7 +18,9 @@ use App\Notifications\NewPatientAppointmentNotification;
 use App\Notifications\NotificationType;
 use App\Notifications\PatientAppointmentChangedNotification;
 use Carbon\Carbon;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
 
@@ -242,6 +245,103 @@ test('patient appointment history is paginated in a stable order', function () {
     $this->actingAs($patient->user, 'sanctum')->getJson('/api/patient/appointments?view=history&page=2')
         ->assertOk()->assertJsonPath('data.current_page', 2)->assertJsonPath('data.last_page', 2)
         ->assertJsonCount(1, 'data.appointments')->assertJsonPath('data.appointments.0.id', $oldest->id);
+});
+
+test('a replacement linked to a different offer does not hide a patient appointment from history', function () {
+    $this->travelTo(Carbon::parse('2026-12-04 05:00:00', 'UTC'));
+    [$business, $owner, $branch, , $doctor, $treatment] = clinicAppointmentFixture();
+    $patient = User::factory()->create()->patientProfile()->create(['first_name' => 'Deneme', 'last_name' => 'Hastası']);
+    $conversation = $patient->conversations()->create(['business_id' => $business->id, 'branch_id' => $branch->id]);
+    [$originalOffer, $otherOffer] = $conversation->offers()->createMany([
+        ['title' => 'İlk teklif', 'business_id' => $business->id, 'patient_profile_id' => $patient->id,
+            'created_by' => $owner->id, 'status' => 'accepted', 'amount' => 100],
+        ['title' => 'Başka teklif', 'business_id' => $business->id, 'patient_profile_id' => $patient->id,
+            'created_by' => $owner->id, 'status' => 'accepted', 'amount' => 200],
+    ])->all();
+    $visit = ['business_id' => $business->id, 'branch_id' => $branch->id, 'doctor_id' => $doctor->id, 'treatment_id' => $treatment->id];
+    $original = $patient->appointments()->create($visit + [
+        'offer_id' => $originalOffer->id, 'status' => 'rescheduled',
+        'starts_at' => '2026-12-03 10:00:00', 'ends_at' => '2026-12-03 10:30:00',
+    ]);
+    $replacement = $patient->appointments()->create($visit + [
+        'offer_id' => $otherOffer->id, 'status' => 'confirmed', 'rescheduled_from_appointment_id' => $original->id,
+        'starts_at' => '2026-12-04 10:00:00', 'ends_at' => '2026-12-04 10:30:00',
+    ]);
+    $path = '/api/patient/appointments';
+
+    $this->actingAs($patient->user, 'sanctum')->getJson($path.'?view=history')->assertOk()
+        ->assertJsonCount(1, 'data.appointments')->assertJsonPath('data.appointments.0.id', $original->id);
+    $this->getJson($path.'/'.$original->id)->assertOk()->assertJsonPath('data.id', $original->id);
+    $this->getJson($path)->assertOk()->assertJsonPath('data.appointments.0.id', $replacement->id);
+});
+
+test('clinic appointment creation keeps database failures out of both booking responses', function () {
+    $this->travelTo(Carbon::parse('2026-12-01 00:00:00', 'UTC'));
+    config(['app.debug' => false]);
+    [$business, $owner, $branch, , $doctor, $treatment, $calendar] = clinicAppointmentFixture();
+    $permission = Permission::create(['name' => 'appointments.create', 'display_name' => 'Randevu oluşturma', 'module' => 'appointments']);
+    $owner->permissions()->attach($permission, ['business_id' => $business->id, 'is_allowed' => true]);
+    Exceptions::fake();
+    Appointment::creating(static function (): never {
+        throw new QueryException('test', 'insert into appointments', [], new PDOException('Database write test marker'));
+    });
+    $request = ['doctor_id' => $doctor->id, 'treatment_id' => $treatment->id, 'patient_name' => 'Deneme Hastası',
+        'starts_at' => '2026-12-04 09:00:00'];
+
+    $this->actingAs($owner, 'sanctum')->postJson($calendar.'/appointments', $request)
+        ->assertInternalServerError()->assertDontSee('Database write test marker');
+    $this->postJson('/api/appointments', $request + [
+        'business_id' => $business->id, 'branch_id' => $branch->id, 'require_online_bookable' => false,
+    ])
+        ->assertInternalServerError()->assertDontSee('Database write test marker');
+
+    $this->assertDatabaseCount('appointments', 0);
+    Exceptions::assertReportedCount(2);
+});
+
+test('a database failure recording the second package session rolls the whole booking back', function () {
+    $this->travelTo(Carbon::parse('2026-12-01 00:00:00', 'UTC'));
+    config(['app.debug' => false]);
+    [$business, $owner, $branch, , $doctor, $treatment, $calendar] = clinicAppointmentFixture();
+    $patient = User::factory()->create()->patientProfile()->create(['first_name' => 'Deneme', 'last_name' => 'Hastası']);
+    $conversation = $patient->conversations()->create(['business_id' => $business->id, 'branch_id' => $branch->id]);
+    $offer = $conversation->offers()->create([
+        'business_id' => $business->id, 'branch_id' => $branch->id, 'patient_profile_id' => $patient->id,
+        'created_by' => $owner->id, 'title' => 'İki seanslık paket', 'status' => 'accepted', 'amount' => 100,
+        'package_snapshot' => ['branch_id' => $branch->id, 'treatments' => [['treatment_id' => $treatment->id, 'quantity' => 2]]],
+    ]);
+    Exceptions::fake();
+    Appointment::creating(static function (Appointment $appointment): void {
+        if ($appointment->starts_at->toTimeString() === '10:00:00') {
+            throw new QueryException('test', 'insert into appointments', [], new PDOException('Package write test marker'));
+        }
+    });
+    $session = ['treatment_id' => $treatment->id, 'doctor_id' => $doctor->id, 'starts_at' => '2026-12-04 09:00:00'];
+
+    $this->actingAs($owner, 'sanctum')->postJson($calendar.'/package-offers/'.$offer->id.'/appointments', [
+        'sessions' => [$session, [...$session, 'starts_at' => '2026-12-04 10:00:00']],
+    ])->assertInternalServerError()->assertDontSee('Package write test marker');
+
+    $this->assertDatabaseCount('appointments', 0);
+    $this->assertDatabaseCount('appointment_status_histories', 0);
+    Exceptions::assertReported(QueryException::class);
+});
+
+test('an appointment status stays pending when its status history cannot be saved', function () {
+    config(['app.debug' => false]);
+    [$business, $owner, $branch, , $doctor, $treatment, $calendar] = clinicAppointmentFixture();
+    $visit = $branch->appointments()->create(['business_id' => $business->id, 'doctor_id' => $doctor->id,
+        'treatment_id' => $treatment->id, 'status' => 'pending', 'starts_at' => '2026-12-04 09:00:00', 'ends_at' => '2026-12-04 09:30:00']);
+    Exceptions::fake();
+    AppointmentStatusHistory::creating(static function (): never {
+        throw new QueryException('test', 'insert into appointment_status_histories', [], new PDOException('Status history test marker'));
+    });
+
+    $this->actingAs($owner, 'sanctum')->postJson($calendar.'/appointments/'.$visit->id.'/confirm')
+        ->assertInternalServerError()->assertDontSee('Status history test marker');
+
+    expect($visit->refresh()->status)->toBe('pending');
+    Exceptions::assertReported(QueryException::class);
 });
 
 test('patients can move and cancel their own package session from the offered schedule', function () {

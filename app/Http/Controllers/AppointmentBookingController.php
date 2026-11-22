@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\AppointmentRuleViolation;
 use App\Http\Resources\BookedAppointmentResource;
 use App\Http\Resources\OfferResource;
 use App\Models\Appointment;
@@ -15,7 +16,6 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
-use RuntimeException;
 
 class AppointmentBookingController extends Controller
 {
@@ -198,7 +198,7 @@ class AppointmentBookingController extends Controller
                     'offer' => new OfferResource($offer->fresh(OfferResource::DISPLAY_RELATIONS)->setRelation('appointment', $appointment)),
                 ],
             ], 201)->header('Cache-Control', 'private, no-store');
-        } catch (RuntimeException $exception) {
+        } catch (AppointmentRuleViolation $exception) {
             return response()->json([
                 'success' => false,
                 'message' => $exception->getMessage(),
@@ -375,7 +375,7 @@ class AppointmentBookingController extends Controller
                 $validated['sessions'],
                 $clinicUserId,
             );
-        } catch (RuntimeException $exception) {
+        } catch (AppointmentRuleViolation $exception) {
             return response()->json([
                 'success' => false,
                 'message' => $exception->getMessage(),

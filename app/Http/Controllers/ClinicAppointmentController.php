@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\AppointmentRuleViolation;
 use App\Models\Appointment;
 use App\Models\Branch;
 use App\Models\Doctor;
@@ -14,7 +15,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
-use RuntimeException;
 
 class ClinicAppointmentController extends Controller
 {
@@ -114,7 +114,7 @@ class ClinicAppointmentController extends Controller
                 'require_online_bookable' => false,
                 'created_by_user_id' => $request->user()->id,
             ]);
-        } catch (RuntimeException $exception) {
+        } catch (AppointmentRuleViolation $exception) {
             throw ValidationException::withMessages(['starts_at' => $exception->getMessage()]);
         }
 

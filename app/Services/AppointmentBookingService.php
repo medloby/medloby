@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\AppointmentRuleViolation;
 use App\Models\Appointment;
 use App\Models\AppointmentStatusHistory;
 use App\Models\BranchAppointmentSetting;
@@ -11,7 +12,6 @@ use App\Models\PatientProfile;
 use App\Models\Treatment;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
-use RuntimeException;
 
 class AppointmentBookingService
 {
@@ -46,10 +46,10 @@ class AppointmentBookingService
             $doctor = Doctor::query()->lockForUpdate()->findOrFail($doctor->id);
             if ($offer) {
                 if ($offer->package_snapshot !== null) {
-                    throw new RuntimeException('Paket randevuları birlikte oluşturulmalıdır.');
+                    throw new AppointmentRuleViolation('Paket randevuları birlikte oluşturulmalıdır.');
                 }
                 if ($offer->appointments()->exists()) {
-                    throw new RuntimeException('Bu teklif daha önce randevuya dönüştürülmüş.');
+                    throw new AppointmentRuleViolation('Bu teklif daha önce randevuya dönüştürülmüş.');
                 }
             }
 
@@ -98,7 +98,7 @@ class AppointmentBookingService
             );
 
         if ($durationMinutes === null || $durationMinutes <= 0) {
-            throw new RuntimeException(
+            throw new AppointmentRuleViolation(
                 'Bu tedavi için geçerli bir süre tanımlanmamış.'
             );
         }
@@ -115,7 +115,7 @@ class AppointmentBookingService
         );
 
         if (! $isAvailable) {
-            throw new RuntimeException(
+            throw new AppointmentRuleViolation(
                 'Seçilen tarih ve saat için randevu müsait değil.'
             );
         }
@@ -179,7 +179,7 @@ class AppointmentBookingService
             $doctors = Doctor::query()->whereKey(array_column($sessions, 'doctor_id'))
                 ->orderBy('id')->lockForUpdate()->get()->keyBy('id');
             if ($offer->appointments()->exists()) {
-                throw new RuntimeException('Bu teklif daha önce randevuya dönüştürülmüş.');
+                throw new AppointmentRuleViolation('Bu teklif daha önce randevuya dönüştürülmüş.');
             }
 
             $required = collect($offer->package_snapshot['treatments'] ?? [])
@@ -188,12 +188,12 @@ class AppointmentBookingService
                 ->sortKeys()->all();
 
             if ($required === [] || $requested !== $required) {
-                throw new RuntimeException('Paket teklifindeki her tedavi seansı için bir randevu seçilmelidir.');
+                throw new AppointmentRuleViolation('Paket teklifindeki her tedavi seansı için bir randevu seçilmelidir.');
             }
 
             $patient = $offer->patientProfile;
             if (! $patient) {
-                throw new RuntimeException('Teklife bağlı hasta profili bulunamadı.');
+                throw new AppointmentRuleViolation('Teklife bağlı hasta profili bulunamadı.');
             }
 
             $status = $clinicUserId === null ? BranchAppointmentSetting::initialStatusForOnlineBooking($branchId) : 'pending';
@@ -203,7 +203,7 @@ class AppointmentBookingService
                     $offer->business_id,
                     $branchId,
                     $patient,
-                    $doctors->get($session['doctor_id']) ?? throw new RuntimeException('Geçerli bir doktor seçilmelidir.'),
+                    $doctors->get($session['doctor_id']) ?? throw new AppointmentRuleViolation('Geçerli bir doktor seçilmelidir.'),
                     Treatment::findOrFail($session['treatment_id']),
                     Carbon::parse($session['starts_at']),
                     $status,
@@ -217,7 +217,7 @@ class AppointmentBookingService
                 foreach ($appointments as $previous) {
                     if ($appointment->starts_at->lt($previous->ends_at)
                         && $appointment->ends_at->gt($previous->starts_at)) {
-                        throw new RuntimeException('Paket randevularının saatleri çakışamaz.');
+                        throw new AppointmentRuleViolation('Paket randevularının saatleri çakışamaz.');
                     }
                 }
 
@@ -239,39 +239,39 @@ class AppointmentBookingService
         Treatment $treatment
     ): void {
         if ($offer->status !== 'accepted') {
-            throw new RuntimeException(
+            throw new AppointmentRuleViolation(
                 'Randevu oluşturmak için teklifin kabul edilmiş olması gerekir.'
             );
         }
 
         if (! $offer->hasActiveClinic()) {
-            throw new RuntimeException('Bu sağlık merkezi şu anda randevuya açık değil.');
+            throw new AppointmentRuleViolation('Bu sağlık merkezi şu anda randevuya açık değil.');
         }
 
         if (
             $offer->valid_until &&
             $offer->valid_until->isPast()
         ) {
-            throw new RuntimeException(
+            throw new AppointmentRuleViolation(
                 'Bu teklifin geçerlilik süresi dolmuştur.'
             );
         }
 
         if ($offer->business_id !== $businessId) {
-            throw new RuntimeException(
+            throw new AppointmentRuleViolation(
                 'Teklif farklı bir işletmeye aittir.'
             );
         }
 
         $requiredBranchIds = $offer->requiredBookingBranchIds();
         if ($requiredBranchIds !== [] && $requiredBranchIds !== [$branchId]) {
-            throw new RuntimeException(
+            throw new AppointmentRuleViolation(
                 'Teklif farklı bir şubeye aittir.'
             );
         }
 
         if ($offer->patient_profile_id !== $patient->id) {
-            throw new RuntimeException(
+            throw new AppointmentRuleViolation(
                 'Teklif farklı bir hastaya aittir.'
             );
         }
@@ -280,7 +280,7 @@ class AppointmentBookingService
             $offer->treatment_id !== null &&
             $offer->treatment_id !== $treatment->id
         ) {
-            throw new RuntimeException(
+            throw new AppointmentRuleViolation(
                 'Teklifteki tedavi ile seçilen tedavi uyuşmuyor.'
             );
         }
@@ -305,19 +305,19 @@ class AppointmentBookingService
             ->first(['branches.status', 'businesses.status as business_status', 'businesses.is_verified']);
 
         if (! $branch) {
-            throw new RuntimeException(
+            throw new AppointmentRuleViolation(
                 'Seçilen şube bu işletmeye ait değil.'
             );
         }
 
         if ($branch->status !== 'active' || $branch->business_status !== 'active' || ! $branch->is_verified) {
-            throw new RuntimeException($requireOnlineBookable
+            throw new AppointmentRuleViolation($requireOnlineBookable
                 ? 'Seçilen şube şu anda çevrimiçi randevuya açık değil.'
                 : 'Seçilen şube şu anda randevuya açık değil.');
         }
 
         if ($requireOnlineBookable && ! $doctor->is_public) {
-            throw new RuntimeException('Seçilen doktor çevrimiçi randevuya açık değil.');
+            throw new AppointmentRuleViolation('Seçilen doktor çevrimiçi randevuya açık değil.');
         }
 
         $doctorBelongsToBusiness = DB::table('doctors')
@@ -332,7 +332,7 @@ class AppointmentBookingService
             ->exists();
 
         if (! $doctorBelongsToBusiness) {
-            throw new RuntimeException(
+            throw new AppointmentRuleViolation(
                 'Seçilen doktor bu işletmeye ait değil.'
             );
         }
@@ -344,13 +344,13 @@ class AppointmentBookingService
             ->exists();
 
         if (! $doctorBelongsToBranch) {
-            throw new RuntimeException(
+            throw new AppointmentRuleViolation(
                 'Seçilen doktor bu şubede aktif olarak çalışmıyor.'
             );
         }
 
         if (! $treatment->is_active) {
-            throw new RuntimeException(
+            throw new AppointmentRuleViolation(
                 'Seçilen tedavi aktif değil.'
             );
         }
@@ -361,13 +361,13 @@ class AppointmentBookingService
             ->first();
 
         if (! $branchTreatment) {
-            throw new RuntimeException(
+            throw new AppointmentRuleViolation(
                 'Seçilen tedavi bu şubede bulunmuyor.'
             );
         }
 
         if (! (bool) $branchTreatment->is_active) {
-            throw new RuntimeException(
+            throw new AppointmentRuleViolation(
                 'Seçilen tedavi bu şubede aktif değil.'
             );
         }
@@ -376,7 +376,7 @@ class AppointmentBookingService
             $requireOnlineBookable &&
             ! (bool) $branchTreatment->is_online_bookable
         ) {
-            throw new RuntimeException(
+            throw new AppointmentRuleViolation(
                 'Seçilen tedavi bu şubede online randevuya açık değil.'
             );
         }

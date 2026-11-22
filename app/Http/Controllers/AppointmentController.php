@@ -1,6 +1,7 @@
 <?php
 namespace App\Http\Controllers;
 
+use App\Exceptions\AppointmentRuleViolation;
 use App\Models\Branch;
 use App\Models\Doctor;
 use App\Models\PatientProfile;
@@ -13,7 +14,6 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
-use RuntimeException;
 class AppointmentController extends Controller
 {
     public function __construct(
@@ -364,7 +364,7 @@ class AppointmentController extends Controller
                 'message' => 'Randevu başarıyla oluşturuldu.',
                 'data' => $appointment,
             ], 201);
-        } catch (RuntimeException $exception) {
+        } catch (AppointmentRuleViolation $exception) {
             return response()->json([
                 'success' => false,
                 'message' => $exception->getMessage(),
@@ -463,7 +463,7 @@ class AppointmentController extends Controller
                 'message' => 'Randevu başarıyla onaylandı.',
                 'data' => $appointment,
             ]);
-        } catch (RuntimeException $exception) {
+        } catch (AppointmentRuleViolation $exception) {
             return $this->errorResponse($exception);
         }
     }
@@ -501,7 +501,7 @@ class AppointmentController extends Controller
                 'message' => 'Randevu başarıyla iptal edildi.',
                 'data' => $appointment,
             ]);
-        } catch (RuntimeException $exception) {
+        } catch (AppointmentRuleViolation $exception) {
             return $this->errorResponse($exception);
         }
     }
@@ -527,7 +527,7 @@ class AppointmentController extends Controller
                 'message' => 'Randevu başarıyla tamamlandı.',
                 'data' => $appointment,
             ]);
-        } catch (RuntimeException $exception) {
+        } catch (AppointmentRuleViolation $exception) {
             return $this->errorResponse($exception);
         }
     }
@@ -633,7 +633,7 @@ class AppointmentController extends Controller
                 ),
             ],
         ]);
-    } catch (RuntimeException $exception) {
+    } catch (AppointmentRuleViolation $exception) {
         return response()->json([
             'success' => false,
             'message' => $exception->getMessage(),
@@ -780,7 +780,7 @@ public function options(Request $request): JsonResponse
                 'message' => 'Randevu gelmedi olarak işaretlendi.',
                 'data' => $appointment,
             ]);
-        } catch (RuntimeException $exception) {
+        } catch (AppointmentRuleViolation $exception) {
             return $this->errorResponse($exception);
         }
     }
@@ -821,7 +821,7 @@ public function options(Request $request): JsonResponse
                 'message' => 'Randevu tarihi başarıyla değiştirildi.',
                 'data' => $appointment,
             ]);
-        } catch (RuntimeException $exception) {
+        } catch (AppointmentRuleViolation $exception) {
             return $this->errorResponse($exception);
         }
     }
@@ -842,7 +842,7 @@ public function options(Request $request): JsonResponse
     }
 
     private function errorResponse(
-        RuntimeException $exception
+        AppointmentRuleViolation $exception
     ): JsonResponse {
         $message = $exception->getMessage();
         $status = match ($message) {

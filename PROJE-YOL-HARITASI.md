@@ -10,7 +10,7 @@ Envanter, Git'in izlediği 476 dosyayı kapsadı. Depoda 152 uygulama dosyası, 
 
 - Kilitli PHP ortam gereksinimleri, 371 PHP dosyasının sözdizimi ve Vite derlemesi geçti.
 - Envanterin dayandığı sürümde SQLite ve PostgreSQL 17 yapılandırmalarıyla **879’ar test** geçti. Sonraki uygulama sonuçları geliştirme sırasındaki ilgili maddede yer alır.
-- Şifre yenileme kuyruğu ve görüşme ekleri doğrulamalarından sonra SQLite ve PostgreSQL 17.12 üzerinde **930’ar test** geçti.
+- Randevu geçmişi ve kayıt hataları doğrulamalarından sonra SQLite ve PostgreSQL 17.12 üzerinde **934’er test** geçti.
 - Klinik üyeliği için `0.2-draft` hazırlandı. Başvuru formu, geçerli ve yayımlanmış zorunlu sözleşme olduğunda açılır.
 - npm taramasında ve kilitli 133 PHP paket sürümü için GitHub Advisory Database taramasında eşleşen bildirim bulunmadı.
 
@@ -123,6 +123,8 @@ Kabul senaryosu e-posta doğrulama ve klinik onayıyla başlar. Klinik sahibi ya
 17. **3.17 Klinik sayfası tedavi paketlerine bağlandı.** Görüşmeye açık paketi olan kliniğin sayfasında **Kliniğin paketlerini incele** bağlantısı görünür. Katalog seçilen kliniğin paketlerini, tedavi seanslarını ve ek hizmetlerini gösterir. Arama ve sayfa değiştirme sırasında klinik seçimi korunur. Ziyaretçi paket seçip doğrulanmış hasta hesabına giriş yaptığında aynı paket için görüşme başlatabilir. Mobil Chromium’da klinik sayfasından paket görüşmesine kadar akış doğrulandı. 860 test, 4.081 doğrulama ve Vite derlemesi geçti. [Katalog görünürlüğü testleri](tests/Feature/CatalogVisibilityTest.php)
 18. **3.18 SQLite üzerinde eşzamanlı randevu kaydı doğrulandı.** Hasta ve klinik farklı şubelerde aynı hekimin aynı saatini seçtiğinde tek randevu kaydediliyor. Diğer istek saat uygunluğu kontrolünden sonra kullanıcıya seçilen saatin dolu olduğunu bildiriyor. Tekil kayıt, paket seansı planlama ve randevu tarihi değiştirme aynı işlem yöntemini kullanıyor. 874 test, 4.360 doğrulama ve Vite derlemesi geçti. Seçilecek üretim veritabanıyla prova yayın öncesi kontrol listesinde. [Eşzamanlı randevu testi](tests/Feature/AppointmentConcurrencyTest.php)
 19. **3.19 PostgreSQL üzerinde eşzamanlı randevu kaydı doğrulandı.** PostgreSQL 17.12 üzerinde 66 migration temiz veritabanına uygulandı. Hasta ve klinik aynı hekimin saatini eşzamanlı seçtiğinde bir randevu kaydedildi ve diğer istek saat uygunluğu uyarısı aldı. Hekim çalışma saatlerinin API yanıtı her iki veritabanında `HH:mm` biçiminde. PostgreSQL ve SQLite ile 879’ar test geçti. PostgreSQL üretim adayı olarak denendi. Üretim veritabanı seçimi ve yayın koşullarındaki prova bekliyor. [PostgreSQL randevu provası](README.md#postgresql-randevu-provası)
+
+20. **3.20 Randevu geçmişi ve kayıt hataları doğrulandı.** Eski tarih değişikliği kaydı farklı bir teklife bağlıysa hastanın önceki randevusu geçmişte görünür. Randevu kuralları kullanıcıya işlemin neden durduğunu bildirir. Beklenmedik veritabanı hataları genel sunucu hata yanıtını kullanır. İkinci paket seansı kaydedilemediğinde işlemin geri alındığı ve durum geçmişi yazılamadığında randevunun beklemede kaldığı sınandı. [Randevu testleri](tests/Feature/ClinicAppointmentTest.php)
 
 Kabul senaryosu şubede hekim ve uygunluk hazırlığından başlayıp hastanın birkaç seansı seçmesi ve kliniğin randevuyu yönetmesiyle tamamlanır.
 
