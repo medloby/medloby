@@ -255,6 +255,21 @@ class CrmLeadController extends Controller
         ])->header('Cache-Control', 'private, no-store');
     }
 
+    public function assignees(Branch $branch): JsonResponse
+    {
+        $members = BusinessUser::query()->activeForBranch($branch)
+            ->join('users', 'users.id', '=', 'business_user.user_id')
+            ->orderBy('users.name')
+            ->orderBy('business_user.id')
+            ->toBase()
+            ->get(['business_user.id', 'users.name']);
+
+        return response()->json([
+            'success' => true,
+            'data' => $members,
+        ])->header('Cache-Control', 'private, no-store');
+    }
+
     public function update(
         Request $request,
         Branch $branch,

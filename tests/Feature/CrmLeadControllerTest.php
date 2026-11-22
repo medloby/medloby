@@ -331,6 +331,40 @@ test('can assign lead to business user', function () {
         );
 });
 
+test('returns only names and membership IDs that can be assigned in the selected branch', function () {
+    $owner = $this->business->memberships()->sole();
+    $owner->user->update(['name' => 'Klinik Sahibi']);
+
+    $createMembership = fn (Business $business, string $name, bool $active = true) => $business->memberships()->create([
+        'user_id' => User::factory()->create(['name' => $name])->id,
+        'role' => 'staff',
+        'is_active' => $active,
+    ]);
+    $staff = $createMembership($this->business, 'Asistan Merkez');
+    $staff->branches()->attach($this->branch->id, ['is_active' => true]);
+    $createMembership($this->business, 'Diğer Şube')->branches()
+        ->attach($this->otherBranch->id, ['is_active' => true]);
+    $createMembership($this->business, 'Pasif Şube Yetkisi')->branches()
+        ->attach($this->branch->id, ['is_active' => false]);
+    $createMembership($this->business, 'Pasif Personel', false)->branches()
+        ->attach($this->branch->id, ['is_active' => true]);
+    $createMembership(Business::factory()->create(), 'Farklı Klinik');
+
+    $this->getJson("/api/branches/{$this->branch->id}/crm/leads/assignees")
+        ->assertOk()
+        ->assertHeader('Cache-Control', 'no-store, private')
+        ->assertExactJson([
+            'success' => true,
+            'data' => [
+                ['id' => $staff->id, 'name' => 'Asistan Merkez'],
+                ['id' => $owner->id, 'name' => 'Klinik Sahibi'],
+            ],
+        ]);
+
+    $this->actingAs($staff->user)->getJson("/api/branches/{$this->otherBranch->id}/crm/leads/assignees")
+        ->assertForbidden();
+});
+
 test('crm links patients and staff only within the lead branch', function () {
     $patient = PatientProfile::create([
         'user_id' => User::factory()->create()->id,

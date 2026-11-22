@@ -26,19 +26,41 @@
             <div class="flex flex-wrap items-start gap-2 text-sm">
                 <span class="break-words rounded-lg bg-teal-50 px-2.5 py-1 text-teal-950 dark:bg-teal-950 dark:text-teal-100" data-leads-row-status></span>
                 <span class="break-words rounded-lg bg-slate-100 px-2.5 py-1 text-slate-700 dark:bg-slate-800 dark:text-slate-200" data-leads-stage hidden></span>
+                <button type="button" class="offer-button offer-button-secondary" data-leads-details aria-haspopup="dialog">Ayrıntı</button>
             </div>
         </li>
     </template>
 
     <dialog class="offer-dialog" aria-labelledby="crm-lead-form-title" data-leads-editor>
         <div class="flex flex-wrap items-start justify-between gap-3">
-            <h3 id="crm-lead-form-title" class="text-xl font-semibold">Yeni hasta adayı</h3>
+            <h3 id="crm-lead-form-title" class="min-w-0 break-words text-xl font-semibold" data-leads-editor-title>Yeni hasta adayı</h3>
             <button type="button" class="offer-button offer-button-secondary" data-leads-close>Vazgeç</button>
         </div>
         <p class="mt-3 text-sm text-slate-600 dark:text-slate-300" data-leads-form-status role="status" hidden></p>
-        <form class="mt-4" data-leads-form>
-            <fieldset class="grid gap-4">
-                <div class="grid gap-3 sm:grid-cols-2">
+        <div class="mt-4 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm dark:border-slate-700 dark:bg-slate-800" data-leads-summary hidden>
+            <dl class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <div class="min-w-0 break-words">
+                    <dt class="text-slate-600 dark:text-slate-300">Durum</dt>
+                    <dd class="mt-1 font-semibold" data-leads-detail-status></dd>
+                </div>
+                <div class="min-w-0 break-words">
+                    <dt class="text-slate-600 dark:text-slate-300">Takip aşaması</dt>
+                    <dd class="mt-1 font-semibold" data-leads-detail-stage></dd>
+                </div>
+                <div>
+                    <dt class="text-slate-600 dark:text-slate-300">Kayıt tarihi</dt>
+                    <dd class="mt-1 font-semibold" data-leads-detail-date></dd>
+                </div>
+            </dl>
+            <div data-leads-notes hidden>
+                <h4 class="font-semibold">Not</h4>
+                <p class="mt-1 break-words whitespace-pre-wrap text-slate-700 dark:text-slate-200" data-leads-note-text></p>
+            </div>
+        </div>
+        <form class="mt-5" data-leads-form>
+            <fieldset class="grid min-w-0 gap-4">
+                <legend class="mb-3 font-semibold">Aday bilgileri</legend>
+                <div class="grid grid-cols-2 gap-3">
                     <label class="offer-field">
                         Ad
                         <input class="offer-control" name="first_name" maxlength="255">
@@ -47,16 +69,20 @@
                         Soyad
                         <input class="offer-control" name="last_name" maxlength="255">
                     </label>
-                    <label class="offer-field">
+                    <label class="offer-field col-span-2 sm:col-span-1">
                         Telefon
                         <input class="offer-control" name="phone" type="tel" maxlength="50">
                     </label>
-                    <label class="offer-field">
+                    <label class="offer-field col-span-2 sm:col-span-1">
                         E-posta
                         <input class="offer-control" name="email" type="email" maxlength="255">
                     </label>
                 </div>
-                <button type="submit" class="offer-button justify-self-start">Hasta adayını kaydet</button>
+                <label class="offer-field" data-leads-assignment hidden>
+                    Sorumlu personel
+                    <select class="offer-control" name="assigned_business_user_id" disabled></select>
+                </label>
+                <button type="submit" class="offer-button justify-self-start" data-leads-save>Hasta adayını kaydet</button>
             </fieldset>
         </form>
     </dialog>

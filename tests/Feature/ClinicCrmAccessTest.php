@@ -47,7 +47,7 @@ test('a registered owner stays out of crm until verification and clinic approval
     $owner->markEmailAsVerified();
     $this->getJson('/api/clinic-applications')->assertOk()->assertJsonPath('data.0.crm_available', false);
     $this->getJson($workspace)->assertForbidden();
-    foreach (['dashboard', 'leads', 'pipeline-stages', 'tasks', 'follow-ups', 'activities'] as $endpoint) {
+    foreach (['dashboard', 'leads', 'leads/assignees', 'pipeline-stages', 'tasks', 'follow-ups', 'activities'] as $endpoint) {
         $this->getJson("{$branchCrm}/{$endpoint}")->assertForbidden();
     }
     $this->postJson("{$branchCrm}/pipeline-stages", ['name' => 'Onay öncesi aşama'])->assertForbidden();
@@ -97,6 +97,7 @@ test('a guest and an owner from another clinic cannot access branch crm', functi
 
     $this->getJson($workspace)->assertUnauthorized();
     $this->getJson("{$branchCrm}/leads")->assertUnauthorized();
+    $this->getJson("{$branchCrm}/leads/assignees")->assertUnauthorized();
 
     $otherOwner = User::factory()->create();
     Business::factory()->create()->memberships()->create([
@@ -107,6 +108,7 @@ test('a guest and an owner from another clinic cannot access branch crm', functi
 
     $this->actingAs($otherOwner, 'sanctum')->getJson($workspace)->assertForbidden();
     $this->getJson("{$branchCrm}/leads")->assertForbidden();
+    $this->getJson("{$branchCrm}/leads/assignees")->assertForbidden();
     $this->getJson("{$branchCrm}/pipeline-stages")->assertForbidden();
 });
 

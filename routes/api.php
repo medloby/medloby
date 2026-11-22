@@ -1002,6 +1002,8 @@ Route::middleware(['auth:sanctum', 'verified', EnsureClinicCrmAccess::class])
                 'store',
             ]);
 
+            Route::get('/assignees', [CrmLeadController::class, 'assignees']);
+
             Route::get('/{crmLead}', [
                 CrmLeadController::class,
                 'show',
