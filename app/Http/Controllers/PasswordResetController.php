@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Notifications\AccountPasswordResetNotification;
+use App\Rules\AccountPassword;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -64,18 +65,11 @@ class PasswordResetController extends Controller
         }
 
         $password = Validator::make($request->post(), [
-            'password' => ['bail', 'required', 'string', 'confirmed', 'min:8',
-                function (string $attribute, string $value, \Closure $fail): void {
-                    if (strlen($value) > 72 || str_contains($value, "\0")) {
-                        $fail('Şifre çok uzun veya geçersiz bir karakter içeriyor.');
-                    }
-                },
-            ],
+            'password' => ['bail', 'required', 'string', 'confirmed', new AccountPassword],
         ], [
             'password.required' => 'Yeni şifrenizi yazın.',
             'password.string' => 'Geçerli bir şifre yazın.',
             'password.confirmed' => 'Yazdığınız şifreler aynı olmalıdır.',
-            'password.min' => 'Şifreniz en az 8 karakter olmalıdır.',
         ]);
 
         $link = $link->validated();

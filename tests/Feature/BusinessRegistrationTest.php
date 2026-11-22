@@ -52,6 +52,22 @@ function validBusinessRegistrationPayload(): array
     ];
 }
 
+test('business registration rejects an oversized password before creating an account', function () {
+    createPublishedClinicContract();
+    $password = str_repeat('ş', 37);
+    $payload = array_replace(validBusinessRegistrationPayload(), [
+        'password' => $password,
+        'password_confirmation' => $password,
+    ]);
+
+    $this->postJson('/api/register/business', $payload)
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('password');
+
+    $this->assertDatabaseMissing('users', ['email' => $payload['owner_email']]);
+    $this->assertDatabaseMissing('businesses', ['name' => $payload['business_name']]);
+});
+
 test('can register a business with accepted clinic contract', function () {
     $contract = createPublishedClinicContract();
 

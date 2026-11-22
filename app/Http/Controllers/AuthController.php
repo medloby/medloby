@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Rules\AccountPassword;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -18,7 +19,7 @@ class AuthController extends Controller
         $validated = $request->validate([
             $field => $field === 'email' ? ['required', 'email', 'max:255'] : ['required', 'string', 'max:255'],
             'password' => ['required', 'string'],
-            'new_password' => ['sometimes', 'required', 'string', 'confirmed', 'different:password', 'min:8', 'regex:/\A[^\x00]{1,72}\z/s'],
+            'new_password' => ['bail', 'sometimes', 'required', 'string', 'confirmed', 'different:password', new AccountPassword],
         ]);
         $identifier = $validated[$field];
         $column = $field === 'email' || str_contains($identifier, '@') ? 'email' : 'login_code';

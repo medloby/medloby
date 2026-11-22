@@ -55,8 +55,9 @@ test('the clinic owner gets credentials only after approval and completes the cl
     $this->postJson('/api/login', $credentials)->assertOk()
         ->assertJsonPath('data.password_change_required', true)->assertJsonMissingPath('data.token');
     $this->assertDatabaseMissing('personal_access_tokens', ['tokenable_id' => $owner->id]);
+    $newPassword = ' sahibin-yeni-sifresi ';
     $token = $this->postJson('/api/login', $credentials + [
-        'new_password' => 'sahibin-yeni-sifresi', 'new_password_confirmation' => 'sahibin-yeni-sifresi',
+        'new_password' => $newPassword, 'new_password_confirmation' => $newPassword,
     ])->assertOk()->json('data.token');
     expect($owner->fresh()->hasVerifiedEmail())->toBeTrue();
     $this->postJson('/api/login', $credentials)->assertUnprocessable();
@@ -78,6 +79,9 @@ test('the clinic owner gets credentials only after approval and completes the cl
     $this->assertDatabaseHas('businesses', ['id' => $business->id, 'name' => 'Örnek Ağız Sağlığı', 'status' => 'active']);
     $this->assertDatabaseHas('branches', ['id' => $branch->id, 'name' => 'Merkez Şube']);
     $this->assertDatabaseHas('users', ['id' => $owner->id, 'name' => 'Klinik Sahibi', 'email' => $email]);
+
+    $this->postJson('/api/login', ['identifier' => $loginCode, 'password' => $newPassword])
+        ->assertOk()->assertJsonPath('data.user.id', $owner->id);
 });
 
 test('a clinic owner creates and manages a branch-scoped staff login without an email address', function () {

@@ -10,6 +10,7 @@ use App\Models\Doctor;
 use App\Models\Permission;
 use App\Models\Treatment;
 use App\Models\User;
+use App\Rules\AccountPassword;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -187,7 +188,7 @@ class ClinicBranchOperationsController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'login_code' => ['required', 'alpha_dash:ascii', 'min:3', 'max:50', 'not_regex:/\Aklinik-/', 'unique:users,login_code'],
-            'password' => ['required', 'string', 'min:8', 'regex:/\A[^\x00]{1,72}\z/s'],
+            'password' => ['bail', 'required', 'string', new AccountPassword],
         ], [
             'login_code.unique' => 'Bu kullanıcı kodu kullanımda.',
             'login_code.not_regex' => 'Personel kullanıcı kodu klinik- ile başlayamaz.',
@@ -210,7 +211,7 @@ class ClinicBranchOperationsController extends Controller
     public function resetStaffPassword(Request $request, Branch $branch, BusinessUser $businessUser): JsonResponse
     {
         abort_unless($businessUser->business_id === $branch->business_id && in_array($businessUser->role, ['staff', 'manager'], true), 404);
-        $validated = $request->validate(['password' => ['required', 'string', 'min:8', 'regex:/\A[^\x00]{1,72}\z/s']]);
+        $validated = $request->validate(['password' => ['bail', 'required', 'string', new AccountPassword]]);
 
         DB::transaction(function () use ($branch, $businessUser, $validated): void {
             $staff = User::query()->where('staff_business_id', $branch->business_id)->lockForUpdate()->findOrFail($businessUser->user_id);

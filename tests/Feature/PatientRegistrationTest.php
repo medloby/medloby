@@ -32,10 +32,13 @@ function validPatientRegistrationPayload(): array
     ];
 }
 
-test('can register a patient', function () {
+test('can register a patient', function (string $password) {
     $response = $this->postJson(
         '/api/register/patient',
-        validPatientRegistrationPayload()
+        array_replace(validPatientRegistrationPayload(), [
+            'password' => $password,
+            'password_confirmation' => $password,
+        ])
     );
 
     $response
@@ -77,7 +80,28 @@ test('can register a patient', function () {
             $user->id
         )->count()
     )->toBe(1);
-});
+})->with([
+    'typical password' => ['password123'],
+    'exactly 72 bytes' => [str_repeat('ş', 36)],
+]);
+
+test('patient registration rejects invalid passwords before creating an account', function (string $password) {
+    $payload = array_replace(validPatientRegistrationPayload(), [
+        'password' => $password,
+        'password_confirmation' => $password,
+    ]);
+
+    $this->postJson('/api/register/patient', $payload)
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('password');
+
+    $this->assertDatabaseMissing('users', ['email' => $payload['email']]);
+})->with([
+    'fewer than eight characters' => [str_repeat('ş', 7)],
+    'more than 72 ASCII bytes' => [str_repeat('a', 73)],
+    'more than 72 UTF-8 bytes' => [str_repeat('ş', 37)],
+    'null byte' => ["ornek\0sifre"],
+]);
 
 test('a registered patient can verify their account after the queue retries a failed email', function () {
     config(['queue.default' => 'database', 'mail.default' => 'array']);

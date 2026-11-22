@@ -10,6 +10,7 @@ use App\Models\PlatformContract;
 use App\Models\User;
 use App\Notifications\ClinicApplicationNotification;
 use App\Notifications\NotificationType;
+use App\Rules\AccountPassword;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,7 +18,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rules\Password;
 
 class BusinessRegistrationController extends Controller
 {
@@ -58,11 +58,7 @@ class BusinessRegistrationController extends Controller
         $validated = $request->validate([
             'owner_name' => ['required', 'string', 'max:255'],
             'owner_email' => ['required', 'email', 'max:255', 'unique:users,email'],
-            'password' => [
-                'required',
-                'confirmed',
-                Password::min(8),
-            ],
+            'password' => ['bail', 'required', 'string', 'confirmed', new AccountPassword],
 
             'business_name' => ['required', 'string', 'max:255'],
             'business_type' => ['nullable', 'string', 'max:50'],

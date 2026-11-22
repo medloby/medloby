@@ -4,12 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\PatientProfile;
 use App\Models\User;
+use App\Rules\AccountPassword;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rules\Password;
 
 class PatientRegistrationController extends Controller
 {
@@ -23,11 +23,7 @@ class PatientRegistrationController extends Controller
             'first_name' => ['required', 'string', 'max:100'],
             'last_name' => ['required', 'string', 'max:100'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
-            'password' => [
-                'required',
-                'confirmed',
-                Password::min(8),
-            ],
+            'password' => ['bail', 'required', 'string', 'confirmed', new AccountPassword],
             'phone' => ['nullable', 'string', 'max:30'],
             'birth_date' => ['nullable', 'date', 'before:today'],
             'gender' => ['nullable', 'string', 'max:30'],
