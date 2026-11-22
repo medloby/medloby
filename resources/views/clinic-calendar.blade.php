@@ -28,8 +28,9 @@
             <ul class="grid gap-2" data-calendar-blocks></ul>
         </section>
 
+        @include('clinic-calendar-settings')
+
         <fieldset class="grid min-w-0 gap-3" data-calendar-management hidden>
-            @include('clinic-calendar-settings')
             <details class="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
                 <summary class="cursor-pointer font-semibold">Açık ve kapalı günler</summary>
                 <form class="mt-4 flex flex-wrap items-end gap-3" data-calendar-rule-form>

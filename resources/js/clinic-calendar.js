@@ -402,7 +402,7 @@ export function mountClinicCalendar(panel, api, { openBookingDialog, openAppoint
                 path: '/branches/' + id + '/clinic-calendar', canManage, doctorId: '', edits: {}, request: 0,
                 loading: false, loaded: false, saving: false,
             } : null;
-            appointmentSettings.setBranch(scope?.canManage ? scope.path + '/appointment-settings' : null);
+            appointmentSettings.setBranch(scope ? scope.path + '/appointment-settings' : null);
             panel.open = false;
             panel.hidden = !scope;
             day.value = clinicToday();

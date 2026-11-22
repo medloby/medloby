@@ -1032,6 +1032,8 @@ Route::middleware(['auth:sanctum', 'verified', EnsureClinicCrmAccess::class, Ens
 Route::middleware(['auth:sanctum', 'verified', EnsureClinicCrmAccess::class])
     ->prefix('branches/{branch}/clinic-calendar')->group(function () {
         Route::get('/', [ClinicCalendarController::class, 'show']);
+        Route::get('/appointment-settings', [BranchAppointmentSettingController::class, 'show']);
+        Route::put('/appointment-settings', [BranchAppointmentSettingController::class, 'update']);
         Route::get('/appointment-options', [ClinicAppointmentController::class, 'options']);
         Route::get('/patients', [ClinicAppointmentController::class, 'patients']);
         Route::get('/package-offers', [ClinicAppointmentController::class, 'packages']);
@@ -1044,8 +1046,6 @@ Route::middleware(['auth:sanctum', 'verified', EnsureClinicCrmAccess::class])
         Route::post('/package-offers/{offer}/appointments', [AppointmentBookingController::class, 'storeForClinic']);
 
         Route::middleware(EnsureClinicBranchOperationsAccess::class)->group(function () {
-            Route::get('/appointment-settings', [BranchAppointmentSettingController::class, 'show']);
-            Route::put('/appointment-settings', [BranchAppointmentSettingController::class, 'update']);
             Route::get('/rules', [BookingCalendarController::class, 'show']);
             Route::put('/rules', [BookingCalendarController::class, 'updateRule']);
             Route::post('/overrides', [BookingCalendarController::class, 'createOverride']);

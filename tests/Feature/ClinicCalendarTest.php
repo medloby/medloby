@@ -109,17 +109,33 @@ test('the clinic owner can manage online booking settings from the branch calend
     $this->putJson($path, [...$settings, 'online_booking_enabled' => true])->assertOk()
         ->assertJsonPath('data.slot_interval_minutes', 45)->assertJsonPath('data.is_active', true);
     $this->assertDatabaseCount('branch_appointment_settings', 1);
+    $this->business->update(['status' => 'suspended']);
+    $this->putJson($path, $settings)->assertForbidden();
+});
 
+test('staff can change online booking settings only while assigned to that branch', function () {
     $staff = User::factory()->create();
     $membership = $this->business->memberships()->create([
         'user_id' => $staff->id, 'role' => 'staff', 'is_active' => true,
     ]);
     $membership->branches()->attach($this->branch->id, ['is_active' => true]);
-    $this->actingAs($staff, 'sanctum')->getJson($this->day)->assertOk();
+    $path = $this->calendar.'/appointment-settings';
+    $otherPath = $this->otherCalendar.'/appointment-settings';
+
+    $this->actingAs($staff, 'sanctum')->getJson($path)->assertOk()
+        ->assertJsonPath('data.settings.maximum_booking_days', 90);
+    $this->putJson($path, ['online_booking_enabled' => false, 'maximum_booking_days' => 21])->assertOk()
+        ->assertJsonPath('data.maximum_booking_days', 21);
+    $this->getJson($this->day)->assertOk()->assertJsonPath('data.online_booking_enabled', false);
+    $this->getJson($otherPath)->assertForbidden();
+    $this->putJson($otherPath, ['maximum_booking_days' => 30])->assertForbidden();
+    $this->putJson($this->calendar.'/rules', ['default_status' => 'closed'])->assertForbidden();
+    $this->assertDatabaseMissing('branch_appointment_settings', ['branch_id' => $this->otherBranch->id]);
+
+    $membership->branches()->updateExistingPivot($this->branch->id, ['is_active' => false]);
     $this->getJson($path)->assertForbidden();
-    $this->putJson($path, $settings)->assertForbidden();
-    $this->business->update(['status' => 'suspended']);
-    $this->actingAs($this->owner, 'sanctum')->putJson($path, $settings)->assertForbidden();
+    $this->putJson($path, ['maximum_booking_days' => 30])->assertForbidden();
+    $this->assertDatabaseHas('branch_appointment_settings', ['branch_id' => $this->branch->id, 'maximum_booking_days' => 21]);
 });
 
 test('calendar settings change booking availability and cannot be edited from another branch', function () {
