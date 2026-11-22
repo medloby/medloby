@@ -124,6 +124,13 @@ class DoctorWorkingHourController extends Controller
         ], 201);
     }
 
+    public function updateForBranch(Request $request, Branch $branch, DoctorWorkingHour $doctorWorkingHour): JsonResponse
+    {
+        abort_unless($doctorWorkingHour->branch_id === $branch->id, 404);
+
+        return $this->update($request, $doctorWorkingHour);
+    }
+
     /**
      * Mevcut çalışma saatini günceller.
      */
@@ -309,10 +316,11 @@ class DoctorWorkingHourController extends Controller
             );
         }
 
-        $doctorBelongsToBranch = $doctor->branches()
-            ->where('branches.id', $branch->id)
-            ->where('doctor_branch.status', 'active')
-            ->exists();
+        $doctorBelongsToBranch = $doctor->person()->where('business_id', $branch->business_id)->exists()
+            && $doctor->branches()
+                ->where('branches.id', $branch->id)
+                ->where('doctor_branch.status', 'active')
+                ->exists();
 
         if (! $doctorBelongsToBranch) {
             abort(

@@ -171,10 +171,11 @@ class DoctorLeaveController extends Controller
             }
         }
 
-        $doctorBelongsToBranch = $doctor->branches()
-            ->where('branches.id', $branch->id)
-            ->wherePivot('status', 'active')
-            ->exists();
+        $doctorBelongsToBranch = $doctor->person()->where('business_id', $branch->business_id)->exists()
+            && $doctor->branches()
+                ->where('branches.id', $branch->id)
+                ->wherePivot('status', 'active')
+                ->exists();
 
         if (!$doctorBelongsToBranch) {
             abort(422, 'Doctor is not assigned to this branch.');

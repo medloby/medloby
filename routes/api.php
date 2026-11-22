@@ -36,6 +36,8 @@ use App\Http\Controllers\ClinicApplicationStatusController;
 
 use App\Http\Controllers\ClinicBranchOperationsController;
 
+use App\Http\Controllers\ClinicCalendarController;
+
 use App\Http\Controllers\ClinicCrmWorkspaceController;
 
 use App\Http\Controllers\CrmLeadController;
@@ -1004,6 +1006,29 @@ Route::middleware(['auth:sanctum', 'verified', EnsureClinicCrmAccess::class, Ens
         Route::post('/doctors', 'addDoctor');
         Route::put('/doctors/{doctor}', 'updateDoctorBranch');
         Route::put('/doctors/{doctor}/treatments/{treatment}', 'updateDoctorTreatment');
+    });
+
+Route::middleware(['auth:sanctum', 'verified', EnsureClinicCrmAccess::class])
+    ->prefix('branches/{branch}/clinic-calendar')->group(function () {
+        Route::get('/', [ClinicCalendarController::class, 'show']);
+
+        Route::middleware(EnsureClinicBranchOperationsAccess::class)->group(function () {
+            Route::get('/rules', [BookingCalendarController::class, 'show']);
+            Route::put('/rules', [BookingCalendarController::class, 'updateRule']);
+            Route::post('/overrides', [BookingCalendarController::class, 'createOverride']);
+            Route::put('/overrides/{override}', [BookingCalendarController::class, 'updateOverride']);
+            Route::delete('/overrides/{override}', [BookingCalendarController::class, 'deactivateOverride']);
+            Route::post('/blocks', [CalendarBlockController::class, 'store']);
+            Route::put('/blocks/{calendarBlock}', [CalendarBlockController::class, 'update']);
+            Route::delete('/blocks/{calendarBlock}', [CalendarBlockController::class, 'deactivate']);
+            Route::get('/doctors/{doctor}/working-hours', [DoctorWorkingHourController::class, 'index']);
+            Route::post('/doctors/{doctor}/working-hours', [DoctorWorkingHourController::class, 'store']);
+            Route::put('/working-hours/{doctorWorkingHour}', [DoctorWorkingHourController::class, 'updateForBranch']);
+            Route::get('/doctors/{doctor}/leaves', [DoctorLeaveController::class, 'index']);
+            Route::post('/doctors/{doctor}/leaves', [DoctorLeaveController::class, 'store']);
+            Route::put('/doctors/{doctor}/leaves/{doctorLeave}', [DoctorLeaveController::class, 'update']);
+            Route::delete('/doctors/{doctor}/leaves/{doctorLeave}', [DoctorLeaveController::class, 'deactivate']);
+        });
     });
 
 Route::middleware(['auth:sanctum', 'verified', EnsureClinicCrmAccess::class])

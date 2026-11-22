@@ -34,6 +34,7 @@
     </div>
 
     @include('clinic-operations')
+    @include('clinic-calendar')
     @include('crm-leads')
 
     <template data-crm-metric>

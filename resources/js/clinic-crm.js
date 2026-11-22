@@ -1,5 +1,6 @@
 import { mountCrmLeads } from './crm-leads';
 import { mountClinicOperations } from './clinic-operations';
+import { mountClinicCalendar } from './clinic-calendar';
 
 const metricLabels = {
     total_leads: 'Toplam hasta adayı',
@@ -26,6 +27,7 @@ export function mountClinicCrm(section, api) {
     const stageStatus = find('stage-status');
     const leads = mountCrmLeads(find('leads'), { api, onChanged: refreshDashboard });
     const operations = mountClinicOperations(find('operations'), api);
+    const calendar = mountClinicCalendar(find('calendar'), api);
     let businessId = null;
     let canManageOperations = false;
     let request = 0;
@@ -63,6 +65,7 @@ export function mountClinicCrm(section, api) {
     function setBranchPanels(id) {
         leads.setBranch(id);
         operations.setBranch(canManageOperations ? id : null);
+        calendar.setBranch(id, canManageOperations);
     }
 
     async function loadDashboard(branchId, pending) {

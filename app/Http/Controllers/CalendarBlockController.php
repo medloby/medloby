@@ -217,10 +217,11 @@ class CalendarBlockController extends Controller
         Doctor $doctor,
         Branch $branch
     ): void {
-        $belongsToBranch = $doctor->branches()
-            ->where('branches.id', $branch->id)
-            ->wherePivot('status', 'active')
-            ->exists();
+        $belongsToBranch = $doctor->person()->where('business_id', $branch->business_id)->exists()
+            && $doctor->branches()
+                ->where('branches.id', $branch->id)
+                ->wherePivot('status', 'active')
+                ->exists();
 
         if (!$belongsToBranch) {
             abort(422, 'Doctor is not assigned to this branch.');
