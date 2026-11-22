@@ -11,20 +11,22 @@ uses(RefreshDatabase::class);
 beforeEach(function () {
     $this->business = Business::create([
         'name' => 'Test Klinik',
-        'slug' => 'test-klinik-' . uniqid(),
+        'slug' => 'test-klinik-'.uniqid(),
+        'status' => 'active',
+        'is_verified' => true,
     ]);
 
     $this->branch = Branch::create([
         'business_id' => $this->business->id,
         'name' => 'Merkez Şube',
-        'slug' => 'merkez-sube-' . uniqid(),
+        'slug' => 'merkez-sube-'.uniqid(),
         'status' => 'active',
     ]);
 
     $this->otherBranch = Branch::create([
         'business_id' => $this->business->id,
         'name' => 'İkinci Şube',
-        'slug' => 'ikinci-sube-' . uniqid(),
+        'slug' => 'ikinci-sube-'.uniqid(),
         'status' => 'active',
     ]);
 
@@ -537,4 +539,39 @@ test('can add tiktok account to branch', function () {
             'data.profile_url',
             'https://tiktok.com/@testklinik'
         );
+});
+
+test('authorized branch staff can manage drafts and publish links only for their delegated branch', function () {
+    $staff = User::factory()->create();
+    $member = $this->business->memberships()->create(['user_id' => $staff->id, 'role' => 'staff', 'is_active' => true]);
+    $member->branches()->attach($this->branch, ['permission_names' => ['branches.manage']]);
+    $member->branches()->attach($this->otherBranch);
+    $this->branch->update(['phone' => '+90 312 555 01 02', 'email' => 'private@example.test']);
+    $manage = "/api/branches/{$this->branch->id}/operations/social-media";
+    $other = "/api/branches/{$this->otherBranch->id}/operations/social-media";
+    $public = "/api/branches/{$this->branch->id}/social-media";
+
+    $this->getJson($manage)->assertUnauthorized();
+    $client = $this->actingAs($staff, 'sanctum');
+    $payload = ['platform' => 'Instagram', 'profile_url' => 'https://example.test/prova', 'is_active' => false];
+    $client->postJson($manage, [...$payload, 'profile_url' => 'ftp://example.test/profile'])
+        ->assertUnprocessable()->assertJsonValidationErrors('profile_url');
+    $id = $client->postJson($manage, $payload)->assertCreated()->assertJsonPath('data.is_active', false)->json('data.id');
+    $client->getJson($manage)->assertOk()->assertHeader('Cache-Control', 'no-store, private')
+        ->assertJsonPath('data.0.id', $id)->assertJsonPath('data.0.is_active', false);
+    $client->getJson($other)->assertForbidden();
+    $client->postJson($other, $payload)->assertForbidden();
+    $client->getJson($public)->assertOk()->assertJsonCount(0, 'data');
+    $client->getJson($public.'/'.$id)->assertNotFound();
+
+    $client->putJson($manage.'/'.$id, ['is_active' => true])->assertOk()->assertJsonPath('data.is_active', true);
+    $client->getJson($public.'/'.$id)->assertOk()->assertJsonPath('data.branch.id', $this->branch->id)
+        ->assertJsonMissingPath('data.branch.phone')->assertJsonMissingPath('data.branch.email');
+    $client->deleteJson($manage.'/'.$id)->assertOk()->assertJsonPath('data.is_active', false);
+    $client->getJson($public.'/'.$id)->assertNotFound();
+    $client->putJson($manage.'/'.$id, ['is_active' => true])->assertOk();
+    $this->business->update(['status' => 'suspended']);
+    $client->getJson($public)->assertOk()->assertJsonCount(0, 'data');
+    $client->getJson($public.'/'.$id)->assertNotFound();
+    $client->getJson($manage)->assertForbidden();
 });

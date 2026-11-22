@@ -6,6 +6,7 @@ use App\Models\Appointment;
 use App\Models\Branch;
 use App\Models\Business;
 use App\Models\Doctor;
+use App\Models\SocialMediaAccount;
 use App\Models\Treatment;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
@@ -55,6 +56,8 @@ class ClinicDirectoryController extends Controller
         $today = Appointment::clinicLocalNow()->toDateString();
         $branches = $clinic->branches()->where('status', 'active')
             ->with([
+                'socialMediaAccounts' => fn (HasMany $accounts) => $accounts->where('is_active', true)
+                    ->orderBy('id')->select('id', 'branch_id', 'platform', 'page_name', 'profile_url'),
                 'treatments' => fn (BelongsToMany $treatments) => $treatments->wherePivot('is_active', true)
                     ->where('treatments.is_active', true)->orderBy('treatments.name')->select('treatments.id', 'treatments.name'),
                 'doctors' => fn (BelongsToMany $doctors) => $doctors->wherePivot('status', 'active')
@@ -69,9 +72,11 @@ class ClinicDirectoryController extends Controller
             ->orderBy('name')->orderBy('id')->get(['id', 'name', 'city', 'district', 'address']);
         $bookable = $clinic->branches()->bookableOnline()->pluck('branches.id');
         $roster = $branches->mapWithKeys(fn (Branch $branch): array => [$branch->id => $this->doctorList($branch, $bookable->contains($branch->id))]);
+        $socialLinks = $branches->mapWithKeys(fn (Branch $branch): array => [$branch->id => $branch->socialMediaAccounts
+            ->filter(fn (SocialMediaAccount $account) => $account->hasWebProfile())]);
         $hasPackages = $clinic->treatmentPackages()->availableForEnquiries()->exists();
 
-        return view('clinic-directory.show', compact('clinic', 'branches', 'bookable', 'roster', 'hasPackages'));
+        return view('clinic-directory.show', compact('clinic', 'branches', 'bookable', 'roster', 'socialLinks', 'hasPackages'));
     }
 
     /** @return Collection<int, array{id: int, name: string, specialty: ?string, treatments: string, bookable: bool}> */

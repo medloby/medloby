@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Str;
 
 class SocialMediaAccount extends Model
 {
@@ -23,6 +24,11 @@ class SocialMediaAccount extends Model
             'is_active' => 'boolean',
             'sort_order' => 'integer',
         ];
+    }
+
+    public function hasWebProfile(): bool
+    {
+        return Str::isUrl($this->profile_url, ['http', 'https']);
     }
 
     public function branch(): BelongsTo

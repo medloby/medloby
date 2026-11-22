@@ -1043,6 +1043,10 @@ Route::middleware(['auth:sanctum', 'verified', EnsureClinicCrmAccess::class])
             Route::get('/', 'index');
             Route::post('/treatments', [BranchTreatmentController::class, 'store']);
             Route::put('/treatments/{treatment}', [BranchTreatmentController::class, 'update']);
+            Route::get('/social-media', [SocialMediaAccountController::class, 'manage']);
+            Route::post('/social-media', [SocialMediaAccountController::class, 'store']);
+            Route::put('/social-media/{socialMediaAccount}', [SocialMediaAccountController::class, 'update']);
+            Route::delete('/social-media/{socialMediaAccount}', [SocialMediaAccountController::class, 'deactivate']);
         });
 
         Route::middleware(EnsureClinicBranchOperationsAccess::class)->group(function () {

@@ -11,6 +11,28 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
+test('the public clinic page links only to published web profiles of active branches', function () {
+    $clinic = Business::factory()->create();
+    $branch = Branch::factory()->for($clinic)->create(['name' => 'Merkez']);
+    $inactiveBranch = Branch::factory()->for($clinic)->create(['status' => 'inactive']);
+    $branch->socialMediaAccounts()->create([
+        'platform' => 'instagram', 'page_name' => 'Merkez Instagram', 'profile_url' => 'https://example.test/merkez',
+    ]);
+    $branch->socialMediaAccounts()->create([
+        'platform' => 'facebook', 'page_name' => 'Pasif bağlantı', 'profile_url' => 'https://example.test/pasif', 'is_active' => false,
+    ]);
+    $branch->socialMediaAccounts()->create([
+        'platform' => 'legacy', 'page_name' => 'Eski kayıt', 'profile_url' => 'ftp://example.test/eski',
+    ]);
+    $inactiveBranch->socialMediaAccounts()->create([
+        'platform' => 'instagram', 'page_name' => 'Pasif şube bağlantısı', 'profile_url' => 'https://example.test/pasif-sube',
+    ]);
+
+    $this->get(route('clinics.show', $clinic->slug))->assertOk()
+        ->assertSeeText('Merkez Instagram')->assertSee('https://example.test/merkez')->assertSee('ugc noopener noreferrer')
+        ->assertDontSeeText('Pasif bağlantı')->assertDontSeeText('Eski kayıt')->assertDontSeeText('Pasif şube bağlantısı');
+});
+
 test('guests can search the home page by clinic or branch name and location', function () {
     $clinic = Business::factory()->create(['name' => 'Medloby Örnek Klinik']);
     $primary = Branch::factory()->for($clinic)->create(['name' => 'Merkez Şubesi', 'city' => 'İstanbul', 'district' => 'Kadıköy']);

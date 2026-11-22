@@ -67,6 +67,18 @@
                                     </ul>
                                 </div>
                             @endif
+                            @if ($socialLinks[$branch->id]->isNotEmpty())
+                                <div class="grid gap-2">
+                                    <h4 class="text-sm font-semibold">Sosyal medya</h4>
+                                    <ul class="flex min-w-0 flex-wrap gap-x-4 gap-y-2 text-sm">
+                                        @foreach ($socialLinks[$branch->id] as $account)
+                                            <li class="min-w-0 break-words">
+                                                <a href="{{ $account->profile_url }}" target="_blank" rel="ugc noopener noreferrer" class="font-semibold text-teal-800 underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-4 dark:text-teal-300">{{ $account->page_name ?: ucfirst($account->platform) }}</a>
+                                            </li>
+                                        @endforeach
+                                    </ul>
+                                </div>
+                            @endif
                             @if ($bookable->contains($branch->id))
                                 <a href="{{ route('package-offers') }}#randevu-al/{{ $branch->id }}" aria-label="{{ $branch->name }} için randevu al" class="offer-button justify-self-start">Randevu al</a>
                             @else
