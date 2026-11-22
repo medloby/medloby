@@ -1,4 +1,5 @@
 import { mountCrmLeads } from './crm-leads';
+import { mountClinicOperations } from './clinic-operations';
 
 const metricLabels = {
     total_leads: 'Toplam hasta adayı',
@@ -24,7 +25,9 @@ export function mountClinicCrm(section, api) {
     const stageFields = stageForm.querySelector('fieldset');
     const stageStatus = find('stage-status');
     const leads = mountCrmLeads(find('leads'), { api, onChanged: refreshDashboard });
+    const operations = mountClinicOperations(find('operations'), api);
     let businessId = null;
+    let canManageOperations = false;
     let request = 0;
     let stageRequest = 0;
 
@@ -57,6 +60,11 @@ export function mountClinicCrm(section, api) {
         refresh.disabled = loading;
     }
 
+    function setBranchPanels(id) {
+        leads.setBranch(id);
+        operations.setBranch(canManageOperations ? id : null);
+    }
+
     async function loadDashboard(branchId, pending) {
         clearSummary();
         showStatus('CRM özeti yükleniyor…');
@@ -87,7 +95,7 @@ export function mountClinicCrm(section, api) {
     async function loadBusiness(preferredBranch = '') {
         const pending = ++request;
         resetStageEditor();
-        leads.setBranch(null);
+        setBranchPanels(null);
         clearSummary();
         title.textContent = '';
         branchField.hidden = true;
@@ -102,6 +110,8 @@ export function mountClinicCrm(section, api) {
             }
 
             title.textContent = clinic.name;
+            canManageOperations = clinic.can_manage_operations;
+            find('return').textContent = canManageOperations ? 'Başvurulara dön' : 'Çalışma alanına dön';
             const branches = clinic.branches;
             if (!branches.length) {
                 showStatus('Bu klinikte aktif şube bulunmuyor.');
@@ -113,7 +123,7 @@ export function mountClinicCrm(section, api) {
                 ? preferredBranch
                 : String(branches[0].id);
             branchField.hidden = false;
-            leads.setBranch(branch.value);
+            setBranchPanels(branch.value);
             await loadDashboard(branch.value, pending);
         } catch (error) {
             if (pending === request) {
@@ -145,7 +155,7 @@ export function mountClinicCrm(section, api) {
     refresh.addEventListener('click', () => loadBusiness(branch.value));
     branch.addEventListener('change', () => {
         resetStageEditor();
-        leads.setBranch(branch.value);
+        setBranchPanels(branch.value);
         refreshDashboard();
     });
 
@@ -193,7 +203,7 @@ export function mountClinicCrm(section, api) {
             } else {
                 request++;
                 resetStageEditor();
-                leads.setBranch(null);
+                setBranchPanels(null);
                 clearSummary();
                 title.textContent = '';
                 branch.replaceChildren();

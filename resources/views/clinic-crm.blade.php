@@ -2,7 +2,7 @@
     <div class="flex flex-wrap items-center justify-between gap-3">
         <h2 id="clinic-crm-name" class="min-w-0 break-words text-xl font-semibold"></h2>
         <div class="flex flex-wrap gap-2">
-            <a href="#gorusmeler" class="offer-button offer-button-secondary">Başvurulara dön</a>
+            <a href="#gorusmeler" class="offer-button offer-button-secondary" data-crm-return>Başvurulara dön</a>
             <button type="button" class="offer-button offer-button-secondary" data-crm-refresh>Yenile</button>
         </div>
     </div>
@@ -33,6 +33,7 @@
         </section>
     </div>
 
+    @include('clinic-operations')
     @include('crm-leads')
 
     <template data-crm-metric>

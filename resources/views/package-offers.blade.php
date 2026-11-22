@@ -37,6 +37,10 @@
                 <h1 id="page-title" class="text-3xl font-semibold tracking-tight sm:text-4xl">Paket teklifleri</h1>
                 <p id="page-message" class="mt-4 max-w-2xl text-sm text-slate-700 dark:text-slate-200" role="status" hidden></p>
                 @include('clinic-applications')
+                <section id="staff-crm" class="mt-5 grid gap-3" aria-labelledby="staff-crm-title" hidden>
+                    <h2 id="staff-crm-title" class="text-lg font-semibold">Personel çalışma alanları</h2>
+                    <ul id="staff-crm-list" class="flex flex-wrap gap-2"></ul>
+                </section>
                 @include('clinic-crm')
 
                 @include('package-discovery')

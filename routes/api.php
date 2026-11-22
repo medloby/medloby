@@ -34,6 +34,8 @@ use App\Http\Controllers\CalendarBlockController;
 
 use App\Http\Controllers\ClinicApplicationStatusController;
 
+use App\Http\Controllers\ClinicBranchOperationsController;
+
 use App\Http\Controllers\ClinicCrmWorkspaceController;
 
 use App\Http\Controllers\CrmLeadController;
@@ -91,6 +93,8 @@ use App\Http\Controllers\PatientRegistrationController;
 use App\Http\Controllers\NotificationController;
 
 use App\Http\Middleware\EnsureBranchCatalogManagementAccess;
+
+use App\Http\Middleware\EnsureClinicBranchOperationsAccess;
 
 use App\Http\Middleware\EnsureClinicCrmAccess;
 
@@ -151,6 +155,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('verified')->group(function () {
 
         Route::get('/clinic-applications', ClinicApplicationStatusController::class);
+        Route::get('/clinic-crm/staff-workspaces', [ClinicCrmWorkspaceController::class, 'staffIndex']);
         Route::get('/businesses/{business}/crm', ClinicCrmWorkspaceController::class);
 
         /*
@@ -987,6 +992,19 @@ Route::controller(SocialMediaAccountController::class)->prefix('branches/{branch
         Route::delete('/{socialMediaAccount}', 'deactivate');
     });
 });
+
+Route::middleware(['auth:sanctum', 'verified', EnsureClinicCrmAccess::class, EnsureClinicBranchOperationsAccess::class])
+    ->controller(ClinicBranchOperationsController::class)
+    ->prefix('branches/{branch}/operations')->group(function () {
+        Route::get('/', 'index');
+        Route::post('/staff', 'addStaff');
+        Route::put('/staff/{businessUser}', 'updateStaff');
+        Route::post('/treatments', [BranchTreatmentController::class, 'store']);
+        Route::put('/treatments/{treatment}', [BranchTreatmentController::class, 'update']);
+        Route::post('/doctors', 'addDoctor');
+        Route::put('/doctors/{doctor}', 'updateDoctorBranch');
+        Route::put('/doctors/{doctor}/treatments/{treatment}', 'updateDoctorTreatment');
+    });
 
 Route::middleware(['auth:sanctum', 'verified', EnsureClinicCrmAccess::class])
     ->prefix('branches/{branch}/crm')

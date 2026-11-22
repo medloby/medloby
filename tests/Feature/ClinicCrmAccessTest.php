@@ -61,6 +61,7 @@ test('a registered owner stays out of crm until verification and clinic approval
         'data' => [
             'name' => 'CRM Test Kliniği',
             'branches' => [['id' => $branchId, 'name' => 'Merkez Şube']],
+            'can_manage_operations' => true,
         ],
     ]);
     $client->getJson("{$branchCrm}/dashboard")->assertOk()->assertJsonPath('data.summary.total_leads', 0);

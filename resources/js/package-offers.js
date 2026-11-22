@@ -154,6 +154,7 @@ export function mountPackageOffers(root) {
 
     let token;
     let user;
+    let staffCrmIds = new Set();
     let conversation;
     let pendingPackage = restorePackageChoice();
     let currentPage = 1;
@@ -221,7 +222,7 @@ export function mountPackageOffers(root) {
         const openingCatalogue = browsing && discoverySection.hidden;
         const verified = Boolean(user?.email_verified_at);
         const crmBusiness = /^#klinik-crm\/([1-9][0-9]*)$/.exec(window.location.hash)?.[1];
-        const inCrm = verified && clinicApplications.canOpenCrm(crmBusiness);
+        const inCrm = verified && (clinicApplications.canOpenCrm(crmBusiness) || staffCrmIds.has(crmBusiness));
 
         discoverySection.hidden = !browsing;
         get('page-title').textContent = inCrm ? 'Klinik CRM' : (browsing ? 'Tedavi paketleri' : 'Paket teklifleri');
@@ -234,6 +235,7 @@ export function mountPackageOffers(root) {
         get('workspace').hidden = browsing || inCrm || !verified;
 
         clinicApplications.setVisible(!browsing && !inCrm && Boolean(user));
+        get('staff-crm').hidden = browsing || inCrm || !verified || staffCrmIds.size === 0;
         clinicCrm.setBusiness(inCrm ? crmBusiness : null);
 
         if (openingCatalogue) {
@@ -349,6 +351,8 @@ export function mountPackageOffers(root) {
         clinicReview.stop();
         clinicContracts.stop();
         clinicApplications.stop();
+        staffCrmIds.clear();
+        get('staff-crm-list').replaceChildren();
         catalogButton.hidden = true;
         appointmentForm.reset();
         offerForm.reset();
@@ -779,11 +783,39 @@ export function mountPackageOffers(root) {
         });
     }
 
+    async function loadStaffCrm() {
+        const currentToken = token;
+        if (!user.business_memberships.some((member) => member.is_active && ['manager', 'staff'].includes(member.role))) {
+            return;
+        }
+
+        try {
+            const clinics = await api('/clinic-crm/staff-workspaces');
+            if (currentToken !== token) {
+                return;
+            }
+            staffCrmIds = new Set(clinics.map((clinic) => String(clinic.id)));
+            get('staff-crm-list').replaceChildren(...clinics.map((clinic) => {
+                const row = document.createElement('li');
+                const link = element('a', clinic.name + ' CRM', 'offer-button offer-button-secondary');
+                link.href = '#klinik-crm/' + clinic.id;
+                row.append(link);
+                return row;
+            }));
+            syncPage();
+        } catch (error) {
+            if (currentToken === token) {
+                showStatus(notice, error.message);
+            }
+        }
+    }
+
     async function openVerifiedWorkspace() {
         const businesses = ownedBusinesses();
         catalogButton.hidden = businesses.length === 0;
         notifications.start(businesses);
         clinicApplications.setAccount(businesses, true);
+        loadStaffCrm();
         if (user.is_admin) {
             clinicReview.start();
             clinicContracts.start();
