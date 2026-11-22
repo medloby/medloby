@@ -68,6 +68,7 @@ test('a clinic cannot modify staff from another clinic or reactivate a suspended
 
     $this->actingAs($this->owner, 'sanctum')
         ->putJson($this->operations.'/staff/'.$foreign->id, ['is_active' => true])->assertNotFound();
+    $this->putJson($this->operations.'/staff/'.$foreign->id.'/permissions', ['permissions' => ['appointments.create']])->assertNotFound();
     $this->postJson($this->operations.'/staff', ['email' => $inactive->user->email])->assertUnprocessable();
     expect($inactive->fresh()->is_active)->toBeFalse();
     $this->business->update(['status' => 'suspended']);

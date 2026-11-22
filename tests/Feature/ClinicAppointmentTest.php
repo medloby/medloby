@@ -54,6 +54,76 @@ function clinicAppointmentFixture(): array
     return [$business, $owner, $branch, $other, $doctor, $treatment, $calendar, $otherCalendar];
 }
 
+test('owner delegated appointment and price permissions apply only to the selected branch', function () {
+    Notification::fake();
+    [$business, $owner, $branch, $other, $doctor, $treatment, $calendar, $otherCalendar] = clinicAppointmentFixture();
+    $staff = User::factory()->create();
+    $member = $business->memberships()->create(['user_id' => $staff->id, 'role' => 'staff', 'is_active' => true]);
+    $member->branches()->attach([$branch->id, $other->id]);
+    $staffPath = "/api/branches/{$branch->id}/operations/staff/{$member->id}";
+    $permissions = ['appointments.create', 'appointments.confirm', 'branches.manage'];
+    $date = '?date=2026-12-04';
+
+    $this->actingAs($staff, 'sanctum')->getJson($calendar.$date)->assertOk()->assertJsonPath('data.can_create_appointments', false);
+    $this->putJson($staffPath.'/permissions', ['permissions' => $permissions])->assertForbidden();
+
+    $this->actingAs($owner, 'sanctum')->putJson($staffPath.'/permissions', ['permissions' => ['appointments.unknown']])
+        ->assertUnprocessable()->assertJsonValidationErrors('permissions.0');
+    $this->putJson($staffPath.'/permissions', ['permissions' => $permissions])->assertOk();
+    $this->getJson("/api/branches/{$branch->id}/operations")->assertOk()->assertJsonPath('data.staff.0.branch_permissions', $permissions);
+    $this->getJson("/api/branches/{$other->id}/operations")->assertOk()->assertJsonPath('data.staff.0.branch_permissions', []);
+
+    $visit = $branch->appointments()->create(['business_id' => $business->id, 'doctor_id' => $doctor->id,
+        'treatment_id' => $treatment->id, 'status' => 'pending', 'starts_at' => '2026-12-04 09:00:00', 'ends_at' => '2026-12-04 09:30:00']);
+    $this->actingAs($staff, 'sanctum')->getJson($calendar.$date)->assertOk()->assertJsonPath('data.can_create_appointments', true)
+        ->assertJsonPath('data.appointments.0.actions', ['confirm']);
+    $this->getJson($otherCalendar.$date)->assertOk()->assertJsonPath('data.can_create_appointments', false);
+    $this->postJson($calendar.'/appointments/'.$visit->id.'/confirm')->assertOk()->assertJsonPath('data.status', 'confirmed');
+
+    $price = ['business_id' => $business->id, 'treatment_id' => $treatment->id, 'price_type' => 'fixed', 'price' => 800, 'currency' => 'TRY'];
+    $this->postJson('/api/treatment-prices', $price + ['branch_id' => $branch->id])->assertCreated();
+    $this->postJson('/api/treatment-prices', $price + ['branch_id' => $other->id])->assertForbidden();
+    $this->postJson('/api/treatment-prices', $price)->assertForbidden();
+    $branch->update(['status' => 'inactive']);
+    $this->postJson('/api/treatment-prices', $price + ['branch_id' => $branch->id])->assertForbidden();
+    $branch->update(['status' => 'active']);
+
+    $this->actingAs($owner, 'sanctum')->putJson($staffPath.'/permissions', ['permissions' => []])->assertOk();
+    $this->actingAs($staff, 'sanctum')->getJson($calendar.$date)->assertOk()->assertJsonPath('data.can_create_appointments', false);
+
+    $this->actingAs($owner, 'sanctum')->putJson($staffPath.'/permissions', ['permissions' => $permissions])->assertOk();
+    $this->putJson($staffPath, ['is_active' => false])->assertOk();
+    $this->putJson($staffPath.'/permissions', ['permissions' => $permissions])->assertForbidden();
+    $this->putJson($staffPath, ['is_active' => true])->assertOk();
+    $this->actingAs($staff, 'sanctum')->getJson($calendar.$date)->assertOk()->assertJsonPath('data.can_create_appointments', false);
+});
+
+test('platform permissions remain authoritative over branch delegation', function () {
+    [$business, $owner, $branch, , , , $calendar] = clinicAppointmentFixture();
+    $staff = User::factory()->create();
+    $member = $business->memberships()->create(['user_id' => $staff->id, 'role' => 'manager', 'is_active' => true]);
+    $member->branches()->attach($branch);
+    $permission = Permission::create(['name' => 'appointments.create', 'display_name' => 'Randevu oluşturma', 'module' => 'appointments']);
+    $otherPermission = Permission::create(['name' => 'appointments.confirm', 'display_name' => 'Randevu onaylama', 'module' => 'appointments']);
+    $owner->permissions()->attach($otherPermission, ['business_id' => $business->id, 'is_allowed' => false]);
+    $operations = "/api/branches/{$branch->id}/operations";
+    $path = $operations.'/staff/'.$member->id.'/permissions';
+
+    $this->actingAs($owner, 'sanctum')->putJson($path, ['permissions' => ['appointments.confirm']])->assertForbidden();
+    $this->putJson($path, ['permissions' => ['appointments.create']])->assertOk();
+    $permission->update(['is_active' => false]);
+    $this->actingAs($staff, 'sanctum')->getJson($calendar.'?date=2026-12-04')->assertOk()
+        ->assertJsonPath('data.can_create_appointments', false);
+    $permission->update(['is_active' => true]);
+    $staff->permissions()->attach($permission, ['business_id' => $business->id, 'is_allowed' => false]);
+    $this->actingAs($owner, 'sanctum');
+    $this->getJson($operations)->assertOk()->assertJsonPath('data.staff.0.platform_permissions', ['appointments.create' => false]);
+    $this->actingAs($staff, 'sanctum')->getJson($calendar.'?date=2026-12-04')->assertOk()
+        ->assertJsonPath('data.can_create_appointments', false);
+    $this->actingAs($owner, 'sanctum')->putJson($path, ['permissions' => []])->assertOk();
+    $this->putJson($path, ['permissions' => ['appointments.create']])->assertForbidden();
+});
+
 test('a verified patient can book a standalone visit through the online branch and doctor selection', function () {
     $this->travelTo(Carbon::parse('2026-12-01 00:00:00', 'UTC'));
     Mail::fake();

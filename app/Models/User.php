@@ -148,6 +148,16 @@ class User extends Authenticatable implements MustVerifyEmail
 
     public function allowedClinicAppointmentPermissions(Branch $branch, array $permissions): array
     {
+        return $this->allowedBranchPermissions($branch, $permissions, ownerDefault: true);
+    }
+
+    public function canManageBranchCatalog(Branch $branch): bool
+    {
+        return $this->allowedBranchPermissions($branch, ['branches.manage'], ownerDefault: false) !== [];
+    }
+
+    private function allowedBranchPermissions(Branch $branch, array $permissions, bool $ownerDefault): array
+    {
         $membership = $this->membershipForBranch($branch);
         if (! $membership) {
             return [];
@@ -158,12 +168,20 @@ class User extends Authenticatable implements MustVerifyEmail
             ->wherePivot('business_id', $branch->business_id)
             ->get()->keyBy('name');
 
-        return array_filter($permissions, function (string $permission) use ($grants, $membership): bool {
+        $isOwner = $membership->role === 'business_owner';
+        $delegated = $isOwner ? [] : ($membership->branches()->whereKey($branch->id)->wherePivot('is_active', true)
+            ->first(['branches.id'])?->pivot->permission_names ?? []);
+        if ($delegated !== []) {
+            $disabled = Permission::query()->whereIn('name', $delegated)->where('is_active', false)->pluck('name')->all();
+            $delegated = $branch->status === 'active' && $branch->business?->allowsCrmAccess() ? array_diff($delegated, $disabled) : [];
+        }
+
+        return array_filter($permissions, function (string $permission) use ($grants, $delegated, $ownerDefault, $isOwner): bool {
             $grant = $grants->get($permission);
 
             return $grant
                 ? $grant->is_active && (bool) $grant->pivot->is_allowed
-                : $membership->role === 'business_owner';
+                : ($isOwner && $ownerDefault) || in_array($permission, $delegated, true);
         });
     }
 

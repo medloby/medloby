@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Branch;
 use App\Models\User;
 
 class CatalogManagementAccess
@@ -22,8 +23,8 @@ class CatalogManagementAccess
                 ->exists();
 
         if (! $allowed && $businessId !== null && $branchId !== null) {
-            $allowed = $user->hasBusinessBranchAccess($businessId, $branchId)
-                && $user->hasBusinessPermission($businessId, 'branches.manage');
+            $branch = Branch::query()->where('business_id', $businessId)->find($branchId);
+            $allowed = $branch !== null && $user->canManageBranchCatalog($branch);
         }
 
         return $allowed;

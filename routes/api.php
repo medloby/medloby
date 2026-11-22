@@ -1040,6 +1040,7 @@ Route::middleware(['auth:sanctum', 'verified', EnsureClinicCrmAccess::class, Ens
         Route::post('/staff', 'addStaff');
         Route::post('/staff/accounts', 'createStaffAccount');
         Route::put('/staff/{businessUser}', 'updateStaff');
+        Route::put('/staff/{businessUser}/permissions', 'updateStaffPermissions');
         Route::put('/staff/{businessUser}/password', 'resetStaffPassword');
         Route::post('/treatments', [BranchTreatmentController::class, 'store']);
         Route::put('/treatments/{treatment}', [BranchTreatmentController::class, 'update']);

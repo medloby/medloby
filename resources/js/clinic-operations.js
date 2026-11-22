@@ -39,6 +39,36 @@ export function mountClinicOperations(panel, api) {
         return item;
     }
 
+    function staffPermissions(current, member) {
+        const details = find('staff-permissions').content.firstElementChild.cloneNode(true);
+        const form = details.querySelector('form');
+        const fields = find('permission-items', details);
+        const path = current.operations + '/staff/' + member.id + '/permissions';
+
+        for (const option of current.data.branch_permission_options) {
+            const item = find('permission-item').content.firstElementChild.cloneNode(true);
+            const input = item.querySelector('input');
+            const platform = member.platform_permissions[option.name];
+            const assigned = member.branch_permissions.includes(option.name);
+            input.value = option.name;
+            input.checked = platform ?? assigned;
+            input.disabled = platform !== undefined || (!option.can_grant && !assigned);
+            const label = item.querySelector('span');
+            label.textContent = option.label;
+            if (platform !== undefined) {
+                label.textContent += platform ? ' · Platform izni' : ' · Platform kısıtı';
+            }
+            fields.append(item);
+        }
+
+        form.addEventListener('submit', (event) => {
+            event.preventDefault();
+            const permissions = new FormData(form).getAll('permissions');
+            write(current, path, { permissions }, 'PUT', 'Personelin şube işlem izinleri kaydedildi.');
+        });
+        return details;
+    }
+
     function selectedDoctor(current) {
         return current.data.doctors.find((item) => String(item.id) === current.doctorId);
     }
@@ -84,6 +114,9 @@ export function mountClinicOperations(panel, api) {
             const entry = row(member.name, [member.login_code ?? member.email, member.is_active ? '' : 'Pasif üyelik', access].filter(Boolean).join(' · '),
                 action(label, () => write(current, current.operations + '/staff/' + member.id,
                     { is_active: !member.branch_access }, 'PUT', 'Şube yetkisi kaydedildi.'), !member.branch_access && !member.can_assign));
+            if (member.branch_access && member.can_assign) {
+                entry.firstElementChild.append(staffPermissions(current, member));
+            }
             if (member.can_reset_password) {
                 const passwordPanel = find('staff-password').content.firstElementChild.cloneNode(true);
                 const form = passwordPanel.querySelector('form');

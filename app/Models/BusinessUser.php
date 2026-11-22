@@ -10,6 +10,16 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class BusinessUser extends Model
 {
+    public const array BRANCH_PERMISSION_LABELS = [
+        'appointments.create' => 'Randevu oluşturma',
+        'appointments.confirm' => 'Randevu onaylama',
+        'appointments.cancel' => 'Randevu iptal etme',
+        'appointments.reschedule' => 'Randevu tarihini değiştirme',
+        'appointments.complete' => 'Randevuyu tamamlama',
+        'appointments.mark_no_show' => 'Hasta gelmedi olarak işaretleme',
+        'branches.manage' => 'Şube kataloğu ve fiyatlarını düzenleme',
+    ];
+
     protected $table = 'business_user';
 
     protected $fillable = [
@@ -54,8 +64,10 @@ class BusinessUser extends Model
             'business_user_id',
             'branch_id'
         )
+            ->using(BusinessUserBranch::class)
             ->withPivot([
                 'is_active',
+                'permission_names',
             ])
             ->withTimestamps();
     }

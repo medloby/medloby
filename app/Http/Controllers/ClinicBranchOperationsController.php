@@ -6,6 +6,7 @@ use App\Models\Branch;
 use App\Models\Business;
 use App\Models\BusinessUser;
 use App\Models\Doctor;
+use App\Models\Permission;
 use App\Models\Treatment;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -14,17 +15,22 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class ClinicBranchOperationsController extends Controller
 {
-    public function index(Branch $branch): JsonResponse
+    public function index(Request $request, Branch $branch): JsonResponse
     {
+        $grantable = $this->grantablePermissions($request->user(), $branch);
         $staff = BusinessUser::query()
             ->where('business_id', $branch->business_id)
             ->whereIn('role', ['manager', 'staff'])
             ->with([
                 'user:id,name,email,email_verified_at,login_code,staff_business_id',
+                'user.permissions' => fn ($query) => $query->wherePivot('business_id', $branch->business_id)
+                    ->whereIn('permissions.name', array_keys(BusinessUser::BRANCH_PERMISSION_LABELS))
+                    ->select('permissions.id', 'permissions.name', 'permissions.is_active'),
                 'branches' => fn ($query) => $query->where('branches.id', $branch->id)->select('branches.id'),
             ])
             ->orderBy('id')
@@ -37,6 +43,10 @@ class ClinicBranchOperationsController extends Controller
                 'can_reset_password' => $member->user->staff_business_id === $branch->business_id,
                 'is_active' => $member->is_active,
                 'branch_access' => (bool) $member->branches->first()?->pivot->is_active,
+                'branch_permissions' => $member->branches->first()?->pivot->permission_names ?? [],
+                'platform_permissions' => (object) $member->user->permissions->mapWithKeys(fn (Permission $permission) => [
+                    $permission->name => $permission->is_active && (bool) $permission->pivot->is_allowed,
+                ])->all(),
                 'can_assign' => $member->is_active && ($member->user->hasVerifiedEmail() || $member->user->staff_business_id === $branch->business_id),
             ]);
 
@@ -77,6 +87,9 @@ class ClinicBranchOperationsController extends Controller
             'success' => true,
             'data' => [
                 'staff' => $staff,
+                'branch_permission_options' => collect(BusinessUser::BRANCH_PERMISSION_LABELS)->map(fn (string $label, string $name) => [
+                    'name' => $name, 'label' => $label, 'can_grant' => in_array($name, $grantable, true),
+                ])->values(),
                 'doctors' => $doctors,
                 'branch_treatments' => $branchTreatments,
                 'catalog_treatments' => Treatment::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
@@ -113,6 +126,44 @@ class ClinicBranchOperationsController extends Controller
         DB::transaction(fn () => $this->setStaffAccess($branch, $businessUser->id, (bool) $validated['is_active']), attempts: 3);
 
         return $this->saved('Şube yetkisi kaydedildi.');
+    }
+
+    public function updateStaffPermissions(Request $request, Branch $branch, BusinessUser $businessUser): JsonResponse
+    {
+        abort_unless($businessUser->business_id === $branch->business_id && in_array($businessUser->role, ['manager', 'staff'], true), 404);
+        $validated = $request->validate([
+            'permissions' => ['present', 'array', 'list', 'max:'.count(BusinessUser::BRANCH_PERMISSION_LABELS)],
+            'permissions.*' => ['required', 'string', 'distinct', Rule::in(array_keys(BusinessUser::BRANCH_PERMISSION_LABELS))],
+        ]);
+
+        DB::transaction(function () use ($request, $branch, $businessUser, $validated): void {
+            $member = BusinessUser::query()->where('business_id', $branch->business_id)
+                ->whereIn('role', ['manager', 'staff'])->with('user')->lockForUpdate()->findOrFail($businessUser->id);
+            $assignment = $member->branches()->whereKey($branch->id)->wherePivot('is_active', true)->first();
+            $verified = $member->user->hasVerifiedEmail() || $member->user->staff_business_id === $branch->business_id;
+            abort_unless($member->is_active && $assignment && $verified, 403, 'Personelin bu şubede aktif erişimi olmalıdır.');
+
+            $added = array_diff($validated['permissions'], $assignment->pivot->permission_names ?? []);
+            $platform = $member->user->permissions()->wherePivot('business_id', $branch->business_id)
+                ->whereIn('permissions.name', $added)->pluck('permissions.name')->all();
+            $grantable = array_diff($this->grantablePermissions($request->user(), $branch), $platform);
+            abort_if(array_diff($added, $grantable) !== [], 403, 'Bu işlemlerden en az biri için şube izni verilemez.');
+
+            $member->branches()->updateExistingPivot($branch->id, ['permission_names' => $validated['permissions']]);
+        }, attempts: 3);
+
+        return $this->saved('Personelin şube işlem izinleri kaydedildi.');
+    }
+
+    /** @return list<string> */
+    private function grantablePermissions(User $owner, Branch $branch): array
+    {
+        $names = array_keys(BusinessUser::BRANCH_PERMISSION_LABELS);
+        $allowed = $owner->allowedClinicAppointmentPermissions($branch, array_values(array_diff($names, ['branches.manage'])));
+        $allowed[] = 'branches.manage';
+        $disabled = Permission::query()->whereIn('name', $names)->where('is_active', false)->pluck('name')->all();
+
+        return array_values(array_diff($allowed, $disabled));
     }
 
     public function createStaffAccount(Request $request, Branch $branch): JsonResponse
@@ -171,7 +222,7 @@ class ClinicBranchOperationsController extends Controller
         if ($active) {
             $member->branches()->syncWithoutDetaching([$branch->id => ['is_active' => true]]);
         } else {
-            $member->branches()->updateExistingPivot($branch->id, ['is_active' => false]);
+            $member->branches()->updateExistingPivot($branch->id, ['is_active' => false, 'permission_names' => null]);
             if ($member->user->staff_business_id === $branch->business_id && ! $member->branches()
                 ->where('branches.business_id', $branch->business_id)->where('branches.status', 'active')
                 ->wherePivot('is_active', true)->exists()) {

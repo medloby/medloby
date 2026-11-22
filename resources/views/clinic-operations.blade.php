@@ -105,6 +105,21 @@
             <button type="submit" class="offer-button offer-button-secondary">Süreyi kaydet</button>
         </form>
     </template>
+    <template data-operations-staff-permissions>
+        <details class="mt-2">
+            <summary class="cursor-pointer text-sm font-semibold">Şube işlem izinleri</summary>
+            <form method="post" class="mt-3 grid gap-3">
+                <div class="grid gap-2 text-sm" data-operations-permission-items></div>
+                <button type="submit" class="offer-button offer-button-secondary justify-self-start">İzinleri kaydet</button>
+            </form>
+        </details>
+    </template>
+    <template data-operations-permission-item>
+        <label class="flex items-start gap-2">
+            <input class="mt-0.5 size-4 shrink-0 accent-teal-800" name="permissions" type="checkbox">
+            <span class="min-w-0 break-words"></span>
+        </label>
+    </template>
     <template data-operations-staff-password>
         <details class="mt-2">
             <summary class="cursor-pointer text-sm font-semibold">Personel şifresini değiştir</summary>
