@@ -40,6 +40,8 @@ class Appointment extends Model
         'rescheduled_at',
     ];
 
+    protected $hidden = ['reminded_at'];
+
     protected function casts(): array
     {
         return [
@@ -47,6 +49,7 @@ class Appointment extends Model
             'ends_at' => 'datetime',
             'cancelled_at' => 'datetime',
             'rescheduled_at' => 'datetime',
+            'reminded_at' => 'datetime',
         ];
     }
 

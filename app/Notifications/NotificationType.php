@@ -8,6 +8,8 @@ final class NotificationType
 
     public const APPOINTMENT_CONFIRMED = 'appointment_confirmed';
 
+    public const APPOINTMENT_REMINDER = 'appointment_reminder';
+
     public const APPOINTMENT_CANCELLED = 'appointment_cancelled';
 
     public const APPOINTMENT_RESCHEDULED = 'appointment_rescheduled';

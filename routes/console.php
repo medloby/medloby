@@ -1,5 +1,6 @@
 <?php
 
+use App\Services\AppointmentReminderService;
 use App\Services\CrmFollowUpReminderService;
 use App\Services\LocalBackup;
 use Illuminate\Console\Command;
@@ -14,6 +15,14 @@ Artisan::command('medloby:remind-crm-follow-ups', function (CrmFollowUpReminderS
 })->purpose('Saati gelen CRM takipleri için uygulama içi bildirim oluştur');
 
 Schedule::command('medloby:remind-crm-follow-ups')->everyMinute()->withoutOverlapping(5);
+
+Artisan::command('medloby:remind-appointments', function (AppointmentReminderService $reminders): int {
+    $this->info('Hatırlatma oluşturulan randevu sayısı · '.$reminders->sendDue());
+
+    return Command::SUCCESS;
+})->purpose('Yaklaşan onaylı randevular için hastaya uygulama içi hatırlatma oluştur');
+
+Schedule::command('medloby:remind-appointments')->everyMinute()->withoutOverlapping(5);
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
