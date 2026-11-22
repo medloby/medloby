@@ -13,6 +13,7 @@ import { mountClinicCrm } from './clinic-crm';
 import { mountSupportTickets } from './support-tickets';
 import { clinicToday } from './clinic-calendar';
 import { mountPatientAppointments, patientAppointmentsPath } from './patient-appointments';
+import { mountPatientJourney } from './patient-journey';
 import { mountPatientBooking } from './patient-booking';
 
 const statusLabels = {
@@ -147,6 +148,7 @@ export function mountPackageOffers(root) {
         api,
         renderAppointment: (appointment) => renderScheduledAppointment(appointment),
     });
+    const patientJourney = mountPatientJourney(get('patient-journey'), { api, openActivity: openJourneyActivity });
     const patientBooking = mountPatientBooking(get('patient-booking'), {
         api, today: clinicToday, setOptions,
         onBooked(appointment) {
@@ -267,19 +269,23 @@ export function mountPackageOffers(root) {
         const appointmentsTarget = /^#randevular(?:\/([1-9][0-9]*))?$/.exec(window.location.hash);
         const canSeeAppointments = Boolean(user?.email_verified_at && user.patient_profile_exists);
         const inAppointments = Boolean(canSeeAppointments && appointmentsTarget);
+        const inJourney = canSeeAppointments && window.location.hash === '#tedavi-surecim';
         const bookingSelection = clinicBookingSelection();
-        const outsideConversations = browsing || inCrm || inAppointments || bookingSelection !== null;
+        const outsideConversations = browsing || inCrm || inAppointments || inJourney || bookingSelection !== null;
         const requestingPackage = !outsideConversations && verified && user.patient_profile_exists && pendingPackage;
 
         discoverySection.hidden = !browsing;
         get('package-request').hidden = !requestingPackage;
         get('package-request-name').textContent = requestingPackage ? pendingPackage.name : '';
-        get('page-title').textContent = inCrm ? 'Klinik CRM' : browsing ? 'Tedavi paketleri' : inAppointments ? 'Randevularım' : bookingSelection ? 'Randevu al' : 'Paket teklifleri';
+        get('page-title').textContent = inCrm ? 'Klinik CRM' : browsing ? 'Tedavi paketleri' : inAppointments ? 'Randevularım'
+            : inJourney ? 'Tedavi sürecim' : bookingSelection ? 'Randevu al' : 'Paket teklifleri';
         document.title = get('page-title').textContent + ' | Medloby';
         get('discovery-link').setAttribute('aria-current', browsing ? 'page' : 'false');
         get('offers-link').setAttribute('aria-current', outsideConversations ? 'false' : 'page');
         get('patient-appointments-link').hidden = !canSeeAppointments;
         get('patient-appointments-link').setAttribute('aria-current', inAppointments ? 'page' : 'false');
+        get('patient-journey-link').hidden = !canSeeAppointments;
+        get('patient-journey-link').setAttribute('aria-current', inJourney ? 'page' : 'false');
         get('sign-in').hidden = browsing || Boolean(user);
         get('sign-in-description').textContent = bookingSelection
             ? 'Seçtiğiniz şubede randevu almak için hasta hesabınızla giriş yapın.'
@@ -294,6 +300,7 @@ export function mountPackageOffers(root) {
         get('staff-crm').hidden = outsideConversations || !verified || staffCrmIds.size === 0;
         clinicCrm.setBusiness(inCrm ? crmBusiness : null);
         patientAppointments.setView(inAppointments, appointmentsTarget?.[1] ?? null, preparedAppointment);
+        patientJourney.setVisible(inJourney);
         patientBooking.setSelection(canSeeAppointments ? bookingSelection : null);
 
         if (openingCatalogue) {
@@ -374,6 +381,33 @@ export function mountPackageOffers(root) {
         showStatus(notice);
         get('offers-link').focus();
     });
+
+    async function openJourneyActivity(item) {
+        const actor = user;
+        if (!item.conversation_id) {
+            const patientAppointment = await api(patientAppointmentsPath + '/' + item.target_id);
+            if (user === actor) {
+                focusNotificationTarget({ patientAppointment });
+            }
+            return;
+        }
+
+        try {
+            const target = await openNotificationTarget({
+                conversation_id: item.conversation_id,
+                offer_id: item.kind.startsWith('offer_') ? item.target_id : null,
+            });
+            if (target && user === actor) {
+                focusNotificationTarget(target);
+            }
+        } catch (error) {
+            if (user === actor && window.location.hash === '#gorusmeler') {
+                showStatus(notice, error.message);
+            } else {
+                throw error;
+            }
+        }
+    }
 
     async function openNotificationTarget(data) {
         const actor = user;

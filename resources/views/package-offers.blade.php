@@ -19,6 +19,7 @@
                         <a href="#gorusmeler" id="offers-link" class="rounded-lg px-3 py-2 hover:bg-slate-800 aria-[current=page]:bg-slate-800">Paket teklifleri</a>
                         <a href="#katalog" id="discovery-link" class="rounded-lg px-3 py-2 hover:bg-slate-800 aria-[current=page]:bg-slate-800">Tedavi paketleri</a>
                         <a href="#randevular" id="patient-appointments-link" class="rounded-lg px-3 py-2 hover:bg-slate-800 aria-[current=page]:bg-slate-800" hidden>Randevularım</a>
+                        <a href="#tedavi-surecim" id="patient-journey-link" class="rounded-lg px-3 py-2 hover:bg-slate-800 aria-[current=page]:bg-slate-800" hidden>Tedavi sürecim</a>
                     </nav>
                     <div id="account" class="flex flex-wrap items-center gap-3" hidden>
                         <span id="account-name" class="text-sm text-slate-200"></span>
@@ -52,6 +53,7 @@
 
                 @include('package-discovery')
                 @include('patient-appointments')
+                @include('patient-journey')
                 @include('patient-booking')
 
                 <section id="sign-in" class="mt-6 max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 dark:border-slate-800 dark:bg-slate-900" aria-labelledby="sign-in-title">

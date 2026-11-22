@@ -106,6 +106,8 @@ use App\Http\Controllers\PatientAppointmentController;
 
 use App\Http\Controllers\PatientBookingController;
 
+use App\Http\Controllers\PatientJourneyController;
+
 use App\Http\Controllers\NotificationController;
 
 use App\Http\Middleware\EnsureBranchCatalogManagementAccess;
@@ -655,6 +657,8 @@ Route::prefix('notifications')->group(function () {
             Route::get('/{appointment}/reschedule-options', 'options');
             Route::post('/{appointment}/reschedule', 'reschedule');
         });
+
+        Route::get('/patient/journey', PatientJourneyController::class);
 
         Route::post('/offers/{offer}/appointments', [
 
