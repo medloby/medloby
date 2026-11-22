@@ -128,6 +128,7 @@
             </main>
 
             @include('workspace-registration')
+            @include('patient-booking')
             @include('package-catalog-dialog')
             @include('workspace-notifications')
             @include('clinic-review-dialog')

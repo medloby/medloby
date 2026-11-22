@@ -12,6 +12,7 @@ use App\Models\Person;
 use App\Models\Treatment;
 use App\Models\TreatmentCategory;
 use App\Models\User;
+use App\Notifications\NewAppointmentNotification;
 use App\Notifications\NewPatientAppointmentNotification;
 use App\Notifications\NotificationType;
 use App\Notifications\PatientAppointmentChangedNotification;
@@ -52,6 +53,62 @@ function clinicAppointmentFixture(): array
 
     return [$business, $owner, $branch, $other, $doctor, $treatment, $calendar, $otherCalendar];
 }
+
+test('a verified patient can book a standalone visit through the online branch and doctor selection', function () {
+    $this->travelTo(Carbon::parse('2026-12-01 00:00:00', 'UTC'));
+    Mail::fake();
+    [$business, $owner, $branch, $closed, $doctor, $treatment, $calendar] = clinicAppointmentFixture();
+    $doctor->update(['is_public' => true]);
+    $otherDoctor = Doctor::factory()->for(Person::factory()->for($business)->for($branch))->create(['is_public' => false]);
+    $otherDoctor->branches()->attach($branch->id, ['status' => 'active']);
+    $otherDoctor->treatments()->attach($treatment->id, ['is_active' => true]);
+    $branch->treatments()->updateExistingPivot($treatment->id, ['is_online_bookable' => true]);
+    $closed->treatments()->updateExistingPivot($treatment->id, ['is_online_bookable' => true]);
+    $closed->appointmentSetting()->create(['is_active' => true, 'online_booking_enabled' => false]);
+    $branch->appointmentSetting()->update(['online_booking_enabled' => true, 'same_day_booking_enabled' => false]);
+    $patient = User::factory()->create(['email' => 'patient-booking@example.test'])->patientProfile()->create([
+        'first_name' => 'Deneme', 'last_name' => 'Hastası', 'phone' => '+905550001234',
+    ]);
+    $otherPatient = User::factory()->create()->patientProfile()->create(['first_name' => 'Başka', 'last_name' => 'Hasta']);
+    $endpoint = '/api/patient/appointments/booking-branches';
+    $selectedBranch = $endpoint.'/'.$branch->id;
+    $payload = ['doctor_id' => $doctor->id, 'treatment_id' => $treatment->id, 'starts_at' => '2026-12-04 09:00:00'];
+    $slots = $selectedBranch.'/slots?date=2026-12-04&doctor_id='.$doctor->id.'&treatment_id='.$treatment->id;
+
+    $this->getJson($endpoint)->assertUnauthorized();
+    $this->actingAs($owner, 'sanctum')->getJson($endpoint)->assertForbidden();
+    $this->actingAs($patient->user, 'sanctum')->getJson($endpoint)->assertOk()->assertJsonCount(1, 'data.branches')
+        ->assertJsonPath('data.branches.0.id', $branch->id)->assertJsonMissingPath('data.branches.0.email');
+    $this->getJson($selectedBranch.'/treatments')->assertOk()->assertJsonPath('data.treatments.0.id', $treatment->id)
+        ->assertJsonCount(1, 'data.treatments.0.doctors')->assertJsonPath('data.treatments.0.doctors.0.id', $doctor->id);
+    $this->getJson($endpoint.'/'.$closed->id.'/treatments')->assertNotFound();
+    $this->getJson($slots)->assertOk()->assertJsonPath('data.slots.0', '2026-12-04 09:00:00');
+    $this->postJson($selectedBranch, [...$payload, 'doctor_id' => $otherDoctor->id])->assertNotFound();
+    $this->postJson($selectedBranch, [...$payload, 'starts_at' => '2026-12-01 09:00:00'])->assertUnprocessable();
+
+    $appointment = $this->postJson($selectedBranch, [
+        ...$payload, 'notes' => 'Randevu denemesi', 'patient_profile_id' => $otherPatient->id, 'status' => 'confirmed',
+    ])->assertCreated()->assertJsonPath('data.status', 'pending')->assertJsonMissingPath('data.patient_email')->json('data.id');
+
+    $this->assertDatabaseHas('appointments', [
+        'id' => $appointment, 'patient_profile_id' => $patient->id, 'offer_id' => null, 'notes' => 'Randevu denemesi',
+        'patient_email' => 'patient-booking@example.test', 'starts_at' => '2026-12-04 09:00:00',
+    ]);
+    $this->assertDatabaseHas('appointment_status_histories', [
+        'appointment_id' => $appointment, 'changed_by_user_id' => $patient->user_id, 'new_status' => 'pending',
+    ]);
+    $this->postJson($selectedBranch, $payload)->assertUnprocessable();
+    $this->getJson($slots)->assertOk()->assertJsonPath('data.slots.0', '2026-12-04 09:30:00');
+    $this->getJson('/api/patient/appointments/'.$appointment)->assertOk()->assertJsonPath('data.id', $appointment);
+
+    $branch->appointmentSetting()->update(['default_appointment_status' => 'confirmed']);
+    $second = $this->postJson($selectedBranch, [...$payload, 'starts_at' => '2026-12-04 09:30:00'])
+        ->assertCreated()->assertJsonPath('data.status', 'confirmed')->json('data.id');
+    $this->assertDatabaseHas('appointments', ['id' => $second, 'status' => 'confirmed']);
+    $this->actingAs($owner, 'sanctum')->getJson($calendar.'?date=2026-12-04')->assertOk()
+        ->assertJsonPath('data.appointments.0.id', $appointment)->assertJsonPath('data.appointments.1.id', $second);
+    expect($owner->notifications()->where('type', NewAppointmentNotification::class)->count())->toBe(2);
+});
 
 test('the patient appointment list combines standalone and package visits and protects patient details', function () {
     $this->travelTo(Carbon::parse('2026-12-04 05:00:00', 'UTC'));

@@ -10,6 +10,7 @@ import { mountClinicApplications } from './clinic-applications';
 import { mountClinicCrm } from './clinic-crm';
 import { clinicToday } from './clinic-calendar';
 import { mountPatientAppointments, patientAppointmentsPath } from './patient-appointments';
+import { mountPatientBooking } from './patient-booking';
 
 const statusLabels = {
     pending: 'Yanıt bekliyor',
@@ -136,6 +137,13 @@ export function mountPackageOffers(root) {
     const patientAppointments = mountPatientAppointments(patientAppointmentPanel, {
         api,
         renderAppointment: (appointment) => renderScheduledAppointment(appointment, true, refreshPatientAppointment),
+    });
+    const patientBooking = mountPatientBooking(get('patient-booking-dialog'), get('patient-booking-button'), {
+        api, today: clinicToday, setOptions,
+        onBooked(appointment) {
+            showStatus(notice, appointment.status === 'confirmed' ? 'Randevunuz onaylandı.' : 'Randevu talebiniz alındı. Klinik onayı bekleniyor.');
+            refreshPatientAppointment(appointment);
+        },
     });
     const discoverySection = get('package-discovery');
     const discovery = mountPackageDiscovery(discoverySection, { api, continueInAccount });
@@ -268,6 +276,9 @@ export function mountPackageOffers(root) {
         get('staff-crm').hidden = browsing || inCrm || inAppointments || !verified || staffCrmIds.size === 0;
         clinicCrm.setBusiness(inCrm ? crmBusiness : null);
         patientAppointments.setView(inAppointments, appointmentsTarget?.[1] ?? null, preparedAppointment);
+        if (!inAppointments) {
+            patientBooking.close();
+        }
 
         if (openingCatalogue) {
             discovery.open();

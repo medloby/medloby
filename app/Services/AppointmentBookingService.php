@@ -33,11 +33,12 @@ class AppointmentBookingService
         string $source = 'medloby',
         bool $requireOnlineBookable = true,
         ?string $notes = null,
-        ?Offer $offer = null
+        ?Offer $offer = null,
+        ?int $changedBy = null,
     ): Appointment {
         return DB::transaction(function () use (
             $businessId, $branchId, $patient, $doctor, $treatment,
-            $startsAt, $source, $requireOnlineBookable, $notes, $offer
+            $startsAt, $source, $requireOnlineBookable, $notes, $offer, $changedBy
         ) {
             if ($offer) {
                 $offer = Offer::query()->lockForUpdate()->findOrFail($offer->id);
@@ -56,7 +57,7 @@ class AppointmentBookingService
 
             return $this->createBooking(
                 $businessId, $branchId, $patient, $doctor, $treatment, $startsAt, $status,
-                source: $source, requireOnlineBookable: $requireOnlineBookable, notes: $notes, offer: $offer,
+                source: $source, requireOnlineBookable: $requireOnlineBookable, notes: $notes, offer: $offer, changedBy: $changedBy,
             );
         }, 3);
     }
@@ -298,9 +299,10 @@ class AppointmentBookingService
         bool $requireOnlineBookable
     ): void {
         $branch = DB::table('branches')
-            ->where('id', $branchId)
-            ->where('business_id', $businessId)
-            ->first(['status']);
+            ->join('businesses', 'businesses.id', '=', 'branches.business_id')
+            ->where('branches.id', $branchId)
+            ->where('branches.business_id', $businessId)
+            ->first(['branches.status', 'businesses.status as business_status', 'businesses.is_verified']);
 
         if (! $branch) {
             throw new RuntimeException(
@@ -308,7 +310,7 @@ class AppointmentBookingService
             );
         }
 
-        if ($branch->status !== 'active') {
+        if ($branch->status !== 'active' || $branch->business_status !== 'active' || ! $branch->is_verified) {
             throw new RuntimeException($requireOnlineBookable
                 ? 'Seçilen şube şu anda çevrimiçi randevuya açık değil.'
                 : 'Seçilen şube şu anda randevuya açık değil.');

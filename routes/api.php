@@ -100,6 +100,8 @@ use App\Http\Controllers\PatientRegistrationController;
 
 use App\Http\Controllers\PatientAppointmentController;
 
+use App\Http\Controllers\PatientBookingController;
+
 use App\Http\Controllers\NotificationController;
 
 use App\Http\Middleware\EnsureBranchCatalogManagementAccess;
@@ -599,6 +601,13 @@ Route::prefix('notifications')->group(function () {
             AppointmentBookingController::class,
             'index',
         ]);
+
+        Route::controller(PatientBookingController::class)->prefix('patient/appointments/booking-branches')->group(function () {
+            Route::get('/', 'branches');
+            Route::get('/{branch}/treatments', 'treatments')->whereNumber('branch');
+            Route::get('/{branch}/slots', 'slots')->whereNumber('branch');
+            Route::post('/{branch}', 'store')->whereNumber('branch');
+        });
 
         Route::controller(PatientAppointmentController::class)->prefix('patient/appointments')->group(function () {
             Route::get('/', 'index');

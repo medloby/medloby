@@ -1,0 +1,137 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Branch;
+use App\Models\Doctor;
+use App\Models\PatientProfile;
+use App\Models\Treatment;
+use App\Services\AppointmentBookingService;
+use App\Services\AppointmentSlotAvailabilityService;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use RuntimeException;
+
+class PatientBookingController extends Controller
+{
+    public function branches(Request $request): JsonResponse
+    {
+        $this->patient($request);
+        $branches = $this->onlineBranches()->with('business:id,name')->orderBy('city')->orderBy('name')->orderBy('id')
+            ->get(['id', 'business_id', 'name', 'city'])
+            ->map(fn (Branch $branch): array => [
+                'id' => $branch->id, 'name' => $branch->name, 'clinic' => $branch->business->name, 'city' => $branch->city,
+            ]);
+
+        return $this->data(['branches' => $branches]);
+    }
+
+    public function treatments(Request $request, int $branch): JsonResponse
+    {
+        $this->patient($request);
+        $branch = $this->onlineBranches()->findOrFail($branch);
+        $doctorIds = $this->publicDoctors($branch)->select('doctors.id')->getQuery();
+        $treatments = $this->bookableTreatments($branch)->with(['doctors' => fn (BelongsToMany $doctors) => $doctors
+            ->wherePivot('is_active', true)->whereIn('doctors.id', $doctorIds)
+            ->select(['doctors.id', 'doctors.person_id'])->with('person:id,first_name,last_name')->orderBy('doctors.id')])
+            ->orderBy('treatments.sort_order')->orderBy('treatments.name')->orderBy('treatments.id')->get(['treatments.id', 'treatments.name'])
+            ->filter(fn (Treatment $treatment): bool => $treatment->doctors->isNotEmpty())
+            ->map(fn (Treatment $treatment): array => [
+                'id' => $treatment->id, 'name' => $treatment->name,
+                'doctors' => $treatment->doctors->map(fn (Doctor $doctor): array => [
+                    'id' => $doctor->id, 'name' => trim($doctor->person->first_name.' '.$doctor->person->last_name),
+                ]),
+            ])->values();
+
+        return $this->data(['treatments' => $treatments]);
+    }
+
+    public function slots(Request $request, int $branch, AppointmentSlotAvailabilityService $availability): JsonResponse
+    {
+        $this->patient($request);
+        $data = $request->validate([
+            'treatment_id' => ['required', 'integer'], 'doctor_id' => ['required', 'integer'],
+            'date' => ['required', 'date_format:Y-m-d'],
+        ]);
+        $branch = $this->onlineBranches()->findOrFail($branch);
+        [$treatment, $doctor] = $this->selection($branch, (int) $data['treatment_id'], (int) $data['doctor_id']);
+        $slots = $availability->getAvailableSlots($doctor, $branch->id, $treatment, Carbon::parse($data['date']));
+
+        return $this->data(['slots' => array_map(fn (Carbon $slot): string => $slot->toDateTimeString(), $slots)]);
+    }
+
+    public function store(Request $request, int $branch, AppointmentBookingService $booking): JsonResponse
+    {
+        $patient = $this->patient($request);
+        $data = $request->validate([
+            'treatment_id' => ['required', 'integer'], 'doctor_id' => ['required', 'integer'],
+            'starts_at' => ['required', 'date_format:Y-m-d H:i:s'], 'notes' => ['nullable', 'string', 'max:2000'],
+        ]);
+        $branch = $this->onlineBranches()->findOrFail($branch);
+        [$treatment, $doctor] = $this->selection($branch, (int) $data['treatment_id'], (int) $data['doctor_id']);
+
+        try {
+            $appointment = $booking->book($branch->business_id, $branch->id, $patient, $doctor, $treatment,
+                Carbon::parse($data['starts_at']), notes: $data['notes'] ?? null, changedBy: $request->user()->id);
+        } catch (RuntimeException $exception) {
+            if ($exception::class !== RuntimeException::class) {
+                throw $exception;
+            }
+
+            return response()->json(['success' => false, 'message' => $exception->getMessage()], 422)->header('Cache-Control', 'private, no-store');
+        }
+
+        return $this->data($appointment->only(['id', 'status']), 201);
+    }
+
+    private function patient(Request $request): PatientProfile
+    {
+        $patient = $request->user()->patientProfile;
+        abort_unless($patient && $request->user()->hasVerifiedEmail(), 403);
+
+        return $patient;
+    }
+
+    private function onlineBranches(): Builder
+    {
+        return Branch::query()->where('status', 'active')
+            ->whereHas('business', fn (Builder $business) => $business->where('status', 'active')->where('is_verified', true))
+            ->whereDoesntHave('appointmentSetting', fn (Builder $settings) => $settings->where('is_active', true)->where('online_booking_enabled', false))
+            ->whereHas('treatments', fn (Builder $treatments) => $treatments->where('treatments.is_active', true)
+                ->where('branch_treatment.is_active', true)->where('branch_treatment.is_online_bookable', true)
+                ->whereHas('doctors', fn (Builder $doctors) => $doctors
+                    ->join('doctor_branch', 'doctor_branch.doctor_id', '=', 'doctors.id')
+                    ->whereColumn('doctor_branch.branch_id', 'branches.id')->where('doctor_branch.status', 'active')
+                    ->where('doctors.status', 'active')->where('doctors.is_public', true)->where('doctor_treatment.is_active', true)
+                    ->whereHas('person', fn (Builder $person) => $person->whereColumn('people.business_id', 'branches.business_id'))));
+    }
+
+    private function publicDoctors(Branch $branch): BelongsToMany
+    {
+        return $branch->doctors()->wherePivot('status', 'active')->where('doctors.status', 'active')->where('doctors.is_public', true)
+            ->whereHas('person', fn (Builder $person) => $person->where('business_id', $branch->business_id));
+    }
+
+    private function bookableTreatments(Branch $branch): BelongsToMany
+    {
+        return $branch->treatments()->wherePivot('is_active', true)->wherePivot('is_online_bookable', true)->where('treatments.is_active', true);
+    }
+
+    /** @return array{Treatment, Doctor} */
+    private function selection(Branch $branch, int $treatmentId, int $doctorId): array
+    {
+        $treatment = $this->bookableTreatments($branch)->findOrFail($treatmentId);
+        $doctor = $this->publicDoctors($branch)->whereHas('treatments', fn (Builder $treatments) => $treatments
+            ->where('treatments.id', $treatment->id)->where('doctor_treatment.is_active', true))->findOrFail($doctorId);
+
+        return [$treatment, $doctor];
+    }
+
+    private function data(array $data, int $status = 200): JsonResponse
+    {
+        return response()->json(['success' => true, 'data' => $data], $status)->header('Cache-Control', 'private, no-store');
+    }
+}
