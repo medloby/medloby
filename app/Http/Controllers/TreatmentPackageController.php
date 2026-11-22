@@ -67,13 +67,22 @@ class TreatmentPackageController extends Controller
         $filters = $request->validate([
             'q' => ['nullable', 'string', 'max:100'],
             'city' => ['nullable', 'string', 'max:80'],
+            'clinic' => ['nullable', 'string', 'max:255'],
         ]);
         $search = $filters['q'] ?? '';
         $city = $filters['city'] ?? '';
+        $clinic = null;
+        if (isset($filters['clinic'])) {
+            $clinic = Business::query()->where('slug', $filters['clinic'])->where('status', 'active')->where('is_verified', true)
+                ->whereHas('branches', fn (Builder $branches) => $branches->where('status', 'active'))
+                ->first(['id', 'name', 'slug']);
+            abort_unless($clinic, 404, 'Bu klinik katalogda bulunamadı.');
+        }
 
         $packages = TreatmentPackage::query()
             ->availableForEnquiries()
             ->withPublicContents()
+            ->when($clinic, fn (Builder $packages, Business $clinic) => $packages->where('treatment_packages.business_id', $clinic->id))
             ->when($search !== '', function (Builder $packages) use ($search): void {
                 $term = '%'.$search.'%';
                 $packages->where(fn (Builder $matching) => $matching
@@ -95,7 +104,12 @@ class TreatmentPackageController extends Controller
             ->appends($filters)
             ->through(fn (TreatmentPackage $package) => new PublicTreatmentPackageResource($package));
 
-        return response()->json(['success' => true, 'data' => $packages]);
+        $data = $packages->toArray();
+        if ($clinic) {
+            $data['clinic'] = ['name' => $clinic->name, 'profile_url' => route('clinics.show', $clinic->slug, false)];
+        }
+
+        return response()->json(['success' => true, 'data' => $data]);
     }
 
     public function manage(Request $request, Business $business): JsonResponse

@@ -9,6 +9,10 @@ export function mountPackageDiscovery(section, { api, continueInAccount }) {
     const query = form.elements.namedItem('q');
     const city = form.elements.namedItem('city');
     const clear = find('[data-discovery-clear]');
+    const scope = find('[data-discovery-scope]');
+    const scopeName = find('[data-discovery-scope-name]');
+    const profileLink = find('[data-discovery-profile]');
+    const allClinics = find('[data-discovery-all-clinics]');
     let currentPage = 1;
     let lastPage = 1;
     let request = 0;
@@ -57,13 +61,14 @@ export function mountPackageDiscovery(section, { api, continueInAccount }) {
         return {
             q: (params.get('q') ?? '').trim().slice(0, query.maxLength),
             city: (params.get('city') ?? '').trim().slice(0, city.maxLength),
+            clinic: (params.get('clinic') ?? '').trim().slice(0, 255),
             page: Number.isSafeInteger(value) && value > 0 ? value : 1,
         };
     }
 
     function writeLocation(filters, method) {
         const url = new URL(window.location.href);
-        for (const key of ['q', 'city', 'page']) {
+        for (const key of ['q', 'city', 'clinic', 'page']) {
             if (filters[key] && (key !== 'page' || filters.page > 1)) {
                 url.searchParams.set(key, filters[key]);
             } else {
@@ -78,6 +83,9 @@ export function mountPackageDiscovery(section, { api, continueInAccount }) {
         query.value = filters.q;
         city.value = filters.city;
         clear.hidden = !filters.q && !filters.city;
+        scope.hidden = !filters.clinic;
+        scopeName.textContent = 'Klinik paketleri';
+        profileLink.hidden = true;
         find('[data-discovery-pages]').hidden = true;
         previous.disabled = true;
         next.disabled = true;
@@ -92,6 +100,9 @@ export function mountPackageDiscovery(section, { api, continueInAccount }) {
             if (filters.city) {
                 params.set('city', filters.city);
             }
+            if (filters.clinic) {
+                params.set('clinic', filters.clinic);
+            }
             const response = await api('/package-catalog?' + params);
             if (pending !== request) {
                 return;
@@ -104,10 +115,16 @@ export function mountPackageDiscovery(section, { api, continueInAccount }) {
             }
             currentPage = response.current_page;
             lastPage = response.last_page;
+            if (response.clinic) {
+                scopeName.textContent = response.clinic.name + ' paketleri';
+                profileLink.href = response.clinic.profile_url;
+                profileLink.hidden = false;
+            }
             results.replaceChildren(...response.data.map(cardFor));
             find('[data-discovery-pages]').hidden = lastPage <= 1;
             find('[data-discovery-page]').textContent = currentPage + ' / ' + lastPage;
-            const empty = filters.q || filters.city ? 'Aramanızla eşleşen paket bulunamadı.' : 'Katalogda şu anda paket bulunmuyor.';
+            const empty = filters.q || filters.city ? 'Aramanızla eşleşen paket bulunamadı.'
+                : filters.clinic ? 'Bu kliniğin katalogda şu anda paketi yok.' : 'Katalogda şu anda paket bulunmuyor.';
             showStatus(response.total ? response.total + ' paket bulundu.' : empty);
             if (focusResults && response.data.length) {
                 results.focus();
@@ -132,9 +149,10 @@ export function mountPackageDiscovery(section, { api, continueInAccount }) {
 
     form.addEventListener('submit', (event) => {
         event.preventDefault();
-        navigate({ q: query.value.trim(), city: city.value.trim(), page: 1 });
+        navigate({ ...readLocation(), q: query.value.trim(), city: city.value.trim(), page: 1 });
     });
-    clear.addEventListener('click', () => navigate({ q: '', city: '', page: 1 }));
+    clear.addEventListener('click', () => navigate({ ...readLocation(), q: '', city: '', page: 1 }));
+    allClinics.addEventListener('click', () => navigate({ ...readLocation(), clinic: '', page: 1 }));
     previous.addEventListener('click', () => navigate({ ...readLocation(), page: currentPage - 1 }));
     next.addEventListener('click', () => navigate({ ...readLocation(), page: currentPage + 1 }));
 

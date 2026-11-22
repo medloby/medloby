@@ -130,6 +130,62 @@ test('catalog search matches package and treatment names and uses the location o
     $this->getJson($url.'city[]=Ankara')->assertUnprocessable()->assertJsonValidationErrors('city');
 });
 
+test('the clinic page opens an exact public catalog scope and the scope survives search and pagination', function () {
+    $this->business->update(['name' => 'Deneme Klinik', 'slug' => 'deneme-klinik']);
+    $this->branch->update(['city' => 'İzmir']);
+    $other = Business::factory()->create(['name' => $this->business->name, 'slug' => 'baska-deneme-klinik']);
+    $otherBranch = Branch::factory()->for($other)->create(['city' => 'İzmir']);
+    $otherBranch->treatments()->attach($this->treatment->id, ['is_active' => true]);
+    $otherPackage = $other->treatmentPackages()->create([
+        'name' => 'Bakım 01', 'slug' => 'baska-bakim', 'branch_id' => $otherBranch->id,
+    ]);
+    $otherPackage->treatments()->attach($this->treatment->id);
+
+    foreach (range(1, 13) as $number) {
+        $package = $this->business->treatmentPackages()->create([
+            'name' => sprintf('Bakım %02d', $number), 'slug' => 'bakim-'.$number, 'branch_id' => $this->branch->id,
+            'price' => 4500, 'currency' => 'TRY',
+        ]);
+        $package->treatments()->attach($this->treatment->id, ['quantity' => 2]);
+    }
+    $expired = $this->business->treatmentPackages()->create([
+        'name' => 'Bakım süresi bitti', 'slug' => 'bakim-suresi-bitti', 'valid_until' => today()->subDay(),
+    ]);
+    $expired->treatments()->attach($this->treatment->id);
+    $link = route('package-offers', ['clinic' => $this->business->slug]).'#katalog';
+    $this->get(route('clinics.show', $this->business->slug))->assertOk()->assertSee($link);
+
+    $filters = ['clinic' => $this->business->slug, 'q' => 'Bakım', 'city' => 'İzmir'];
+    $catalog = '/api/package-catalog?';
+    $firstPage = $this->getJson($catalog.http_build_query($filters))->assertOk()
+        ->assertJsonPath('data.clinic', ['name' => $this->business->name, 'profile_url' => '/klinikler/deneme-klinik'])
+        ->assertJsonPath('data.total', 13)->assertJsonCount(12, 'data.data')
+        ->assertJsonPath('data.data.0.business_id', $this->business->id)
+        ->assertJsonPath('data.data.0.treatments.0.quantity', 2)->assertJsonMissingPath('data.data.0.price');
+    expect($firstPage->json('data.data.*.id'))->not->toContain($otherPackage->id)->not->toContain($expired->id);
+    parse_str((string) parse_url($firstPage->json('data.next_page_url'), PHP_URL_QUERY), $nextFilters);
+    expect($nextFilters)->toMatchArray([...$filters, 'page' => '2']);
+    $this->getJson($catalog.http_build_query([...$filters, 'page' => 2]))->assertOk()
+        ->assertJsonCount(1, 'data.data')->assertJsonPath('data.data.0.name', 'Bakım 13');
+
+    $this->getJson($catalog.http_build_query(['q' => 'Bakım', 'city' => 'İzmir']))->assertOk()
+        ->assertJsonPath('data.total', 14)->assertJsonMissingPath('data.clinic');
+    $this->business->update(['status' => 'suspended']);
+    $this->getJson($catalog.http_build_query($filters))->assertNotFound();
+});
+
+test('clinic pages show a catalog link when a package can be discussed in the account', function () {
+    $package = $this->business->treatmentPackages()->create([
+        'name' => 'Taslak bakım', 'slug' => 'taslak-bakim', 'is_offer_enabled' => false,
+    ]);
+    $package->treatments()->attach($this->treatment->id);
+    $profile = route('clinics.show', $this->business->slug);
+
+    $this->get($profile)->assertOk()->assertDontSeeText('Kliniğin paketlerini incele');
+    $package->update(['is_offer_enabled' => true]);
+    $this->get($profile)->assertOk()->assertSeeText('Kliniğin paketlerini incele');
+});
+
 test('treatment prices require a verified clinic member and respect branch assignments', function () {
     $otherClinic = Business::factory()->create();
     $otherBranch = Branch::factory()->for($this->business)->create();

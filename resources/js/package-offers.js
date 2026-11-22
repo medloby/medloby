@@ -320,7 +320,7 @@ export function mountPackageOffers(root) {
             showStatus(notice, 'Paket görüşmesi başlatmak için hasta hesabınızla giriş yapın.');
         } else if (!user) {
             showStatus(notice, pkg.name + ' için hasta hesabınızla giriş yapın veya hesap oluşturun.');
-            signIn.elements.namedItem('email').focus();
+            signIn.elements.namedItem('identifier').focus();
         } else if (!user.email_verified_at) {
             showStatus(notice, pkg.name + ' için e-posta adresinizi doğrulayın.');
             get('check-verification').focus();

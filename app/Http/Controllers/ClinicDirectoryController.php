@@ -69,8 +69,9 @@ class ClinicDirectoryController extends Controller
             ->orderBy('name')->orderBy('id')->get(['id', 'name', 'city', 'district', 'address']);
         $bookable = $clinic->branches()->bookableOnline()->pluck('branches.id');
         $roster = $branches->mapWithKeys(fn (Branch $branch): array => [$branch->id => $this->doctorList($branch, $bookable->contains($branch->id))]);
+        $hasPackages = $clinic->treatmentPackages()->availableForEnquiries()->exists();
 
-        return view('clinic-directory.show', compact('clinic', 'branches', 'bookable', 'roster'));
+        return view('clinic-directory.show', compact('clinic', 'branches', 'bookable', 'roster', 'hasPackages'));
     }
 
     /** @return Collection<int, array{id: int, name: string, specialty: ?string, treatments: string, bookable: bool}> */

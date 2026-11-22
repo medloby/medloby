@@ -1,4 +1,11 @@
 <section id="package-discovery" class="mt-6 grid gap-5" aria-labelledby="page-title" hidden>
+    <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900" data-discovery-scope hidden>
+        <h2 class="min-w-0 break-words text-xl font-semibold" data-discovery-scope-name></h2>
+        <div class="flex min-w-0 flex-wrap gap-2">
+            <a class="offer-button offer-button-secondary" data-discovery-profile hidden>Klinik sayfası</a>
+            <button type="button" class="offer-button offer-button-secondary" data-discovery-all-clinics>Tüm kliniklerin paketleri</button>
+        </div>
+    </div>
     <form action="{{ route('package-offers') }}#katalog" method="get" role="search" aria-label="Paket kataloğu arama" class="grid items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_auto] sm:p-5 dark:border-slate-800 dark:bg-slate-900" data-discovery-search>
         <label class="offer-field">
             Paket, klinik veya tedavi

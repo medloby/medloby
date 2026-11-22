@@ -18,7 +18,12 @@
             </div>
         </header>
         <main class="mx-auto grid max-w-7xl gap-6 px-5 py-10 sm:px-8 sm:py-14 lg:px-12">
-            <h1 class="break-words text-4xl font-semibold tracking-tight">{{ $clinic->name }}</h1>
+            <div class="flex flex-wrap items-center justify-between gap-4">
+                <h1 class="min-w-0 break-words text-4xl font-semibold tracking-tight">{{ $clinic->name }}</h1>
+                @if ($hasPackages)
+                    <a href="{{ route('package-offers', ['clinic' => $clinic->slug]) }}#katalog" class="offer-button offer-button-secondary">Kliniğin paketlerini incele</a>
+                @endif
+            </div>
             <section class="grid gap-4" aria-labelledby="clinic-branches-title">
                 <h2 id="clinic-branches-title" class="text-2xl font-semibold tracking-tight">Şubeler</h2>
                 <div class="grid items-start gap-4 sm:grid-cols-2">
