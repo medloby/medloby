@@ -2,7 +2,7 @@
     <summary class="cursor-pointer text-lg font-semibold">Klinik operasyonları</summary>
     <p class="mt-3 text-sm text-slate-600 dark:text-slate-300" data-operations-status role="status" hidden></p>
     <fieldset class="mt-4 grid min-w-0 gap-3" data-operations-content hidden>
-        <details class="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
+        <details class="rounded-xl border border-slate-200 p-4 dark:border-slate-700" data-operations-staff-panel hidden>
             <summary class="cursor-pointer font-semibold">Personel ve şube yetkileri</summary>
             <form class="mt-4 grid gap-3" data-operations-staff-form>
                 <div class="grid gap-3 sm:grid-cols-2">
@@ -40,7 +40,7 @@
             <ul class="mt-4 grid gap-2" data-operations-treatments></ul>
         </details>
 
-        <details class="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
+        <details class="rounded-xl border border-slate-200 p-4 dark:border-slate-700" data-operations-doctor-panel hidden>
             <summary class="cursor-pointer font-semibold">Hekimler ve tedavileri</summary>
             <form class="mt-4 grid gap-3" data-operations-doctor-form>
                 <div class="grid gap-3 sm:grid-cols-2">

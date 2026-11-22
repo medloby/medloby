@@ -70,7 +70,7 @@ export function mountClinicOperations(panel, api) {
     }
 
     function selectedDoctor(current) {
-        return current.data.doctors.find((item) => String(item.id) === current.doctorId);
+        return current.data.doctors?.find((item) => String(item.id) === current.doctorId);
     }
 
     function renderDoctor(current) {
@@ -78,6 +78,7 @@ export function mountClinicOperations(panel, api) {
         find('doctor-detail').hidden = !doctor;
         find('doctor-treatments').replaceChildren();
         if (!doctor) {
+            find('doctor-meta').textContent = '';
             return;
         }
 
@@ -107,8 +108,12 @@ export function mountClinicOperations(panel, api) {
 
     function render(current) {
         const data = current.data;
-        find('empty-staff').hidden = data.staff.length > 0;
-        find('staff').replaceChildren(...data.staff.map((member) => {
+        const staff = data.staff ?? [];
+        const doctors = data.doctors ?? [];
+        find('staff-panel').hidden = !data.can_manage_operations;
+        find('doctor-panel').hidden = !data.can_manage_operations;
+        find('empty-staff').hidden = staff.length > 0;
+        find('staff').replaceChildren(...staff.map((member) => {
             const label = member.branch_access ? 'Şube yetkisini kaldır' : 'Şube yetkisi ver';
             const access = member.branch_access ? 'Şube yetkisi var' : 'Şube yetkisi yok';
             const entry = row(member.name, [member.login_code ?? member.email, member.is_active ? '' : 'Pasif üyelik', access].filter(Boolean).join(' · '),
@@ -159,8 +164,8 @@ export function mountClinicOperations(panel, api) {
             return entry;
         }));
 
-        find('doctor-picker').hidden = data.doctors.length === 0;
-        fillOptions(doctorSelect, 'Hekim seçin', data.doctors);
+        find('doctor-picker').hidden = doctors.length === 0;
+        fillOptions(doctorSelect, 'Hekim seçin', doctors);
         doctorSelect.value = selectedDoctor(current) ? current.doctorId : '';
         renderDoctor(current);
     }
@@ -181,6 +186,7 @@ export function mountClinicOperations(panel, api) {
             showStatus(confirmation);
         } catch (error) {
             if (scope === current) {
+                content.hidden = true;
                 showStatus([confirmation, error.message].filter(Boolean).join(' '));
             }
         } finally {
@@ -203,6 +209,10 @@ export function mountClinicOperations(panel, api) {
             }
         } catch (error) {
             if (scope === current) {
+                if (error.status === 403) {
+                    current.loaded = false;
+                    content.hidden = true;
+                }
                 showStatus(error.message);
             }
         } finally {
@@ -268,8 +278,11 @@ export function mountClinicOperations(panel, api) {
 
     return {
         setBranch(id) {
-            const branch = id ? '/branches/' + id : null;
-            scope = branch ? { operations: branch + '/operations', doctorId: '', loaded: false, loading: false, saving: false } : null;
+            const operations = id ? '/branches/' + id + '/operations' : null;
+            if ((scope?.operations ?? null) === operations) {
+                return;
+            }
+            scope = operations ? { operations, doctorId: '', loaded: false, loading: false, saving: false } : null;
             panel.open = false;
             panel.hidden = !scope;
             content.hidden = true;

@@ -9,12 +9,16 @@ use App\Models\CrmFollowUp;
 use App\Models\CrmLead;
 use App\Models\CrmPipelineStage;
 use App\Models\CrmTask;
+use App\Services\CatalogManagementAccess;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class CrmDashboardController extends Controller
 {
     public function index(
-        Branch $branch
+        Branch $branch,
+        Request $request,
+        CatalogManagementAccess $catalogAccess,
     ): JsonResponse {
         $baseLeadQuery = CrmLead::query()
             ->where('business_id', $branch->business_id)
@@ -187,6 +191,7 @@ class CrmDashboardController extends Controller
         return response()->json([
             'success' => true,
             'data' => [
+                'can_manage_branch_catalog' => $catalogAccess->canManage($request->user(), $branch->business_id, $branch->id),
                 'summary' => [
                     'total_leads' => $totalLeads,
                     'new_leads' => $newLeads,
@@ -203,6 +208,6 @@ class CrmDashboardController extends Controller
                 'lead_sources' => $leadSources,
                 'staff_performance' => $staffPerformance,
             ],
-        ]);
+        ])->header('Cache-Control', 'private, no-store');
     }
 }

@@ -1033,21 +1033,26 @@ Route::controller(SocialMediaAccountController::class)->prefix('branches/{branch
     });
 });
 
-Route::middleware(['auth:sanctum', 'verified', EnsureClinicCrmAccess::class, EnsureClinicBranchOperationsAccess::class])
+Route::middleware(['auth:sanctum', 'verified', EnsureClinicCrmAccess::class])
     ->controller(ClinicBranchOperationsController::class)
     ->prefix('branches/{branch}/operations')->group(function () {
-        Route::get('/', 'index');
-        Route::post('/staff', 'addStaff');
-        Route::post('/staff/accounts', 'createStaffAccount');
-        Route::put('/staff/{businessUser}', 'updateStaff');
-        Route::put('/staff/{businessUser}/permissions', 'updateStaffPermissions');
-        Route::put('/staff/{businessUser}/password', 'resetStaffPassword');
-        Route::post('/treatments', [BranchTreatmentController::class, 'store']);
-        Route::put('/treatments/{treatment}', [BranchTreatmentController::class, 'update']);
-        Route::post('/doctors', 'addDoctor');
-        Route::put('/doctors/{doctor}', 'updateDoctorBranch');
-        Route::put('/doctors/{doctor}/online-booking', 'updateDoctorOnlineBooking');
-        Route::put('/doctors/{doctor}/treatments/{treatment}', 'updateDoctorTreatment');
+        Route::middleware(EnsureBranchCatalogManagementAccess::class)->group(function () {
+            Route::get('/', 'index');
+            Route::post('/treatments', [BranchTreatmentController::class, 'store']);
+            Route::put('/treatments/{treatment}', [BranchTreatmentController::class, 'update']);
+        });
+
+        Route::middleware(EnsureClinicBranchOperationsAccess::class)->group(function () {
+            Route::post('/staff', 'addStaff');
+            Route::post('/staff/accounts', 'createStaffAccount');
+            Route::put('/staff/{businessUser}', 'updateStaff');
+            Route::put('/staff/{businessUser}/permissions', 'updateStaffPermissions');
+            Route::put('/staff/{businessUser}/password', 'resetStaffPassword');
+            Route::post('/doctors', 'addDoctor');
+            Route::put('/doctors/{doctor}', 'updateDoctorBranch');
+            Route::put('/doctors/{doctor}/online-booking', 'updateDoctorOnlineBooking');
+            Route::put('/doctors/{doctor}/treatments/{treatment}', 'updateDoctorTreatment');
+        });
     });
 
 Route::middleware(['auth:sanctum', 'verified', EnsureClinicCrmAccess::class])

@@ -75,6 +75,48 @@ test('a clinic cannot modify staff from another clinic or reactivate a suspended
     $this->getJson($this->operations)->assertForbidden();
 });
 
+test('the operations workspace lets branch catalog editors manage treatments with limited data and actions', function () {
+    $staff = User::factory()->create();
+    $member = $this->business->memberships()->create(['user_id' => $staff->id, 'role' => 'staff', 'is_active' => true]);
+    $member->branches()->attach([$this->branch->id, $this->second->id]);
+    $doctor = Doctor::factory()->create();
+    $treatment = Treatment::create([
+        'treatment_category_id' => TreatmentCategory::factory()->create()->id,
+        'name' => 'Şube tedavisi', 'slug' => 'sube-tedavisi', 'is_active' => true, 'duration_minutes' => 30,
+    ]);
+    $permissions = $this->operations.'/staff/'.$member->id.'/permissions';
+    $dashboard = "/api/branches/{$this->branch->id}/crm/dashboard";
+    $secondOperations = "/api/branches/{$this->second->id}/operations";
+
+    $this->actingAs($staff, 'sanctum')->getJson($dashboard)->assertOk()->assertJsonPath('data.can_manage_branch_catalog', false);
+    $this->actingAs($this->owner, 'sanctum')->putJson($permissions, ['permissions' => ['branches.manage']])->assertOk();
+
+    $this->actingAs($staff, 'sanctum')->getJson($dashboard)->assertOk()->assertJsonPath('data.can_manage_branch_catalog', true);
+    $this->getJson("/api/branches/{$this->second->id}/crm/dashboard")->assertOk()->assertJsonPath('data.can_manage_branch_catalog', false);
+    $this->getJson($this->operations)->assertOk()->assertHeader('Cache-Control', 'no-store, private')
+        ->assertJsonPath('data.can_manage_operations', false)
+        ->assertJsonMissingPath('data.staff')->assertJsonMissingPath('data.doctors')->assertJsonMissingPath('data.branch_permission_options')
+        ->assertJsonPath('data.catalog_treatments', [['id' => $treatment->id, 'name' => $treatment->name]]);
+    $this->getJson($secondOperations)->assertForbidden();
+    $this->postJson($secondOperations.'/treatments', ['treatment_id' => $treatment->id])->assertForbidden();
+    $this->postJson($this->operations.'/staff/accounts', [])->assertForbidden();
+    $this->putJson($permissions, ['permissions' => []])->assertForbidden();
+    $this->putJson($this->operations.'/doctors/'.$doctor->id, ['is_active' => true])->assertForbidden();
+
+    $this->postJson($this->operations.'/treatments', ['treatment_id' => $treatment->id])->assertCreated();
+    $path = $this->operations.'/treatments/'.$treatment->id;
+    $this->putJson($path, ['duration_minutes' => 45, 'is_online_bookable' => true])->assertOk();
+    $this->getJson($this->operations)->assertOk()->assertJsonPath('data.branch_treatments.0.duration_minutes', 45)
+        ->assertJsonPath('data.branch_treatments.0.is_online_bookable', true);
+
+    $this->actingAs($this->owner, 'sanctum')->putJson($permissions, ['permissions' => []])->assertOk();
+    $this->actingAs($staff, 'sanctum')->getJson($dashboard)->assertOk()->assertJsonPath('data.can_manage_branch_catalog', false);
+    $this->getJson($this->operations)->assertForbidden();
+    $this->putJson($path, ['duration_minutes' => 90])->assertForbidden();
+    $this->assertDatabaseHas('branch_treatment', ['branch_id' => $this->branch->id, 'treatment_id' => $treatment->id, 'duration_minutes' => 45]);
+    $this->assertDatabaseMissing('branch_treatment', ['branch_id' => $this->second->id, 'treatment_id' => $treatment->id]);
+});
+
 test('an owner can register a private doctor and connect active branch treatments', function () {
     $this->actingAs($this->owner, 'sanctum');
     $profile = [

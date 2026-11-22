@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Middleware\EnsureClinicCrmAccess;
 use App\Models\Branch;
 use App\Models\Business;
 use App\Models\BusinessUser;
@@ -22,6 +23,29 @@ class ClinicBranchOperationsController extends Controller
 {
     public function index(Request $request, Branch $branch): JsonResponse
     {
+        $canManageOperations = $request->attributes->get(EnsureClinicCrmAccess::class)->role === 'business_owner';
+        $branchTreatments = $branch->treatments()
+            ->orderBy('treatments.name')
+            ->get(['treatments.id', 'treatments.name', 'treatments.is_active', 'treatments.duration_minutes'])
+            ->map(fn (Treatment $treatment) => [
+                'id' => $treatment->id,
+                'name' => $treatment->name,
+                'catalog_active' => $treatment->is_active,
+                'is_active' => (bool) $treatment->pivot->is_active,
+                'is_online_bookable' => (bool) $treatment->pivot->is_online_bookable,
+                'duration_minutes' => $treatment->pivot->duration_minutes,
+                'catalog_duration_minutes' => $treatment->duration_minutes,
+            ]);
+        $data = [
+            'can_manage_operations' => $canManageOperations,
+            'branch_treatments' => $branchTreatments,
+            'catalog_treatments' => Treatment::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
+        ];
+
+        if (! $canManageOperations) {
+            return $this->operationsData($data);
+        }
+
         $grantable = $this->grantablePermissions($request->user(), $branch);
         $staff = BusinessUser::query()
             ->where('business_id', $branch->business_id)
@@ -70,31 +94,19 @@ class ClinicBranchOperationsController extends Controller
                     ->pluck('id')->values(),
             ]);
 
-        $branchTreatments = $branch->treatments()
-            ->orderBy('treatments.name')
-            ->get(['treatments.id', 'treatments.name', 'treatments.is_active', 'treatments.duration_minutes'])
-            ->map(fn (Treatment $treatment) => [
-                'id' => $treatment->id,
-                'name' => $treatment->name,
-                'catalog_active' => $treatment->is_active,
-                'is_active' => (bool) $treatment->pivot->is_active,
-                'is_online_bookable' => (bool) $treatment->pivot->is_online_bookable,
-                'duration_minutes' => $treatment->pivot->duration_minutes,
-                'catalog_duration_minutes' => $treatment->duration_minutes,
-            ]);
+        return $this->operationsData([
+            ...$data,
+            'staff' => $staff,
+            'branch_permission_options' => collect(BusinessUser::BRANCH_PERMISSION_LABELS)->map(fn (string $label, string $name) => [
+                'name' => $name, 'label' => $label, 'can_grant' => in_array($name, $grantable, true),
+            ])->values(),
+            'doctors' => $doctors,
+        ]);
+    }
 
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'staff' => $staff,
-                'branch_permission_options' => collect(BusinessUser::BRANCH_PERMISSION_LABELS)->map(fn (string $label, string $name) => [
-                    'name' => $name, 'label' => $label, 'can_grant' => in_array($name, $grantable, true),
-                ])->values(),
-                'doctors' => $doctors,
-                'branch_treatments' => $branchTreatments,
-                'catalog_treatments' => Treatment::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
-            ],
-        ])->header('Cache-Control', 'private, no-store');
+    private function operationsData(array $data): JsonResponse
+    {
+        return response()->json(['success' => true, 'data' => $data])->header('Cache-Control', 'private, no-store');
     }
 
     public function addStaff(Request $request, Branch $branch): JsonResponse

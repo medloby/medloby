@@ -89,6 +89,7 @@ export function mountClinicCrm(section, api, appointmentDialogs) {
             return;
         }
 
+        operations.setBranch(dashboard.can_manage_branch_catalog ? branchId : null);
         metrics.replaceChildren(...Object.entries(metricLabels).map(([key, label]) => {
             const metric = find('metric').content.firstElementChild.cloneNode(true);
             metric.querySelector('dt').textContent = label;
