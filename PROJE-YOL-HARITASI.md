@@ -2,7 +2,7 @@
 
 **İnceleme tarihi** 22 Kasım 2026 · **İncelenen sürüm** `main / 668980d`
 
-**Sıradaki iş 2.1** Klinik CRM’de aday ayrıntısını, iletişim bilgisi düzenlemeyi ve yetkili personele atamayı ekrana bağlamak.
+**Sıradaki iş 2.2** Klinik CRM’de takip aşamasını değiştirmeyi, aşama geçmişini ve adayı sonuçlandırmayı ekrana bağlamak.
 
 ## Kapsam ve doğrulama
 
@@ -54,7 +54,7 @@ flowchart LR
 | Hesaplar | Hasta kaydı, giriş/çıkış, süreli imzalı e-posta doğrulaması ve yeniden gönderim | Şifre sıfırlama akışı, giriş ve kayıt istekleri için sınırlar, oturum davranışı ve yayın sırasında gerçek gelen kutusu testi |
 | Klinik başvurusu | Geçerli sözleşme sürümüyle başvuru, yönetici inceleme/onay/ret, klinik sahibinin durum ve kendisine yazılan açıklamayı görmesi | İşletmeci ve ruhsat doğrulama sürecini netleştirme, idari görevleri ve eksik yönetim ekranlarını bitirme |
 | Sözleşmeler ve platform yönetimi | Yönetici taslak listesi, düzenleme ve sürüm oluşturma, eşzamanlı değişiklik denetimi. Yayımlama, pasife alma, klinik askıya alma ve üyelik yetki işlemleri için sunucu uç noktaları | Yayımlama koşulları, geçmiş sözleşme ve kabul görünümü, klinik durum geçmişi ve üyelik yönetimi ekranları |
-| CRM hasta adayları | Şube seçimi ve özet, takip aşaması sayıları, aday listeleme, durum filtresi, sayfalama ve aday ekleme | Aday ayrıntısı, iletişim bilgilerini düzenleme, personele atama, aşama geçmişi ve sonuçlandırma |
+| CRM hasta adayları | Şube seçimi ve özet, takip aşaması sayıları, aday listeleme, durum filtresi, sayfalama, aday ekleme, ayrıntı ve iletişim bilgisi düzenleme, yetkili personele atama | Aşama değişikliği, aşama geçmişi ve sonuçlandırma |
 | CRM görevleri ve takip | Görev, takip, aktivite ve görüşme ilişkilendirme uç noktaları. Takip aşaması yönetimi ve rapor verileri | Klinik ekranları, hasta ile ilişkilendirme akışı ve süresi gelen takiplerin nasıl işletileceği |
 | Klinik operasyonları | Şube, şube tedavileri, hekim çalışma saatleri/izinleri, takvim kuralları, istisnalar ve bloklar için sunucu işlevleri | Operasyon ekranlarını mevcut uç noktalara bağlama, personel/şube yetkilerini ve hekim kurulum akışını doğrulama |
 | Katalog ve fiyat | Tedavi, kategori ve fiyat kayıtları. Klinik paketleri, seans ve ek hizmet yönetimi. Fiyatsız kamu kataloğu, yetkili kliniğe açık fiyat kayıtları ve hastaya özel paket teklifi | Türkiye yayını için içerik incelemesi |
@@ -80,7 +80,7 @@ Aşama, olumsuz yetki testleri ve kendi kliniğinde çalışan olumlu akışlarl
 
 ### 2. Klinik CRM’i tamamla
 
-1. Aday ayrıntısı, iletişim bilgisi düzenleme ve yetkili personele atama.
+1. **2.1 Tamamlandı.** Hasta adayının ayrıntısı açılıyor ve iletişim bilgileri düzenlenebiliyor. Sorumlu personel seçimi şubenin aktif ve yetkili üyeleriyle sınırlı. Atama değişikliği ve kaldırma, güncelleme sonrası sayfa ve filtreyi koruma ve şubeler arasında geçiş mobil Chromium’da doğrulandı. 796 test ve Vite derlemesi geçti. [CRM aday ekranı](https://github.com/medloby/medloby/commit/3eff17386f692ae46db3c7503627e055f7466cef)
 2. Takip aşaması ve aşama geçmişi. Adayın sonuçlandırılması, eski kayıtların uyumu ve rapor/filtreden aynı sonucun görülmesi.
 3. Görevler, takipler ve aktiviteler. Mevcut görüşmeyi izinli şekilde adaya bağlama.
 
