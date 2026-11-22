@@ -150,10 +150,7 @@ class BusinessRegistrationController extends Controller
             $branch = Branch::create([
                 'business_id' => $business->id,
                 'name' => $branchName,
-                'slug' => $this->uniqueBranchSlug(
-                    $branchName,
-                    $business->id
-                ),
+                'slug' => $business->uniqueBranchSlug($branchName),
                 'phone' => $validated['business_phone'] ?? null,
                 'email' => isset($validated['business_email'])
                     ? strtolower($validated['business_email'])
@@ -261,26 +258,6 @@ class BusinessRegistrationController extends Controller
         $counter = 2;
 
         while (Business::where('slug', $slug)->exists()) {
-            $slug = $baseSlug.'-'.$counter;
-            $counter++;
-        }
-
-        return $slug;
-    }
-
-    private function uniqueBranchSlug(
-        string $name,
-        int $businessId
-    ): string {
-        $baseSlug = Str::slug($name) ?: 'merkez';
-        $slug = $baseSlug;
-        $counter = 2;
-
-        while (
-            Branch::where('business_id', $businessId)
-                ->where('slug', $slug)
-                ->exists()
-        ) {
             $slug = $baseSlug.'-'.$counter;
             $counter++;
         }

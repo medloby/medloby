@@ -30,6 +30,8 @@ class ClinicProfileController extends Controller
         'type' => ['nullable', 'string', 'max:50'],
     ];
 
+    private const BRANCH_SUMMARY = ['id', 'name', 'city', 'district', 'status'];
+
     public function show(Request $request, Business $business): JsonResponse
     {
         $this->authorizeOwner($request, $business);
@@ -74,11 +76,57 @@ class ClinicProfileController extends Controller
         return $this->profile($owner, $business, $branch);
     }
 
+    public function branches(Request $request, Business $business): JsonResponse
+    {
+        $this->authorizeOwner($request, $business);
+
+        return response()->json(['success' => true, 'data' => [
+            'branches' => $business->branches()->orderBy('name')->orderBy('id')->get(self::BRANCH_SUMMARY),
+        ]])->header('Cache-Control', 'private, no-store');
+    }
+
+    public function storeBranch(Request $request, Business $business): JsonResponse
+    {
+        $branch = DB::transaction(function () use ($request, $business): Branch {
+            $business = Business::query()->lockForUpdate()->findOrFail($business->id);
+            $this->authorizeOwner($request, $business);
+            $fields = array_intersect_key(self::CONTACT_FIELDS, array_flip(['name', 'city', 'district', 'address']));
+            $validated = $request->validate($fields);
+
+            return $business->branches()->create([
+                ...$validated,
+                'slug' => $business->uniqueBranchSlug($validated['name']),
+                'country_code' => $business->country_code ?? 'TR',
+                'status' => 'active',
+            ]);
+        }, attempts: 3);
+
+        return response()->json(['success' => true, 'data' => $branch->only(self::BRANCH_SUMMARY)], 201)
+            ->header('Cache-Control', 'private, no-store');
+    }
+
+    public function updateBranchStatus(Request $request, Business $business, Branch $branch): JsonResponse
+    {
+        $branch = DB::transaction(function () use ($request, $business, $branch): Branch {
+            $business = Business::query()->lockForUpdate()->findOrFail($business->id);
+            $this->authorizeOwner($request, $business);
+            $validated = $request->validate(['status' => ['required', 'in:active,inactive']]);
+
+            $branch = $business->branches()->lockForUpdate()->findOrFail($branch->id);
+            $branch->update($validated);
+
+            return $branch;
+        }, attempts: 3);
+
+        return response()->json(['success' => true, 'data' => $branch->only(self::BRANCH_SUMMARY)])
+            ->header('Cache-Control', 'private, no-store');
+    }
+
     private function authorizeOwner(Request $request, Business $business): void
     {
         abort_unless($business->allowsCrmAccess() && $request->user()->businessMemberships()
             ->where('business_id', $business->id)->where('role', 'business_owner')->where('is_active', true)->exists(),
-            403, 'Klinik profilini yalnızca klinik sahibi düzenleyebilir.');
+            403, 'Bu kliniği yönetme yetkiniz yok.');
     }
 
     private function profile(User $owner, Business $business, Branch $branch): JsonResponse

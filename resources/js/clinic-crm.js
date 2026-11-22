@@ -3,6 +3,7 @@ import { mountClinicOperations } from './clinic-operations';
 import { mountClinicCalendar } from './clinic-calendar';
 import { mountClinicProfile } from './clinic-profile';
 import { mountClinicTreatmentPrices } from './clinic-treatment-prices';
+import { mountClinicBranchManagement } from './clinic-branch-management';
 
 const metricLabels = {
     total_leads: 'Toplam hasta adayı',
@@ -28,6 +29,9 @@ export function mountClinicCrm(section, api, appointmentDialogs) {
     const stageFields = stageForm.querySelector('fieldset');
     const stageStatus = find('stage-status');
     const operations = mountClinicOperations(find('operations'), api);
+    const branchManagement = mountClinicBranchManagement(find('branch-management'), api, (saved) => {
+        businessLoad = loadBusiness(saved.status === 'active' ? String(saved.id) : branch.value);
+    });
     const treatmentPrices = mountClinicTreatmentPrices(find('prices'), api);
     const calendar = mountClinicCalendar(find('calendar'), api, appointmentDialogs);
     const leads = mountCrmLeads(find('leads'), {
@@ -119,6 +123,7 @@ export function mountClinicCrm(section, api, appointmentDialogs) {
         branch.replaceChildren();
         setLoading(true);
         showStatus('Klinik CRM alanı yükleniyor…');
+        let workspaceLoaded = false;
 
         try {
             const clinic = await api('/businesses/' + businessId + '/crm');
@@ -126,8 +131,10 @@ export function mountClinicCrm(section, api, appointmentDialogs) {
                 return;
             }
 
+            workspaceLoaded = true;
             title.textContent = clinic.name;
             canManageOperations = clinic.can_manage_operations;
+            branchManagement.setBusiness(canManageOperations ? businessId : null);
             find('return').textContent = canManageOperations ? 'Başvurulara dön' : 'Çalışma alanına dön';
             const branches = clinic.branches;
             if (!branches.length) {
@@ -144,6 +151,9 @@ export function mountClinicCrm(section, api, appointmentDialogs) {
             await loadDashboard(branch.value, pending);
         } catch (error) {
             if (pending === request) {
+                if (!workspaceLoaded && [401, 403, 404].includes(error.status)) {
+                    branchManagement.setBusiness(null);
+                }
                 showStatus(error.message);
             }
         } finally {
@@ -169,8 +179,10 @@ export function mountClinicCrm(section, api, appointmentDialogs) {
         }
     }
 
-    refresh.addEventListener('click', () => {
+    refresh.addEventListener('click', async () => {
         businessLoad = loadBusiness(branch.value);
+        await businessLoad;
+        branchManagement.refresh();
     });
     branch.addEventListener('change', () => {
         resetStageEditor();
@@ -229,6 +241,7 @@ export function mountClinicCrm(section, api, appointmentDialogs) {
             }
             businessId = id;
             section.hidden = !id;
+            branchManagement.setBusiness(null);
 
             if (id) {
                 businessLoad = loadBusiness();

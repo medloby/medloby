@@ -175,6 +175,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/businesses/{business}/crm', ClinicCrmWorkspaceController::class);
         Route::get('/businesses/{business}/crm/profile', [ClinicProfileController::class, 'show']);
         Route::put('/businesses/{business}/crm/profile', [ClinicProfileController::class, 'update']);
+        Route::get('/businesses/{business}/crm/branches', [ClinicProfileController::class, 'branches']);
+        Route::post('/businesses/{business}/crm/branches', [ClinicProfileController::class, 'storeBranch']);
+        Route::put('/businesses/{business}/crm/branches/{branch}/status', [ClinicProfileController::class, 'updateBranchStatus'])->scopeBindings();
 
         /*
 

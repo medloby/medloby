@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Str;
 
 class Business extends Model
 {
@@ -49,6 +50,20 @@ class Business extends Model
     public function branches(): HasMany
     {
         return $this->hasMany(Branch::class);
+    }
+
+    public function uniqueBranchSlug(string $name): string
+    {
+        $base = Str::substr(Str::slug($name), 0, 255) ?: 'merkez';
+        $slug = $base;
+        $counter = 2;
+
+        while ($this->branches()->where('slug', $slug)->exists()) {
+            $suffix = '-'.$counter++;
+            $slug = Str::substr($base, 0, 255 - strlen($suffix)).$suffix;
+        }
+
+        return $slug;
     }
 
     public function memberships(): HasMany

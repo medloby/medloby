@@ -9,6 +9,69 @@ use Illuminate\Support\Facades\Notification;
 
 uses(RefreshDatabase::class);
 
+test('the clinic owner can add branches and restore inactive branches from the crm', function () {
+    $business = Business::factory()->create(['country_code' => 'TR']);
+    $branch = Branch::factory()->for($business)->create(['name' => 'Merkez Şube', 'slug' => 'merkez-sube']);
+    $owner = User::factory()->create();
+    $business->memberships()->create(['user_id' => $owner->id, 'role' => 'business_owner', 'is_active' => true]);
+    $appointment = $branch->appointments()->create([
+        'business_id' => $business->id, 'status' => 'confirmed',
+        'starts_at' => '2026-12-04 09:00:00', 'ends_at' => '2026-12-04 09:30:00',
+    ]);
+    $workspace = "/api/businesses/{$business->id}/crm";
+    $path = $workspace.'/branches';
+    $directory = route('clinics.show', $business->slug);
+
+    $this->getJson($path)->assertUnauthorized();
+    $client = $this->actingAs($owner, 'sanctum');
+    $client->getJson($path)->assertOk()->assertHeader('Cache-Control', 'no-store, private')->assertJsonCount(1, 'data.branches');
+    $client->postJson($path, ['name' => ''])->assertUnprocessable()->assertJsonValidationErrors('name');
+    $added = $client->postJson($path, ['name' => 'Merkez Şube', 'city' => 'İzmir', 'district' => 'Konak', 'address' => 'Prova adresi'])
+        ->assertCreated()->assertJsonPath('data.status', 'active')->assertJsonPath('data.city', 'İzmir')->json('data.id');
+    $this->assertDatabaseHas('branches', ['id' => $added, 'business_id' => $business->id,
+        'slug' => 'merkez-sube-2', 'country_code' => 'TR', 'address' => 'Prova adresi']);
+    $client->getJson($workspace)->assertOk()->assertJsonCount(2, 'data.branches');
+    $client->get($directory)->assertOk()->assertSeeText('Prova adresi');
+
+    $client->putJson($path.'/'.$added.'/status', ['status' => 'inactive'])->assertOk()->assertJsonPath('data.status', 'inactive');
+    $client->putJson($path.'/'.$branch->id.'/status', ['status' => 'inactive'])->assertOk();
+    $client->getJson($workspace)->assertOk()->assertJsonPath('data.can_manage_operations', true)->assertJsonCount(0, 'data.branches');
+    $client->getJson($path)->assertOk()->assertJsonPath('data.branches.*.status', ['inactive', 'inactive']);
+    $client->get($directory)->assertNotFound();
+    $this->assertDatabaseHas('appointments', ['id' => $appointment->id, 'branch_id' => $branch->id, 'status' => 'confirmed']);
+
+    $client->putJson($path.'/'.$added.'/status', ['status' => 'active'])->assertOk()->assertJsonPath('data.status', 'active');
+    $client->getJson($workspace)->assertOk()->assertJsonCount(1, 'data.branches')->assertJsonPath('data.branches.0.id', $added);
+    $client->get($directory)->assertOk()->assertSeeText('Prova adresi');
+});
+
+test('crm branch management is restricted to the approved clinic owner and scoped to that clinic', function () {
+    $branch = Branch::factory()->create();
+    $business = $branch->business;
+    $foreign = Branch::factory()->create();
+    $owner = User::factory()->create();
+    $staff = User::factory()->create();
+    $business->memberships()->create(['user_id' => $owner->id, 'role' => 'business_owner', 'is_active' => true]);
+    $member = $business->memberships()->create(['user_id' => $staff->id, 'role' => 'staff', 'is_active' => true]);
+    $member->branches()->attach($branch, ['permission_names' => ['branches.manage']]);
+    $path = "/api/businesses/{$business->id}/crm/branches";
+
+    $client = $this->actingAs($staff, 'sanctum');
+    $client->getJson($path)->assertForbidden();
+    $client->postJson($path, ['name' => 'Yetkisiz şube'])->assertForbidden();
+    $client->putJson($path.'/'.$branch->id.'/status', ['status' => 'inactive'])->assertForbidden();
+
+    $client = $this->actingAs($owner, 'sanctum');
+    $client->putJson($path.'/'.$foreign->id.'/status', ['status' => 'inactive'])->assertNotFound();
+    $client->putJson($path.'/'.$branch->id.'/status', ['status' => 'unknown'])->assertUnprocessable()->assertJsonValidationErrors('status');
+    $business->update(['status' => 'suspended']);
+    $client->getJson($path)->assertForbidden();
+    $client->postJson($path, ['name' => 'Askıdaki şube'])->assertForbidden();
+    $client->putJson($path.'/'.$branch->id.'/status', ['status' => 'inactive'])->assertForbidden();
+    expect($branch->fresh()->status)->toBe('active');
+    expect($foreign->fresh()->status)->toBe('active');
+});
+
 test('a registered owner stays out of crm until verification and clinic approval are complete', function () {
     Notification::fake();
     $admin = User::factory()->create(['is_admin' => true]);

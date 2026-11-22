@@ -7,6 +7,7 @@
         </div>
     </div>
     <p class="text-sm text-slate-600 dark:text-slate-300" data-crm-status role="status" hidden></p>
+    @include('clinic-branch-management')
     <label class="offer-field max-w-sm" data-crm-branch-field hidden>
         Şube
         <select class="offer-control" data-crm-branch></select>
