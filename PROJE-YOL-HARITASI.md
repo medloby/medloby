@@ -2,7 +2,7 @@
 
 **İnceleme tarihi** 22 Kasım 2026 · **İncelenen sürüm** `main / 668980d`
 
-**Sıradaki iş 4.2** Klinik üyelik ve KVKK metinlerini işletmeci ve iletişim bilgileriyle tamamlamak.
+**Sıradaki iş 4.2** İşletmeci ve KVKK başvuru bilgilerini doğrulamak, veri saklama sürelerini ve sağlık verilerinin işleme şartlarını kesinleştirmek.
 
 ## Kapsam ve doğrulama
 
@@ -11,7 +11,7 @@ GitHub'daki `main` ile geliştirme kopyasının aynı commit'te olduğu doğrula
 - PHP 8.4.28 ve Node 24.22.3 ile kilitli PHP ortam gereksinimleri, 291 PHP dosyasının sözdizimi, JavaScript sözdizimi ve Vite derlemesi geçti.
 - Pest'te **781 test, 2.710 doğrulama** geçti. Bu sonuç testlerin SQLite kullandığı geliştirme ortamına ait.
 - Mobil Chromium'da yapay verilerle başvuru, onaydan CRM’e geçiş, hasta adayı kaydı, sayfalama, filtreleme ve şube ayrımı doğrulandı.
-- Tüm 61 migration yerel SQLite veritabanına uygulanmış. Klinik üyeliği için `0.1-draft` mevcut. Başvuru formu, geçerli ve yayımlanmış zorunlu sözleşme olduğunda açılır.
+- Tüm 61 migration yerel SQLite veritabanına uygulanmış. Klinik üyeliği için `0.2-draft` hazırlandı. Başvuru formu, geçerli ve yayımlanmış zorunlu sözleşme olduğunda açılır.
 - Bu incelemedeki bağımlılık bulguları Aşama 1.3’te ele alındı. PHP kilit dosyası GitHub Advisory Database üzerinden tarandı.
 
 ## Mimari
@@ -97,7 +97,7 @@ Kabul senaryosu şubede hekim ve uygunluk hazırlığından başlayıp hastanın
 ### 4. Kamuya açık site ve yayın içeriği
 
 1. **4.1 Uygulama tamamlandı.** Medloby ana sayfasından tedavi paketi arama, hesap ve klinik başvurusu açılıyor. Katalog klinik, konum, tedavi seansları ve ek hizmetleri gösteriyor. Fiyat teklifleri ilgili hastanın hesabında görüntüleniyor. Hasta, katalogdan seçtiği paketin görüşmesini doğrulanmış hesabında başlatabiliyor. 808 test ve 3.155 doğrulama, Vite derlemesi ve masaüstü ile mobil Chromium kontrolleri geçti. [Ana sayfa ve katalog](https://github.com/medloby/medloby/commit/2c1a937c756527e89c862bfd30779e205602ca86)
-2. Klinik üyelik sözleşmesinin işletmeci, destek ve tebligat bilgilerini doldur. Site içerik editörünün doğrulanmış iletişim kanalını kamuya açık sayfada belirt. Hasta ve klinik için gerekli KVKK aydınlatması, başvuru kanalı, saklama ve erişim kurallarını tamamla.
+2. **4.2 Taslaklar ve teknik hazırlık tamamlandı.** Hasta ve klinik için ayrı KVKK metinleri, kayıt formu bağlantıları, iletişim ayarları ve veri işleme ile saklama planı hazırlandı. Klinik üyelik sözleşmesi `0.2-draft` sürümüne taşındı. Randevu e-postaları kullanıcıyı hesabına yönlendiriyor, ayrıntılar yetkili hesap içinde gösteriliyor. 811 test, Vite derlemesi ve mobil Chromium kontrolleri geçti. Yayın için işletmecinin tam unvanı, posta ve tebligat adresi, kullanılacak KVKK başvuru kanalları, destek ve içerik editörü adresleri gerekiyor. Kesin saklama süreleri, sağlık verilerinin işleme şartları ve hizmet sağlayıcılar doğrulanacak. [KVKK hazırlığı](https://github.com/medloby/medloby/commit/a83b9ec2c6febea6ed1ab2ec83e4372254abe95f) · [Veri işleme ve saklama planı](resources/contracts/medloby-veri-isleme-ve-saklama-taslagi.md)
 3. Yayımlanacak sözleşme sürümünü ve yürürlük tarihini onayla. Yayımlanacak katalog kayıtlarını ve klinik bilgilerinin sunumunu sağlık tanıtımı kurallarına göre incele. [Klinik üyelik taslağı](resources/contracts/medloby-klinik-uyelik-taslak.txt) · [Sağlık Hizmetlerinde Tanıtım ve Bilgilendirme Faaliyetleri Hakkında Yönetmelik](https://www.resmigazete.gov.tr/eskiler/2025/11/12/20251112-2.htm)
 
 Kamuya açılış için içeriğin uygunluğu, onaylı sözleşme ve kişisel veri süreçleri doğrulanır. Tıbbi kayıt, bekleme listesi, platform içi ödeme ve varsa uluslararası sağlık turizmi akışı için kapsam ayrıca kararlaştırılır.
