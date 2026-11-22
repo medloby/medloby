@@ -26,6 +26,7 @@
                             Bildirimler
                             <span id="notifications-count" class="rounded-full bg-teal-300 px-1.5 text-xs font-semibold text-slate-950" aria-hidden="true" hidden></span>
                         </button>
+                        <button id="support-tickets-button" type="button" class="rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800" hidden>Destek taleplerim</button>
                         <button id="catalog-button" type="button" class="rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800" hidden>Paketleri yönet</button>
                         <button id="clinic-review-button" type="button" class="rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800" hidden>Klinik başvuruları</button>
                         <button id="clinic-administration-button" type="button" class="rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800" hidden>Klinik yönetimi</button>
@@ -136,6 +137,7 @@
             @include('package-catalog-dialog')
             @include('package-service-dialog')
             @include('workspace-notifications')
+            @include('support-tickets-dialog')
             @include('clinic-review-dialog')
             @include('clinic-administration-dialog')
             @include('treatment-administration-dialog')

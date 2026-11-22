@@ -38,6 +38,8 @@ final class NotificationType
 
     public const CLINIC_APPLICATION_REJECTED = 'clinic_application_rejected';
 
+    public const SUPPORT_TICKET_UPDATED = 'support_ticket_updated';
+
     /**
      * Klinik bildirim tercihlerinde ayarlanabilen türler.
      */

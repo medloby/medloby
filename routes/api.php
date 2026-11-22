@@ -38,6 +38,8 @@ use App\Http\Controllers\ClinicBranchOperationsController;
 
 use App\Http\Controllers\ClinicConsentTemplateController;
 
+use App\Http\Controllers\SupportTicketController;
+
 use App\Http\Controllers\ClinicAppointmentController;
 
 use App\Http\Controllers\ClinicCalendarController;
@@ -189,6 +191,23 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('/{template}/versions', 'prepareVersion')->whereNumber('template');
             Route::get('/{template}/versions/{version}', 'showVersion')->whereNumber(['template', 'version']);
         });
+
+        Route::prefix('support-tickets')->name('support-tickets.')->controller(SupportTicketController::class)->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::get('/{ticket}', 'show')->whereNumber('ticket')->name('show');
+            Route::middleware('throttle:15,1,support-tickets:')->group(function () {
+                Route::post('/', 'store')->name('store');
+                Route::post('/{ticket}/messages', 'reply')->whereNumber('ticket')->name('reply');
+            });
+        });
+
+        Route::prefix('admin/support-tickets')->name('admin.support-tickets.')->middleware('admin')
+            ->controller(SupportTicketController::class)->group(function () {
+                Route::get('/', 'index')->name('index');
+                Route::get('/{ticket}', 'show')->whereNumber('ticket')->name('show');
+                Route::post('/{ticket}/messages', 'reply')->whereNumber('ticket')->name('reply');
+                Route::put('/{ticket}/status', 'updateStatus')->whereNumber('ticket')->name('status');
+            });
 
         /*
 

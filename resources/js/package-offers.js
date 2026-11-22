@@ -10,6 +10,7 @@ import { mountClinicContracts } from './clinic-contracts';
 import { mountTreatmentAdministration } from './treatment-administration';
 import { mountClinicApplications } from './clinic-applications';
 import { mountClinicCrm } from './clinic-crm';
+import { mountSupportTickets } from './support-tickets';
 import { clinicToday } from './clinic-calendar';
 import { mountPatientAppointments, patientAppointmentsPath } from './patient-appointments';
 import { mountPatientBooking } from './patient-booking';
@@ -138,6 +139,10 @@ export function mountPackageOffers(root) {
         onChanged: syncPage,
     });
     const clinicCrm = mountClinicCrm(get('clinic-crm'), api, { openBookingDialog, openAppointmentAction, appointmentActionLabels });
+    const supportTickets = mountSupportTickets(get('support-tickets-dialog'), get('support-tickets-button'), {
+        api,
+        timeLabel: (value) => offerDeadline.format(new Date(value)),
+    });
     const patientAppointments = mountPatientAppointments(get('patient-appointments'), {
         api,
         renderAppointment: (appointment) => renderScheduledAppointment(appointment),
@@ -372,6 +377,11 @@ export function mountPackageOffers(root) {
 
     async function openNotificationTarget(data) {
         const actor = user;
+        const supportTicketId = Number(data.support_ticket_id);
+        if (Number.isSafeInteger(supportTicketId) && supportTicketId > 0) {
+            const supportTicket = await supportTickets.fetchTicket(supportTicketId);
+            return user === actor ? { supportTicket } : null;
+        }
         const waitingListId = Number(data.waiting_list_id);
         if (Number.isSafeInteger(waitingListId) && waitingListId > 0) {
             const booking = await api(patientAppointmentsPath + '/waiting-list/' + waitingListId);
@@ -439,6 +449,10 @@ export function mountPackageOffers(root) {
     }
 
     function focusNotificationTarget(target) {
+        if (target.supportTicket) {
+            supportTickets.open(target.supportTicket);
+            return;
+        }
         if (target.booking) {
             const { branch_id, doctor_id, treatment_id, date } = target.booking;
             window.location.hash = `randevu-al/${branch_id}/${doctor_id}/${treatment_id}/${date}`;
@@ -506,6 +520,7 @@ export function mountPackageOffers(root) {
         packageServiceAdministration.close();
         packageCatalog.close();
         notifications.stop();
+        supportTickets.stop();
         clinicReview.stop();
         clinicAdministration.stop();
         clinicContracts.stop();
@@ -1038,6 +1053,7 @@ export function mountPackageOffers(root) {
         catalogButton.hidden = businesses.length === 0;
         sharedServicesButton.hidden = !(user.is_admin && user.email_verified_at);
         notifications.start(businesses);
+        supportTickets.start(user);
         clinicApplications.setAccount(businesses, true);
         loadStaffCrm();
         if (user.is_admin) {
