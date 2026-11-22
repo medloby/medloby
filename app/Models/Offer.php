@@ -119,6 +119,11 @@ class Offer extends Model
         return $this->hasMany(Appointment::class);
     }
 
+    public function travelPlan(): HasOne
+    {
+        return $this->hasOne(OfferTravelPlan::class);
+    }
+
     public function appointment(): HasOne
     {
         return $this->hasOne(Appointment::class);

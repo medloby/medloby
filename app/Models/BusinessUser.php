@@ -18,6 +18,7 @@ class BusinessUser extends Model
         'appointments.complete' => 'Randevuyu tamamlama',
         'appointments.mark_no_show' => 'Hasta gelmedi olarak işaretleme',
         'branches.manage' => 'Şube kataloğu ve fiyatlarını düzenleme',
+        'travel.manage' => 'Seyahat planını düzenleme',
     ];
 
     protected $table = 'business_user';

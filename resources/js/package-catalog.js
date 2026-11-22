@@ -121,6 +121,8 @@ export function mountPackageCatalog(dialog, api, openServices) {
         metadata.elements.namedItem('valid_from').value = selectedPackage?.valid_from?.slice(0, 10) ?? '';
         metadata.elements.namedItem('valid_until').value = selectedPackage?.valid_until?.slice(0, 10) ?? '';
         metadata.elements.namedItem('is_offer_enabled').checked = selectedPackage?.is_offer_enabled ?? true;
+        metadata.elements.namedItem('includes_hotel').checked = selectedPackage?.includes_hotel ?? false;
+        metadata.elements.namedItem('includes_transfer').checked = selectedPackage?.includes_transfer ?? false;
         find('[data-catalog-save]').textContent = selectedPackage ? 'Paket bilgilerini kaydet' : 'Taslak oluştur';
         publish.hidden = !selectedPackage;
         publish.textContent = selectedPackage?.is_active ? 'Pasife al' : 'Yayımla';
@@ -183,6 +185,8 @@ export function mountPackageCatalog(dialog, api, openServices) {
             valid_from: fields.valid_from || null,
             valid_until: fields.valid_until || null,
             is_offer_enabled: fields.is_offer_enabled === 'on',
+            includes_hotel: fields.includes_hotel === 'on',
+            includes_transfer: fields.includes_transfer === 'on',
         };
         const packageData = selectedPackage
             ? await api('/treatment-packages/' + selectedPackage.id, payload, 'PUT')

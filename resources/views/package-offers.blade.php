@@ -140,6 +140,7 @@
             @include('package-service-dialog')
             @include('workspace-notifications')
             @include('support-tickets-dialog')
+            @include('offer-travel-plan')
             @include('clinic-review-dialog')
             @include('clinic-administration-dialog')
             @include('treatment-administration-dialog')
@@ -268,6 +269,7 @@
                         <span class="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-medium text-slate-800 dark:bg-slate-800 dark:text-slate-200" data-offer-status></span>
                     </header>
                     <p class="whitespace-pre-wrap break-words text-sm text-slate-600 dark:text-slate-300" data-description hidden></p>
+                    <p class="text-sm font-medium text-slate-700 dark:text-slate-200" data-travel-inclusions hidden></p>
                     <div class="grid gap-1 text-sm text-slate-700 dark:text-slate-300" data-rejection hidden>
                         <span class="font-semibold">Ret nedeni</span>
                         <p class="whitespace-pre-wrap break-words" data-rejection-reason></p>

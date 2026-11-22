@@ -108,6 +108,8 @@ use App\Http\Controllers\PatientBookingController;
 
 use App\Http\Controllers\PatientJourneyController;
 
+use App\Http\Controllers\OfferTravelPlanController;
+
 use App\Http\Controllers\NotificationController;
 
 use App\Http\Middleware\EnsureBranchCatalogManagementAccess;
@@ -616,6 +618,9 @@ Route::prefix('notifications')->group(function () {
             'reject',
 
         ]);
+
+        Route::get('/offers/{offer}/travel-plan', [OfferTravelPlanController::class, 'show']);
+        Route::put('/offers/{offer}/travel-plan', [OfferTravelPlanController::class, 'update']);
 
         /*
 

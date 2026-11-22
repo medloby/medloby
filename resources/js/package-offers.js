@@ -11,6 +11,7 @@ import { mountTreatmentAdministration } from './treatment-administration';
 import { mountClinicApplications } from './clinic-applications';
 import { mountClinicCrm } from './clinic-crm';
 import { mountSupportTickets } from './support-tickets';
+import { mountOfferTravelPlan } from './offer-travel-plan';
 import { clinicToday } from './clinic-calendar';
 import { mountPatientAppointments, patientAppointmentsPath } from './patient-appointments';
 import { mountPatientJourney } from './patient-journey';
@@ -144,6 +145,7 @@ export function mountPackageOffers(root) {
         api,
         timeLabel: (value) => offerDeadline.format(new Date(value)),
     });
+    const travelPlan = mountOfferTravelPlan(get('offer-travel-dialog'), api);
     const patientAppointments = mountPatientAppointments(get('patient-appointments'), {
         api,
         renderAppointment: (appointment) => renderScheduledAppointment(appointment),
@@ -555,6 +557,7 @@ export function mountPackageOffers(root) {
         packageCatalog.close();
         notifications.stop();
         supportTickets.stop();
+        travelPlan.stop();
         clinicReview.stop();
         clinicAdministration.stop();
         clinicContracts.stop();
@@ -686,6 +689,9 @@ export function mountPackageOffers(root) {
         card.dataset.offerId = offer.id;
         card.tabIndex = -1;
         const snapshot = offer.package_snapshot;
+        const hotelIncluded = [true, 1].includes(snapshot.includes_hotel);
+        const transferIncluded = [true, 1].includes(snapshot.includes_transfer);
+        const inclusionList = [hotelIncluded && 'Konaklama dahil', transferIncluded && 'Transfer dahil'].filter(Boolean);
         const booked = offer.appointments_exists;
         card.querySelector('[data-title]').textContent = offer.title;
         card.querySelector('[data-price]').textContent = priceLabel(offer.amount, offer.currency);
@@ -696,6 +702,9 @@ export function mountPackageOffers(root) {
             ? 'Randevular oluşturuldu'
             : statusLabels[pastDeadline && offer.status === 'pending' ? 'expired' : offer.status] ?? offer.status;
         showStatus(card.querySelector('[data-description]'), offer.description ?? '');
+        const travelInclusions = card.querySelector('[data-travel-inclusions]');
+        travelInclusions.textContent = inclusionList.join(' · ');
+        travelInclusions.hidden = inclusionList.length === 0;
 
         if (offer.status === 'rejected' && offer.rejection_reason) {
             card.querySelector('[data-rejection]').hidden = false;
@@ -751,6 +760,12 @@ export function mountPackageOffers(root) {
             plan.type = 'button';
             plan.addEventListener('click', () => openBookingDialog(offer));
             actions.append(plan);
+        }
+        if (offer.status === 'accepted' && inclusionList.length) {
+            const showTravel = element('button', 'Seyahat planı', 'offer-button offer-button-secondary');
+            showTravel.type = 'button';
+            showTravel.addEventListener('click', () => travelPlan.open(offer));
+            actions.append(showTravel);
         }
         actions.hidden = !actions.childElementCount;
 

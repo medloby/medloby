@@ -2,7 +2,7 @@
 
 **İnceleme tarihi** 22 Kasım 2026 · **Envanterin dayandığı sürüm** `main / eb56f3d`
 
-**Güncel durum** İlk sürümde ücretsiz klinik planı seçimi, tedavi fiyat aralıkları, şube yönetim yetkileri, randevu bekleme bildirimleri, destek talepleri ve hasta süreci ekranı test ortamında hazır. Canlı e-posta, üretim zamanlayıcısı ve yedeklemesi, işletmeci bilgileri ve KVKK onayları yayın öncesi kontrol listesinde takip ediliyor. [Yayın öncesi kontrol listesi](README.md#medloby-yayına-çıkmadan-önce)
+**Güncel durum** İlk sürümde ücretsiz klinik planı seçimi, tedavi fiyat aralıkları, şube yönetim yetkileri, randevu bekleme bildirimleri, destek talepleri, hasta süreci ekranı ve seyahat planı test ortamında hazır. Canlı e-posta, üretim zamanlayıcısı ve yedeklemesi, işletmeci bilgileri ve KVKK onayları yayın öncesi kontrol listesinde takip ediliyor. [Yayın öncesi kontrol listesi](README.md#medloby-yayına-çıkmadan-önce)
 
 ## Kapsam ve doğrulama
 
@@ -10,7 +10,7 @@ Envanter, Git'in izlediği 476 dosyayı kapsadı. Depoda 152 uygulama dosyası, 
 
 - Kilitli PHP ortam gereksinimleri, 371 PHP dosyasının sözdizimi ve Vite derlemesi geçti.
 - Envanterin dayandığı sürümde SQLite ve PostgreSQL 17 yapılandırmalarıyla **879’ar test** geçti. Sonraki uygulama sonuçları geliştirme sırasındaki ilgili maddede yer alır.
-- SQLite ve PostgreSQL 17.12 üzerinde test paketindeki **959 testin tamamı** geçti.
+- SQLite ve PostgreSQL 17.12 üzerinde test paketindeki **963 testin tamamı** geçti.
 - Klinik üyeliği için `0.2-draft` hazırlandı. Başvuru formu, geçerli ve yayımlanmış zorunlu sözleşme olduğunda açılır.
 - npm taramasında ve kilitli 133 PHP paket sürümü için GitHub Advisory Database taramasında eşleşen bildirim bulunmadı.
 
@@ -63,11 +63,12 @@ flowchart LR
 | Bildirim | Klinik başvurusu, görüşme, teklif, randevu ve destek bildirimleri. CRM takip ve hasta randevu hatırlatmaları. Okunma durumu ve klinik tercihleri | Üretim zamanlayıcısı, kuyruk işçisi ve canlı e-posta teslimatı |
 | Randevu bekleme listesi | Doğrulanmış hasta dolu bir gün için aynı şube, hekim ve tedavide bildirim isteyebilir ve isteğini kaldırabilir. Uygunluk bildirimi randevu ekranındaki seçimi açar. | Yayın ortamında zamanlayıcı ve bildirim provası |
 | Hasta yolculuğu | Doğrulanmış hasta, görüşme başlangıcını, gelen teklif ve kararları, randevu kayıtları ve durum değişikliklerini **Tedavi sürecim** ekranında tarih sırasıyla görebilir. Her kayıt ilgili görüşme, teklif veya randevu ayrıntısını açar. | Yayın ortamında ilk hasta akışıyla birlikte prova |
+| Seyahat planı | Klinik, konaklama veya transfer içeren kabul edilmiş teklifin seyahat ayrıntılarını düzenler. Hasta güncel planı kendi teklifinden görür. | Yayın ortamında klinikle konaklama ve transfer akışını prova etme |
 | Destek | Hasta ve klinik hesapları destek talebi açabilir ve kendi taleplerini takip edebilir. Platform yöneticisi yanıtlayabilir, talebi kapatabilir veya yeniden açabilir. | Yayın öncesinde destek kayıtlarının saklama süresini belirleme |
 | Tıbbi kayıt | Tıbbi kayıt için şema ve model | Tıbbi kayıt yetkileri ve saklama kararları |
 | Yayın ve operasyon | Yerel kurulum, otomatik derleme ve test, yerel font ve lisans bildirimleri, SQLite ve PostgreSQL 17 yedekleme ve geri yükleme provaları, `/up` adresinden uygulama ve veritabanı erişim kontrolü | Üretim kurulumu ve yedekleme, canlı izleme ve yayın öncesi kontroller |
 
-İlk sürümde klinik başvurusunda **Başlangıç**, **Standart** ve **Profesyonel** üyelik planları ücretsiz ve isteğe bağlıdır. Seçim klinik sahibinin CRM’inde ve platform yönetim ekranlarında görünür. Muhasebe, faturalama ve sağlık turizmi operasyonları için kullanıcı akışları ayrıca tanımlanacak. [Klinik başvuru akışı](app/Http/Controllers/BusinessRegistrationController.php)
+İlk sürümde klinik başvurusunda **Başlangıç**, **Standart** ve **Profesyonel** üyelik planları ücretsiz ve isteğe bağlıdır. Seçim klinik sahibinin CRM’inde ve platform yönetim ekranlarında görünür. Muhasebe ve faturalama için kullanıcı akışları ayrıca tanımlanacak. [Klinik başvuru akışı](app/Http/Controllers/BusinessRegistrationController.php)
 
 Adayı sonuçlandırma işlemi durum ve tarih kaydeder. Adayın profil bağlantısı şubeyle ilişkisi doğrulanabilen hastalar için kurulur. Aday ayrıntısındaki randevu listesi bu profilin adayın şubesindeki kayıtlarıyla sınırlıdır. CRM özeti başarılı ve sonuçsuz adayları kayıtlı sonuca göre sayar. [CRM aday işlemleri](app/Http/Controllers/CrmLeadController.php) · [Aday randevuları](app/Http/Controllers/CrmLeadAppointmentController.php) · [CRM raporu](app/Http/Controllers/CrmDashboardController.php)
 
@@ -177,7 +178,7 @@ Kamuya açılış için içeriğin uygunluğu, onaylı sözleşme ve kişisel ve
 3. **6.3 Klinik üyelik planı seçimi tamamlandı.** Üç ücretsiz plandan yapılan seçim klinik kaydında saklanır. Seçilen plan başvuru incelemesinde, yönetim listesindeki klinik ayrıntılarında ve klinik sahibinin CRM’inde görünür. Ücretlendirme, muhasebe ve faturalama akışları daha sonra tanımlanacak. [Klinik üyelik testi](tests/Feature/ClinicAccountOnboardingTest.php)
 4. **6.4 Uygulama içi destek talepleri hazır.** Hasta ve klinik hesapları **Destek taleplerim** bölümünde konu ve açıklama ile bir talep açabilir. Platform yöneticileri **Destek talepleri** bölümünden açık veya kapalı kayıtları bulabilir, açık talepleri yanıtlayabilir ve durumu güncelleyebilir. Yeni talep ve mesajlar ilgili hesabın bildirimlerinden açılabilir. Yanıt geçmişi talep sahibi ve platform yöneticilerine açıktır. [Destek testleri](tests/Feature/SupportTicketTest.php)
 5. **6.5 Hasta yolculuğu ekranı hazır.** **Tedavi sürecim** sayfası doğrulanmış hastanın mevcut görüşme, teklif ve randevu kayıtlarından bir zaman çizelgesi oluşturur. Hasta olayları kayıt türüne göre süzer ve ayrıntıya geçer. Randevunun saati değişmişse randevu ayrıntısı güncel kaydı açar. [Hasta yolculuğu testleri](tests/Feature/PatientJourneyTest.php)
-6. **6.6 Sağlık turizmi operasyonları.** Kullanacak roller, işlem adımları ve ilk sürümde yer alacak özellikler belirlenecek.
+6. **6.6 Konaklama ve transfer takibi hazır.** Klinik paket yönetiminde paketin hangi seyahat hizmetlerini içerdiğini işaretler. Kabul sonrası klinik sahibi ve ilgili şubede **Seyahat planını düzenleme** yetkisi verilen personel otel bilgilerini, giriş ve çıkış tarihlerini, birden fazla transferin saatini ve yerlerini kaydeder. Kliniğin geneli için sunulan teklifin planını klinik sahibi yönetir. Hasta plan güncellendiğinde uygulama içi bildirim alır ve ayrıntıları kendi teklifinde görür. [Seyahat planı testleri](tests/Feature/OfferTravelPlanTest.php)
 
 ## Uygulama düzeni
 

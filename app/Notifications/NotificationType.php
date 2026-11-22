@@ -40,6 +40,8 @@ final class NotificationType
 
     public const SUPPORT_TICKET_UPDATED = 'support_ticket_updated';
 
+    public const OFFER_TRAVEL_PLAN_UPDATED = 'offer_travel_plan_updated';
+
     /**
      * Klinik bildirim tercihlerinde ayarlanabilen türler.
      */

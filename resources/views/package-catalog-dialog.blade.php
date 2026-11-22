@@ -50,6 +50,12 @@
                 Paket açıklaması
                 <textarea class="offer-control" name="description" rows="2"></textarea>
             </label>
+            @foreach (['includes_hotel' => 'Konaklama dahil', 'includes_transfer' => 'Transfer dahil'] as $key => $label)
+                <label class="flex items-center gap-2 text-sm">
+                    <input class="size-4 accent-teal-800" type="checkbox" name="{{ $key }}">
+                    {{ $label }}
+                </label>
+            @endforeach
             <label class="flex items-center gap-2 text-sm">
                 <input class="size-4 accent-teal-800" type="checkbox" name="is_offer_enabled">
                 Tekliflerde kullanılabilir

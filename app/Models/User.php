@@ -167,6 +167,11 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->allowedBranchPermissions($branch, ['branches.manage'], ownerDefault: false) !== [];
     }
 
+    public function canManageTravelPlan(Branch $branch): bool
+    {
+        return $this->allowedBranchPermissions($branch, ['travel.manage'], ownerDefault: true) !== [];
+    }
+
     private function allowedBranchPermissions(Branch $branch, array $permissions, bool $ownerDefault): array
     {
         $membership = $this->membershipForBranch($branch);
