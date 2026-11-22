@@ -196,6 +196,39 @@ test('cannot attach lead from another business', function () {
         ->toBeNull();
 });
 
+test('lists attachable conversations within the branch and links a patient only on explicit selection', function () {
+    $business = createCrmConversationTestBusiness();
+    $branch = createCrmConversationTestBranch($business);
+    $otherBranch = createCrmConversationTestBranch($business, '-other');
+    $patient = createCrmConversationTestPatient();
+    $otherPatient = createCrmConversationTestPatient();
+    $staff = createCrmConversationTestBusinessUser($business, $branch);
+    $lead = CrmLead::create(['business_id' => $business->id, 'branch_id' => $branch->id]);
+    $otherLead = createCrmConversationTestLead($business, $branch, $patient);
+    $conversation = createCrmConversationTestConversation($business, $branch, $patient);
+    $otherConversation = createCrmConversationTestConversation($business, $branch, $otherPatient);
+    $outside = createCrmConversationTestConversation($business, $otherBranch, $patient);
+    $attached = createCrmConversationTestConversation($business, $branch, $patient);
+    $attached->update(['crm_lead_id' => $otherLead->id]);
+    $list = "/api/branches/{$branch->id}/crm/leads/{$lead->id}/conversations";
+    $attach = attachLeadUrl($branch, $lead, $conversation);
+
+    $this->actingAs($staff['user'])->getJson($list)->assertOk()
+        ->assertJsonCount(2, 'data')
+        ->assertJsonPath('data.0.id', $otherConversation->id)
+        ->assertJsonPath('data.1.id', $conversation->id)
+        ->assertJsonMissing(['id' => $outside->id])
+        ->assertJsonMissing(['id' => $attached->id]);
+    $this->postJson($attach, [])->assertUnprocessable();
+    $this->postJson(attachLeadUrl($branch, $lead, $attached), ['link_patient' => true])->assertUnprocessable();
+    $this->postJson($attach, ['link_patient' => true])->assertOk();
+    $this->assertDatabaseHas('crm_leads', ['id' => $lead->id, 'patient_profile_id' => $patient->id]);
+    $this->getJson($list)->assertOk()->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $conversation->id)
+        ->assertJsonPath('data.0.attached', true);
+    $this->postJson(attachLeadUrl($branch, $lead, $otherConversation), ['link_patient' => true])->assertUnprocessable();
+});
+
 test('cannot attach lead from another branch', function () {
     $business = createCrmConversationTestBusiness();
 

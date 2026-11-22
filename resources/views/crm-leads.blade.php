@@ -130,5 +130,6 @@
                 </fieldset>
             </form>
         </details>
+        @include('crm-lead-work')
     </dialog>
 </section>

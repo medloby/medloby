@@ -1,3 +1,5 @@
+import { mountCrmLeadWork } from './crm-lead-work';
+
 const statusLabels = new Map([
     ['new', 'Yeni'],
     ['contacted', 'Görüşüldü'],
@@ -40,6 +42,7 @@ export function mountCrmLeads(section, { api, onChanged }) {
     const outcomeStatus = find('outcome-status');
     const outcomeChoice = outcomeForm.elements.namedItem('outcome');
     const lostReason = outcomeForm.elements.namedItem('lost_reason');
+    const leadWork = mountCrmLeadWork(find('work'), { api, onChanged });
     let branch = null;
     let listRequest = 0;
     let page = 1;
@@ -112,6 +115,7 @@ export function mountCrmLeads(section, { api, onChanged }) {
 
     function resetEditor() {
         activeEditor = null;
+        leadWork.setLead(null);
         editor.close();
         form.reset();
         assignee.replaceChildren();
@@ -243,6 +247,7 @@ export function mountCrmLeads(section, { api, onChanged }) {
             stage.disabled = finalized || !stages.length;
             syncStageNote();
             outcome.hidden = finalized;
+            leadWork.setLead(detail, branchCrm);
 
             current.original = formValues();
             form.hidden = false;
