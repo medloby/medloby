@@ -93,6 +93,43 @@ test('clinic calendar books a patient known to the branch and prevents the same 
     $this->assertDatabaseCount('appointments', 2);
 });
 
+test('clinic appointment contact is available on demand only in an authorized branch', function () {
+    $this->travelTo(now()->setDate(2026, 12, 1)->startOfDay());
+    [$business, $owner, $branch, $other, $doctor, $treatment, $calendar, $otherCalendar] = clinicAppointmentFixture();
+    $patientUser = User::factory()->create(['email' => 'hasta@example.test']);
+    $patient = $patientUser->patientProfile()->create([
+        'first_name' => 'Deneme', 'last_name' => 'Hasta', 'phone' => '+90 555 123 45 67',
+    ]);
+    $patient->conversations()->create(['business_id' => $business->id, 'branch_id' => $branch->id, 'status' => 'open']);
+    $payload = ['doctor_id' => $doctor->id, 'treatment_id' => $treatment->id, 'starts_at' => '2026-12-04 10:00:00'];
+    $linked = $this->actingAs($owner, 'sanctum')->postJson($calendar.'/appointments', [
+        ...$payload, 'patient_profile_id' => $patient->id,
+    ])->assertCreated()->json('data.id');
+    $manual = $this->postJson($calendar.'/appointments', [
+        ...$payload, 'patient_name' => 'Şubeye gelen hasta', 'starts_at' => '2026-12-04 10:30:00',
+    ])->assertCreated()->json('data.id');
+    $history = $calendar.'/appointments/'.$linked.'/contact';
+    $this->getJson($calendar.'?date=2026-12-04')->assertOk()->assertJsonPath('data.appointments.0.patient', 'Deneme Hasta')
+        ->assertDontSee('+90 555 123 45 67')->assertDontSee('hasta@example.test');
+    $this->getJson($history)->assertOk()->assertHeader('Cache-Control', 'no-store, private')->assertExactJson([
+        'success' => true, 'data' => ['name' => 'Deneme Hasta', 'phone' => '+90 555 123 45 67', 'email' => 'hasta@example.test'],
+    ]);
+    $this->getJson($calendar.'/appointments/'.$manual.'/contact')->assertOk()->assertJsonPath('data', [
+        'name' => 'Şubeye gelen hasta', 'phone' => null, 'email' => null,
+    ]);
+    $this->getJson($otherCalendar.'/appointments/'.$linked.'/contact')->assertNotFound();
+
+    $staff = User::factory()->create();
+    $membership = $business->memberships()->create(['user_id' => $staff->id, 'role' => 'staff', 'is_active' => true]);
+    $membership->branches()->attach($other->id, ['is_active' => true]);
+    $this->actingAs($staff, 'sanctum')->getJson($history)->assertForbidden();
+    $membership->branches()->attach($branch->id, ['is_active' => true]);
+    $this->getJson($history)->assertOk()->assertJsonPath('data.email', 'hasta@example.test');
+    $this->actingAs($patientUser, 'sanctum')->getJson($history)->assertForbidden();
+    $business->update(['status' => 'suspended']);
+    $this->actingAs($owner, 'sanctum')->getJson($history)->assertForbidden();
+});
+
 test('crm lead appointments show only the linked patient in the authorized branch and booking requires permission', function () {
     $this->travelTo(now()->setDate(2026, 12, 1)->startOfDay());
     [$business, $owner, $branch, $other, $doctor, $treatment, $calendar, $otherCalendar] = clinicAppointmentFixture();
@@ -183,7 +220,9 @@ test('an accepted package becomes a complete set of calendar sessions and stays 
     $this->travelTo(now()->setDate(2026, 12, 1)->startOfDay());
     Mail::fake();
     [$business, $owner, $branch, , $doctor, $treatment, $calendar, $otherCalendar] = clinicAppointmentFixture();
-    $patient = User::factory()->create()->patientProfile()->create(['first_name' => 'Paket', 'last_name' => 'Hastası']);
+    $patient = User::factory()->create(['email' => 'paket@example.test'])->patientProfile()->create([
+        'first_name' => 'Paket', 'last_name' => 'Hastası', 'phone' => '+90 555 222 33 44',
+    ]);
     $conversation = $patient->conversations()->create(['business_id' => $business->id, 'branch_id' => $branch->id, 'status' => 'open']);
     $offer = $conversation->offers()->create([
         'business_id' => $business->id, 'branch_id' => $branch->id, 'patient_profile_id' => $patient->id,
@@ -211,6 +250,10 @@ test('an accepted package becomes a complete set of calendar sessions and stays 
         ->assertJsonMissingPath('data.appointments.0.patient_profile.phone')
         ->assertJsonMissingPath('data.appointments.0.patient_email');
     $first = $offer->appointments()->orderBy('starts_at')->firstOrFail();
+    $patient->update(['phone' => '+90 555 000 00 00']);
+    $this->getJson($calendar.'/appointments/'.$first->id.'/contact')->assertOk()->assertJsonPath('data', [
+        'name' => 'Paket Hastası', 'phone' => '+90 555 222 33 44', 'email' => 'paket@example.test',
+    ]);
     $this->assertDatabaseHas('appointment_status_histories', [
         'appointment_id' => $first->id, 'changed_by_user_id' => $owner->id, 'new_status' => 'pending',
     ]);

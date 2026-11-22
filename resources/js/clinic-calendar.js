@@ -38,6 +38,9 @@ export function mountClinicCalendar(panel, api, { openBookingDialog, openAppoint
     const management = find('management');
     const ruleForm = find('rule-form');
     const doctor = find('doctor');
+    const contact = find('contact');
+    const contactStatus = find('contact-status');
+    const contactFields = find('contact-fields');
     const forms = Object.fromEntries(Array.from(panel.querySelectorAll('[data-calendar-form]'))
         .map((form) => [form.dataset.calendarForm, form]));
     const blockDoctor = forms.blocks.elements.namedItem('doctor_id');
@@ -47,6 +50,7 @@ export function mountClinicCalendar(panel, api, { openBookingDialog, openAppoint
         onSaved: (start, confirmation) => selectDay(start.slice(0, 10), confirmation),
     });
     let scope = null;
+    let contactRequest = 0;
 
     weekday.replaceChildren(...[1, 2, 3, 4, 5, 6, 0].map((value) => new Option(weekdays[value], value)));
 
@@ -70,6 +74,45 @@ export function mountClinicCalendar(panel, api, { openBookingDialog, openAppoint
         button.textContent = label;
         button.addEventListener('click', handler);
         return button;
+    }
+
+    function clearContact() {
+        contactFields.hidden = true;
+        contactStatus.hidden = true;
+        for (const field of ['name', 'phone', 'email', 'time', 'status']) {
+            find('contact-' + field).textContent = '';
+        }
+    }
+
+    async function showContact(current, appointment) {
+        if (scope !== current || contact.open) {
+            return;
+        }
+        const pending = ++contactRequest;
+        const isCurrent = () => scope === current && contact.open && pending === contactRequest;
+        clearContact();
+        const time = timeLabel(appointment.starts_at, appointment.ends_at);
+        find('contact-time').textContent = appointment.starts_at.slice(0, 10) === appointment.ends_at.slice(0, 10)
+            ? dateLabel(appointment.starts_at) + ' · ' + time
+            : time;
+        contactStatus.textContent = 'İletişim bilgileri yükleniyor…';
+        contactStatus.hidden = false;
+        contact.showModal();
+
+        try {
+            const details = await api(current.path + '/appointments/' + appointment.id + '/contact');
+            if (isCurrent()) {
+                for (const field of ['name', 'phone', 'email']) {
+                    find('contact-' + field).textContent = details[field]?.trim() || 'Kayıtlı değil';
+                }
+                contactStatus.hidden = true;
+                contactFields.hidden = false;
+            }
+        } catch (error) {
+            if (isCurrent()) {
+                contactStatus.textContent = error.message;
+            }
+        }
     }
 
     function resetEditor(kind, record = null) {
@@ -140,6 +183,7 @@ export function mountClinicCalendar(panel, api, { openBookingDialog, openAppoint
             const entry = row(
                 [timeLabel(item.starts_at, item.ends_at), item.patient || 'Hasta adı girilmemiş'].join(' · '),
                 [item.doctor, item.treatment, item.package, appointmentStatuses[item.status] ?? item.status].filter(Boolean).join(' · '),
+                action('İletişim bilgileri', () => showContact(current, item)),
                 ...actions,
             );
             const heading = find('name', entry);
@@ -312,8 +356,16 @@ export function mountClinicCalendar(panel, api, { openBookingDialog, openAppoint
     }
 
     panel.addEventListener('toggle', () => {
+        if (!panel.open) {
+            contact.close();
+        }
         if (panel.open && scope && !scope.loaded && !scope.loading) {
             load(scope);
+        }
+    });
+    contact.addEventListener('close', () => {
+        if (!contact.open) {
+            clearContact();
         }
     });
     day.addEventListener('change', () => selectDay(day.value));
@@ -377,6 +429,8 @@ export function mountClinicCalendar(panel, api, { openBookingDialog, openAppoint
         },
         setBranch(id, canManage) {
             booking.reset();
+            contact.close();
+            clearContact();
             scope = id ? {
                 path: '/branches/' + id + '/clinic-calendar', canManage, doctorId: '', edits: {}, request: 0,
                 loading: false, loaded: false, saving: false,

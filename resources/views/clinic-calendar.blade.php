@@ -167,6 +167,30 @@
             </details>
         </fieldset>
     </div>
+    <dialog class="offer-dialog" aria-labelledby="clinic-calendar-contact-title" data-calendar-contact>
+        <div class="flex flex-wrap items-start justify-between gap-3">
+            <h3 id="clinic-calendar-contact-title" class="text-xl font-semibold">Hasta iletişim bilgileri</h3>
+            <form method="dialog">
+                <button type="submit" class="offer-button offer-button-secondary" autofocus>Kapat</button>
+            </form>
+        </div>
+        <p class="mt-3 text-sm text-slate-600 dark:text-slate-300" data-calendar-contact-time></p>
+        <p class="mt-3 text-sm text-slate-600 dark:text-slate-300" role="status" data-calendar-contact-status hidden></p>
+        <dl class="mt-4 grid gap-3 text-sm" data-calendar-contact-fields hidden>
+            <div>
+                <dt class="text-slate-600 dark:text-slate-300">Ad soyad</dt>
+                <dd class="break-words font-medium" data-calendar-contact-name></dd>
+            </div>
+            <div>
+                <dt class="text-slate-600 dark:text-slate-300">Telefon</dt>
+                <dd class="break-words font-medium" data-calendar-contact-phone></dd>
+            </div>
+            <div>
+                <dt class="text-slate-600 dark:text-slate-300">E-posta</dt>
+                <dd class="break-words font-medium" data-calendar-contact-email></dd>
+            </div>
+        </dl>
+    </dialog>
     <template data-calendar-row>
         <li class="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-700">
             <div class="min-w-0">

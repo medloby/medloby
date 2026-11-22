@@ -88,6 +88,23 @@ class ClinicCalendarController extends Controller
         ])->header('Cache-Control', 'private, no-store');
     }
 
+    public function contact(Branch $branch, Appointment $appointment): JsonResponse
+    {
+        abort_unless($appointment->branch_id === $branch->id && $appointment->business_id === $branch->business_id, 404);
+
+        $patient = $appointment->patientProfile()->knownToBranch($branch)
+            ->with('user:id,email')->first(['id', 'user_id', 'first_name', 'last_name', 'phone']);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'name' => $patient ? trim($patient->first_name.' '.$patient->last_name) : $appointment->patient_name,
+                'phone' => filled($appointment->patient_phone) ? $appointment->patient_phone : $patient?->phone,
+                'email' => filled($appointment->patient_email) ? $appointment->patient_email : $patient?->user?->email,
+            ],
+        ])->header('Cache-Control', 'private, no-store');
+    }
+
     private function doctorName(?Doctor $doctor): ?string
     {
         $person = $doctor?->person;
