@@ -58,6 +58,20 @@ class Business extends Model
         return $this->status === 'active' && $this->is_verified;
     }
 
+    public function allowsOwnerManagement(User $user): bool
+    {
+        return $this->allowsCrmAccess() && $this->memberships()
+            ->where('user_id', $user->id)
+            ->where('role', 'business_owner')
+            ->where('is_active', true)
+            ->exists();
+    }
+
+    public function consentTemplates(): HasMany
+    {
+        return $this->hasMany(ConsentTemplate::class);
+    }
+
     public function membershipPlanLabel(): ?string
     {
         return self::MEMBERSHIP_PLANS[$this->membership_plan ?? ''] ?? null;

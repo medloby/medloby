@@ -2,7 +2,7 @@
 
 **İnceleme tarihi** 22 Kasım 2026 · **Envanterin dayandığı sürüm** `main / eb56f3d`
 
-**Güncel durum** İlk sürümde ücretsiz klinik planı seçimi, tedavi fiyat aralıkları, şube yönetim yetkileri ve randevu bekleme bildirimleri test ortamında hazır. Canlı e-posta, üretim zamanlayıcısı ve yedeklemesi, işletmeci bilgileri ve KVKK onayları yayın öncesi kontrol listesinde takip ediliyor. [Yayın öncesi kontrol listesi](README.md#medloby-yayına-çıkmadan-önce)
+**Güncel durum** İlk sürümde ücretsiz klinik planı seçimi, tedavi fiyat aralıkları, şube yönetim yetkileri, randevu bekleme bildirimleri ve klinik onam taslakları test ortamında hazır. Canlı e-posta, üretim zamanlayıcısı ve yedeklemesi, işletmeci bilgileri ve KVKK onayları yayın öncesi kontrol listesinde takip ediliyor. [Yayın öncesi kontrol listesi](README.md#medloby-yayına-çıkmadan-önce)
 
 ## Kapsam ve doğrulama
 
@@ -10,7 +10,7 @@ Envanter, Git'in izlediği 476 dosyayı kapsadı. Depoda 152 uygulama dosyası, 
 
 - Kilitli PHP ortam gereksinimleri, 371 PHP dosyasının sözdizimi ve Vite derlemesi geçti.
 - Envanterin dayandığı sürümde SQLite ve PostgreSQL 17 yapılandırmalarıyla **879’ar test** geçti. Sonraki uygulama sonuçları geliştirme sırasındaki ilgili maddede yer alır.
-- İlk sürümdeki plan, şube ve fiyat kurallarıyla birlikte SQLite ve PostgreSQL 17.12 üzerinde **939’ar test** geçti.
+- Klinik onam taslaklarıyla birlikte SQLite ve PostgreSQL 17.12 üzerinde **948’er test** geçti.
 - Klinik üyeliği için `0.2-draft` hazırlandı. Başvuru formu, geçerli ve yayımlanmış zorunlu sözleşme olduğunda açılır.
 - npm taramasında ve kilitli 133 PHP paket sürümü için GitHub Advisory Database taramasında eşleşen bildirim bulunmadı.
 
@@ -62,7 +62,7 @@ flowchart LR
 | Randevu | Ana sayfadaki klinik aramasından tekil randevu alma ve kabul edilen paket seanslarını planlama. **Randevularım** ekranında hasta hesabına bağlı randevuların görüntülenmesi. Teklife bağlı randevularda şube kurallarına göre iptal ve tarih değişikliği. Klinik takviminde onay, iptal, tarih değişikliği, tamamlanma ve hasta gelmedi işlemleri. Yetkili şubede randevu kartını açma ve PDF indirme. SQLite ve PostgreSQL 17 üzerinde aynı hekimin saatine gelen eşzamanlı rezervasyon testi | Seçilecek üretim ortamında eşzamanlı rezervasyon provası |
 | Bildirim | Klinik başvurusu, görüşme, teklif ve randevu bildirimleri. CRM takip ve hasta randevu hatırlatmaları. Okunma durumu ve klinik tercihleri | Üretim zamanlayıcısı, kuyruk işçisi ve canlı e-posta teslimatı |
 | Randevu bekleme listesi | Doğrulanmış hasta dolu bir gün için aynı şube, hekim ve tedavide bildirim isteyebilir ve isteğini kaldırabilir. Uygunluk bildirimi randevu ekranındaki seçimi açar. | Yayın ortamında zamanlayıcı ve bildirim provası |
-| Sağlık verisi ve onam | Tıbbi kayıt ve onam için şema ve modeller | Kullanıcı akışları, erişim, onam içeriği ve saklama kararları |
+| Sağlık verisi ve onam | Tıbbi kayıt ve hasta onamı için şema ve modeller. Klinik sahibi CRM’de kendi kliniğinin genel onam metinlerini taslak olarak hazırlayabilir ve düzenleyebilir. | Onam metinlerinin onayı, hastaya sunma ve yanıt kanıtı, tıbbi kayıt yetkileri ve saklama kararları |
 | Yayın ve operasyon | Yerel kurulum, otomatik derleme ve test, yerel font ve lisans bildirimleri, SQLite ve PostgreSQL 17 yedekleme ve geri yükleme provaları, `/up` adresinden uygulama ve veritabanı erişim kontrolü | Üretim kurulumu ve yedekleme, canlı izleme ve yayın öncesi kontroller |
 
 İlk sürümde klinik başvurusunda **Başlangıç**, **Standart** ve **Profesyonel** üyelik planları ücretsiz ve isteğe bağlıdır. Seçim klinik sahibinin CRM’inde ve platform yönetim ekranlarında görünür. Muhasebe, faturalama, bağımsız destek talepleri, hasta yolculuğu ve sağlık turizmi operasyonları için kullanıcı akışları ayrıca tanımlanacak. [Klinik başvuru akışı](app/Http/Controllers/BusinessRegistrationController.php)
@@ -171,7 +171,7 @@ Kamuya açılış için içeriğin uygunluğu, onaylı sözleşme ve kişisel ve
 ### 6. Yeni modüller
 
 1. **6.1 Randevu bekleme bildirimi tamamlandı.** Hasta klinik sayfasından açılan randevu ekranında uygun saat bulunmayan gün için bildirim isteyebilir. İstek kendi hesabına ve seçtiği şube, hekim, tedavi ile güne bağlıdır. Hasta aynı ekrandan isteği kaldırabilir. Zamanlayıcı güncel randevu uygunluğunu kontrol eder ve saat açılırsa bir kez uygulama içi bildirim gönderir. Bildirim seçilen günü açar, hasta güncel saatlerden randevusunu kendisi seçer. [Bekleme listesi testleri](tests/Feature/AppointmentWaitingListTest.php)
-2. **6.2 Dijital onam ve tıbbi kayıt.** Onam metinleri, kullanacak roller, işlemlerin hasta ve randevuyla ilişkisi, erişim ve saklama koşulları belirlenecek.
+2. **6.2 Onam taslakları hazır.** Aktif ve onaylı kliniğin sahibi CRM’den genel onam metni oluşturabilir ve düzenleyebilir. Taslak klinik düzeyinde saklanır. İki oturum aynı taslağı düzenlerse kaydedilmiş metin korunur ve diğer oturumda yeniden yükleme seçeneği görünür. Onaylanacak metinler, hasta ve temsilci yanıtı, kanıt, tıbbi kayıt yetkileri ve saklama şartları sonraki aşamada belirlenecek. [Onam taslağı testleri](tests/Feature/ClinicConsentTemplateTest.php)
 3. **6.3 Klinik üyelik planı seçimi tamamlandı.** Üç ücretsiz plandan yapılan seçim klinik kaydında saklanır. Seçilen plan başvuru incelemesinde, yönetim listesindeki klinik ayrıntılarında ve klinik sahibinin CRM’inde görünür. Ücretlendirme, muhasebe ve faturalama akışları daha sonra tanımlanacak. [Klinik üyelik testi](tests/Feature/ClinicAccountOnboardingTest.php)
 4. **6.4 Destek, hasta yolculuğu ve sağlık turizmi operasyonları.** Kullanacak roller, işlem adımları ve ilk sürümde yer alacak özellikler belirlenecek.
 

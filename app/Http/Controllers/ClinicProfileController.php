@@ -150,9 +150,7 @@ class ClinicProfileController extends Controller
 
     private function authorizeOwner(Request $request, Business $business): void
     {
-        abort_unless($business->allowsCrmAccess() && $request->user()->businessMemberships()
-            ->where('business_id', $business->id)->where('role', 'business_owner')->where('is_active', true)->exists(),
-            403, 'Bu kliniği yönetme yetkiniz yok.');
+        abort_unless($business->allowsOwnerManagement($request->user()), 403, 'Bu kliniği yönetme yetkiniz yok.');
     }
 
     private function profile(User $owner, Business $business, Branch $branch): JsonResponse

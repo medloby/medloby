@@ -36,6 +36,8 @@ use App\Http\Controllers\ClinicApplicationStatusController;
 
 use App\Http\Controllers\ClinicBranchOperationsController;
 
+use App\Http\Controllers\ClinicConsentTemplateController;
+
 use App\Http\Controllers\ClinicAppointmentController;
 
 use App\Http\Controllers\ClinicCalendarController;
@@ -178,6 +180,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/businesses/{business}/crm/branches', [ClinicProfileController::class, 'branches']);
         Route::post('/businesses/{business}/crm/branches', [ClinicProfileController::class, 'storeBranch']);
         Route::put('/businesses/{business}/crm/branches/{branch}/status', [ClinicProfileController::class, 'updateBranchStatus'])->scopeBindings();
+        Route::prefix('/businesses/{business}/crm/consent-templates')->controller(ClinicConsentTemplateController::class)->group(function () {
+            Route::get('/', 'index');
+            Route::post('/', 'store');
+            Route::get('/{template}', 'show')->whereNumber('template');
+            Route::put('/{template}', 'update')->whereNumber('template');
+        });
 
         /*
 
