@@ -90,6 +90,40 @@ test('the database queue encrypts the reset link before delivery', function () {
     $this->assertDatabaseCount('jobs', 0);
 });
 
+test('the queue discards a password reset email after the link expires', function () {
+    config(['queue.default' => 'database', 'mail.default' => 'array']);
+    $user = User::factory()->create();
+
+    $this->post(route('password.email'), ['email' => $user->email])->assertRedirectToRoute('password.request');
+    $this->assertDatabaseCount('jobs', 1);
+    $this->travel(61)->minutes();
+
+    $this->artisan('queue:work', ['--once' => true])->assertSuccessful();
+
+    expect(Mail::mailer('array')->getSymfonyTransport()->messages())->toBeEmpty();
+    $this->assertDatabaseCount('jobs', 0);
+    $this->assertDatabaseCount('failed_jobs', 0);
+});
+
+test('the queue sends only the latest password reset link when two requests are waiting', function () {
+    config(['queue.default' => 'database', 'mail.default' => 'array']);
+    $user = User::factory()->create();
+
+    $this->post(route('password.email'), ['email' => $user->email])->assertRedirectToRoute('password.request');
+    $this->travel(2)->minutes();
+    $this->post(route('password.email'), ['email' => $user->email])->assertRedirectToRoute('password.request');
+    $this->assertDatabaseCount('jobs', 2);
+
+    $this->artisan('queue:work', ['--once' => true])->assertSuccessful();
+    expect(Mail::mailer('array')->getSymfonyTransport()->messages())->toBeEmpty();
+    $this->assertDatabaseCount('jobs', 1);
+
+    $this->artisan('queue:work', ['--once' => true])->assertSuccessful();
+    expect(Mail::mailer('array')->getSymfonyTransport()->messages())->toHaveCount(1);
+    $this->assertDatabaseCount('jobs', 0);
+    $this->assertDatabaseCount('failed_jobs', 0);
+});
+
 test('login requests are limited per address and account and recovery requests have a separate limit', function () {
     $login = ['email' => 'ornek@example.test', 'password' => 'yanlis-sifre'];
     for ($attempt = 0; $attempt < 5; $attempt++) {

@@ -4,13 +4,20 @@ namespace App\Notifications;
 
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Auth\CanResetPassword;
 use Illuminate\Contracts\Queue\ShouldBeEncrypted;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
+use Illuminate\Support\Facades\Password;
 
 class AccountPasswordResetNotification extends ResetPassword implements ShouldBeEncrypted, ShouldQueue
 {
     use Queueable;
+
+    public function shouldSend(CanResetPassword $notifiable, string $channel): bool
+    {
+        return Password::tokenExists($notifiable, $this->token);
+    }
 
     public function toMail($notifiable): MailMessage
     {
@@ -25,7 +32,7 @@ class AccountPasswordResetNotification extends ResetPassword implements ShouldBe
             ->greeting('Merhaba,')
             ->line('Medloby hesabınız için yeni bir şifre oluşturmak üzere aşağıdaki bağlantıyı açın.')
             ->action('Şifremi yenile', $url)
-            ->line("Bu bağlantı {$minutes} dakika boyunca geçerlidir ve bir kez kullanılabilir.")
+            ->line("Bağlantıyı şifre yenileme isteğinizden itibaren {$minutes} dakika içinde kullanın. Bağlantı tek kullanımlıktır.")
             ->line('Bu isteği siz göndermediyseniz bu e-postayı dikkate almayın.')
             ->salutation('Medloby');
     }
