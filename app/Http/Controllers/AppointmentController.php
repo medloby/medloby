@@ -605,9 +605,7 @@ class AppointmentController extends Controller
      * Ayar kaydı yoksa servis kendi güvenli varsayılanı
      * olan 30 dakikayı kullanır.
      */
-    $appointmentSettings = $branch->appointmentSetting;
-
-    $slotInterval = $appointmentSettings?->slot_interval_minutes ?? 30;
+    $slotInterval = $branch->appointmentSetting()->where('is_active', true)->value('slot_interval_minutes') ?? 30;
 
     $requireOnlineBookable = ! $isBusinessUser || ($validated['require_online_bookable'] ?? true);
 

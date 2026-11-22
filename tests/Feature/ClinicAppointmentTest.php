@@ -47,6 +47,42 @@ function clinicAppointmentFixture(): array
     return [$business, $owner, $branch, $other, $doctor, $treatment, $calendar, $otherCalendar];
 }
 
+test('the active branch slot interval controls the available start times and preserves treatment duration', function () {
+    $this->travelTo(Carbon::parse('2026-12-01 00:00:00', 'UTC'));
+    [$business, $owner, $branch, , $doctor, $treatment, $calendar, $otherCalendar] = clinicAppointmentFixture();
+    $doctor->update(['is_public' => true]);
+    $branch->treatments()->updateExistingPivot($treatment->id, ['is_online_bookable' => true]);
+    $staff = User::factory()->create();
+    $business->memberships()->create(['user_id' => $staff->id, 'role' => 'staff', 'is_active' => true])
+        ->branches()->attach($branch->id, ['is_active' => true]);
+    $settings = $calendar.'/appointment-settings';
+    $query = '?date=2026-12-04&treatment_id='.$treatment->id;
+    $availability = '/api/appointments/availability'.$query.'&branch_id='.$branch->id.'&doctor_id='.$doctor->id;
+    $patientUser = User::factory()->create();
+    $patient = $patientUser->patientProfile()->create(['first_name' => 'Deneme', 'last_name' => 'Hasta']);
+
+    $this->actingAs($staff, 'sanctum')->putJson($settings, ['online_booking_enabled' => true, 'slot_interval_minutes' => 20])
+        ->assertOk()->assertJsonPath('data.slot_interval_minutes', 20);
+    $this->actingAs($owner, 'sanctum')->getJson($calendar.'/appointment-options'.$query)->assertOk()
+        ->assertJsonPath('data.doctors.0.slots.1', '2026-12-04 09:20:00');
+    $this->getJson($otherCalendar.'/appointment-options'.$query)->assertOk()
+        ->assertJsonPath('data.doctors.0.slots.1', '2026-12-04 09:30:00');
+    $this->actingAs($patientUser, 'sanctum')->getJson($availability)->assertOk()
+        ->assertJsonPath('data.slot_interval', 20)->assertJsonPath('data.slots.1', '2026-12-04 09:20:00');
+    $booking = $this->postJson('/api/appointments', [
+        'business_id' => $business->id, 'branch_id' => $branch->id, 'patient_profile_id' => $patient->id,
+        'doctor_id' => $doctor->id, 'treatment_id' => $treatment->id, 'starts_at' => '2026-12-04 09:00:00',
+    ])->assertCreated();
+    $this->assertDatabaseHas('appointments', [
+        'id' => $booking->json('data.id'), 'ends_at' => '2026-12-04 09:30:00',
+    ]);
+    $this->getJson($availability)->assertOk()->assertJsonPath('data.slots.0', '2026-12-04 09:40:00');
+
+    $this->actingAs($staff, 'sanctum')->putJson($settings, ['is_active' => false])->assertOk();
+    $this->actingAs($patientUser, 'sanctum')->getJson($availability)->assertOk()
+        ->assertJsonPath('data.slot_interval', 30)->assertJsonPath('data.slots.0', '2026-12-04 09:30:00');
+});
+
 test('patient booking uses the clinic clock and respects the online booking window', function () {
     Mail::fake();
     $this->travelTo(Carbon::parse('2026-12-04 07:15:00', 'UTC'));

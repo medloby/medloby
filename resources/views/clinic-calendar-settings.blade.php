@@ -21,6 +21,13 @@
                     Kaç gün ileriye randevu açılır?
                     <input class="offer-control" type="number" name="maximum_booking_days" min="1" max="3650" required>
                 </label>
+                <div class="grid gap-1.5">
+                    <label class="offer-field">
+                        Saat seçenekleri arası (dakika)
+                        <input class="offer-control" type="number" name="slot_interval_minutes" min="1" max="1440" aria-describedby="slot-interval-help" required>
+                    </label>
+                    <p id="slot-interval-help" class="text-xs text-slate-600 dark:text-slate-300">Örneğin 15 dakika ile 09.00, 09.15 ve 09.30 gibi başlangıç saatleri gösterilir. Tedavi süresi kendi ayarından alınır.</p>
+                </div>
             </div>
             <button type="submit" class="offer-button justify-self-start" data-appointment-settings-save>Ayarları kaydet</button>
         </fieldset>
