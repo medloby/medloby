@@ -106,7 +106,7 @@ use App\Models\Appointment;
 
 use Illuminate\Support\Facades\Route;
 
-Route::post('/login', [AuthController::class, 'login']);
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:login');
 
 Route::post('/register/patient', [
 
@@ -114,7 +114,7 @@ Route::post('/register/patient', [
 
     'store',
 
-]);
+])->middleware('throttle:15,1,registration:');
 
 Route::get('/register/business/contract', [BusinessRegistrationController::class, 'contract']);
 
@@ -124,7 +124,7 @@ Route::post('/register/business', [
 
     'store',
 
-]);
+])->middleware('throttle:15,1,registration:');
 
 Route::get('/email/verify/{id}/{hash}', [
 

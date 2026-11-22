@@ -48,6 +48,9 @@
                 <section id="sign-in" class="mt-6 max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 dark:border-slate-800 dark:bg-slate-900" aria-labelledby="sign-in-title">
                     <h2 id="sign-in-title" class="text-xl font-semibold">Hesabınıza giriş yapın</h2>
                     <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">Klinik veya hasta hesabınızla görüşmelerinizdeki paket tekliflerine erişin.</p>
+                    @if (session('password_reset'))
+                        <p class="mt-4 text-sm font-medium text-teal-800 dark:text-teal-300" role="status">{{ session('password_reset') }}</p>
+                    @endif
                     <form id="sign-in-form" method="post" class="mt-6 grid gap-4">
                         <label class="offer-field">
                             E-posta
@@ -59,6 +62,7 @@
                         </label>
                         <button type="submit" class="offer-button mt-1">Giriş yap</button>
                     </form>
+                    <a href="{{ route('password.request') }}" class="mt-4 inline-block text-sm font-semibold text-teal-800 underline underline-offset-4 dark:text-teal-300">Şifremi unuttum</a>
                     <div class="mt-5 grid gap-2 border-t border-slate-200 pt-5 sm:grid-cols-2 dark:border-slate-700">
                         <button id="patient-registration" type="button" class="offer-button offer-button-secondary">Hasta hesabı oluştur</button>
                         <button id="clinic-registration" type="button" class="offer-button offer-button-secondary">Klinik başvurusu yap</button>

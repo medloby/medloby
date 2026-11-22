@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
@@ -17,17 +18,19 @@ class AuthController extends Controller
             'password' => ['required', 'string'],
         ]);
 
-        $user = User::where('email', $validated['email'])->first();
+        [$user, $token] = DB::transaction(function () use ($validated): array {
+            $user = User::query()->where('email', $validated['email'])->lockForUpdate()->first();
 
-        if (! $user || ! Hash::check($validated['password'], $user->password)) {
-            throw ValidationException::withMessages([
-                'email' => ['E-posta adresi veya şifre hatalı.'],
-            ]);
-        }
+            if (! $user || ! Hash::check($validated['password'], $user->password)) {
+                throw ValidationException::withMessages([
+                    'email' => ['E-posta adresi veya şifre hatalı.'],
+                ]);
+            }
 
-        $user->tokens()->delete();
+            $user->tokens()->delete();
 
-        $token = $user->createToken('medloby-auth')->plainTextToken;
+            return [$user, $user->createToken('medloby-auth')->plainTextToken];
+        }, attempts: 3);
 
         return response()->json([
             'success' => true,
