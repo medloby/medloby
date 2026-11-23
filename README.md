@@ -24,6 +24,18 @@ Uygulama mimarisi, tamamlanan işler, eksikler ve geliştirme sırası proje yol
 - [ ] **CRM ve randevu hatırlatma zamanlayıcısını çalıştır.** Üretim veritabanı şemasını güncelledikten sonra `php artisan schedule:run` komutunu Medloby dizininden her dakika çalıştır. Saati gelen deneme takibinin yetkili personele, son 24 saate giren onaylı randevunun ilgili hastaya bildirim gönderdiğini doğrula. İki bildirimin de kendi kaydını açtığını ve art arda zamanlayıcı çalıştırıldığında birer kez oluştuğunu kontrol et. Aynı senaryo yerel SQLite ve veritabanı önbelleğiyle otomatik olarak sınanıyor. [Zamanlayıcı provası](tests/Feature/ReminderScheduleTest.php)
 - [ ] **Bekleme listesi bildirimini prova et.** Deneme hasta hesabıyla dolu bir gün için bildirim iste. Uygun bir saat açıldığında beş dakikada bir çalışan zamanlayıcının tek bildirim gönderdiğini ve bildirimin seçilen günü açtığını doğrula. [Bekleme listesi testi](tests/Feature/AppointmentWaitingListTest.php)
 
+### Yayın öncesi teknik kontrol
+
+Dağıtım ortamında uygulamayı yapılandırdıktan ve ön yüzü derledikten sonra çalıştır.
+
+```bash
+php artisan medloby:release-check --no-interaction
+```
+
+Komut mevcut ayarları, veritabanı bağlantısını ve migration kayıtlarını, yayın dosyalarını, yönetici hesabını ve yürürlükteki klinik üyelik sözleşmesini salt okunur biçimde kontrol eder. Her madde için **Hazır**, **Eksik** veya **Bekliyor** gösterir. Tüm maddeler hazırsa çıkış kodu `0`, eksik veya bekleyen madde varsa `1` olur.
+
+Canlı HTTPS erişimini, SMTP teslimatını, kuyruk işçisini, zamanlayıcıyı ve yedekten geri yüklemeyi yukarıdaki adımlarla prova et. [Teknik kontrol testleri](tests/Feature/ReleaseReadinessTest.php)
+
 ### İlk platform yöneticisi
 
 Uygulamanın veritabanı şemasını kurduktan sonra sunucudaki etkileşimli terminalde çalıştır.

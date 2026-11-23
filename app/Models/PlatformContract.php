@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -30,6 +32,18 @@ class PlatformContract extends Model
             'published_at' => 'datetime',
             'expires_at' => 'datetime',
         ];
+    }
+
+    #[Scope]
+    protected function effectiveClinicMembership(Builder $query): Builder
+    {
+        $now = now();
+
+        return $query->where('contract_type', 'clinic_membership')
+            ->where('status', 'published')
+            ->where('is_required', true)
+            ->where(fn (Builder $dates) => $dates->whereNull('effective_at')->orWhere('effective_at', '<=', $now))
+            ->where(fn (Builder $dates) => $dates->whereNull('expires_at')->orWhere('expires_at', '>', $now));
     }
 
     public function createdBy(): BelongsTo

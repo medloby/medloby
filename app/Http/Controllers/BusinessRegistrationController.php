@@ -233,19 +233,7 @@ class BusinessRegistrationController extends Controller
     private function currentClinicContract(): ?PlatformContract
     {
         return PlatformContract::query()
-            ->where('contract_type', 'clinic_membership')
-            ->where('status', 'published')
-            ->where('is_required', true)
-            ->where(function ($query) {
-                $query
-                    ->whereNull('effective_at')
-                    ->orWhere('effective_at', '<=', now());
-            })
-            ->where(function ($query) {
-                $query
-                    ->whereNull('expires_at')
-                    ->orWhere('expires_at', '>', now());
-            })
+            ->effectiveClinicMembership()
             ->latest('published_at')
             ->orderByDesc('id')
             ->first();

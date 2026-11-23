@@ -9,7 +9,7 @@
 Envanter, Git'in izlediği 529 dosyayı kapsadı. Depoda 173 uygulama dosyası, 74 migration, 53 model, 17 servis ve 90 Feature test dosyası bulunuyor. Laravel rota listesinde 257 API ucu ve 13 web veya sistem rotası var. [API rotaları](routes/api.php)
 
 - 419 PHP dosyasının sözdizimi, Blade önbelleği ve Vite derlemesi doğrulandı.
-- SQLite ve PostgreSQL 17.12 üzerinde test paketindeki **967 testin tamamı** geçti.
+- SQLite ve PostgreSQL 17.12 üzerinde test paketindeki **973 testin tamamı** geçti.
 - Klinik üyeliği için `0.2-draft` hazırlandı. Başvuru formu, geçerli ve yayımlanmış zorunlu sözleşme olduğunda açılır.
 - Kilit dosyalarının önceki npm taramasında ve 133 PHP paket sürümü için GitHub Advisory Database taramasında eşleşen bildirim bulunmadı.
 
@@ -172,6 +172,7 @@ Kamuya açılış için içeriğin uygunluğu, onaylı sözleşme ve kişisel ve
 27. **5.27 Yayın ayarları yerel kopyada prova edildi.** Geçici SQLite veritabanı, HTTPS adresi ve kapalı hata ayıklama ile `php artisan optimize` çalıştırıldı. Önbellekler açıkken ana sayfa, paket ekranı, şifre yenileme formu ve `/up` açıldı. Güvenli oturum çerezi, misafir kullanıcının yönetim API’sine erişim engeli ve iki hatırlatma komutunun zamanlayıcıdan çalışması doğrulandı. [Yayın öncesi kontrol listesi](README.md#medloby-yayına-çıkmadan-önce)
 28. **5.28 İlk klinik ve hasta provası güncellendi.** Güncel klinik başvuru formu, ücretsiz plan seçimi, yönetici onayı, geçici şifre e-postasının veritabanı kuyruğundan işlenmesi ve ilk girişte şifre belirleme aynı senaryoda doğrulandı. Klinik sahibi e-postasız personel hesabı açar. Personel kendi şubesindeki seyahat planını düzenler, gelir ve gideri verilen yetkiyle görüntüler ve hastanın iki seansından ilkini onaylar. Hasta planı ve onaylanan randevuyu kendi hesabında görür. Geçici yayın ayarlarında önbellekler, güvenli oturum çerezleri, sağlık kontrolü, zamanlayıcı kayıtları ve yeni özel API rotaları doğrulandı. [İlk klinik ve hasta provası](tests/Feature/LaunchWorkflowTest.php)
 29. **5.29 Güncel PostgreSQL yedeği prova edildi.** 74 migration uygulanmış geçici veritabanı ve örnek özel dosya ayrı bir kopyaya geri yüklendi. Yedek sağlama toplamları, gelir ve gider tutarı, destek yazışması, seyahat planı tablosu ve özel dosyanın içeriği doğrulandı. [Yedekleme ve geri yükleme provası](README.md#postgresql-ve-özel-dosya-yedekleme-provası)
+30. **5.30 Yayın ayarları için teknik kontrol eklendi.** `medloby:release-check` komutu veritabanı şemasını, derlenmiş arayüzü, özel depolamayı, ilk yönetici hesabını, yürürlükteki klinik üyelik sözleşmesini ve yayın ayarlarını salt okunur biçimde kontrol eder. Kuyruk ve SMTP yapılandırması da komutun çıktısında yer alır. [Teknik kontrol](README.md#yayın-öncesi-teknik-kontrol) · [Otomatik testler](tests/Feature/ReleaseReadinessTest.php)
 
 ### 6. Yeni modüller
 
