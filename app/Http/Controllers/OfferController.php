@@ -162,8 +162,7 @@ class OfferController extends Controller
             $this->validateTreatmentForConversation($conversation, (int) $validated['treatment_id']);
         }
 
-        $offer = Offer::create([
-            'conversation_id' => $conversation->id,
+        $offerAttributes = [
             'business_id' => $conversation->business_id,
             'branch_id' => $branchId,
             'patient_profile_id' => $conversation->patient_profile_id,
@@ -177,22 +176,16 @@ class OfferController extends Controller
             'currency' => strtoupper($validated['currency']),
             'valid_until' => $validated['valid_until'] ?? null,
             'status' => 'pending',
-        ]);
+        ];
 
-        /*
-         * Teklif oluşturulduktan sonra bağlı hastaya
-         * veritabanı bildirimi gönderilir.
-         */
-        $patientUser = $conversation->patientProfile()
-            ->with('user')
-            ->first()
-            ?->user;
-
-        if ($patientUser) {
-            $patientUser->notify(
-                new NewOfferNotification($offer)
+        $offer = DB::transaction(function () use ($conversation, $offerAttributes): Offer {
+            $offer = $conversation->offers()->create($offerAttributes);
+            $conversation->patientProfile?->user?->notify(
+                (new NewOfferNotification($offer))->withApplicationTransaction()
             );
-        }
+
+            return $offer;
+        }, attempts: 3);
 
         return response()->json([
             'success' => true,

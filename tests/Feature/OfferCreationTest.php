@@ -10,7 +10,10 @@ use App\Models\TreatmentCategory;
 use App\Models\User;
 use App\Notifications\NewOfferNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Queue\Events\JobQueued;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Notification;
 
 uses(RefreshDatabase::class);
@@ -129,6 +132,64 @@ test('business user can create offer for conversation', function () {
         NewOfferNotification::class
     );
 });
+
+test('returns 500 without saving an offer or a job when queuing fails and allows retry', function () {
+    config(['queue.default' => 'database', 'queue.connections.database.after_commit' => true]);
+    $data = createOfferCreationData();
+    $url = "/api/conversations/{$data['conversation']->id}/offers";
+    $payload = offerCreationPayload($data);
+    $failQueue = true;
+
+    Exceptions::fake();
+    Event::listen(JobQueued::class, function () use (&$failQueue): void {
+        if ($failQueue) {
+            throw new RuntimeException('Offer notification queue unavailable.');
+        }
+    });
+
+    $this->actingAs($data['businessUser'])->postJson($url, $payload)->assertServerError();
+
+    Exceptions::assertReported(RuntimeException::class);
+    $this->assertDatabaseCount('offers', 0);
+    $this->assertDatabaseCount('jobs', 0);
+
+    $failQueue = false;
+    $offerId = $this->postJson($url, $payload)->assertCreated()->json('data.id');
+
+    $this->assertDatabaseCount('offers', 1);
+    $this->assertDatabaseCount('jobs', 1);
+    $this->assertDatabaseCount('notifications', 0);
+    $this->artisan('queue:work', ['--once' => true, '--sleep' => 0, '--tries' => 1])->assertSuccessful();
+
+    $notification = $data['patientUser']->notifications()->sole();
+    expect($notification->type)->toBe(NewOfferNotification::class)
+        ->and($notification->data['offer_id'])->toBe($offerId);
+    $this->assertDatabaseCount('jobs', 0);
+    $this->assertDatabaseCount('failed_jobs', 0);
+});
+
+test('a delayed new offer notification is sent only to the current patient of an actionable offer', function (string $change) {
+    config(['queue.default' => 'database']);
+    $data = createOfferCreationData();
+    $offerId = $this->actingAs($data['businessUser'])
+        ->postJson("/api/conversations/{$data['conversation']->id}/offers", offerCreationPayload($data))
+        ->assertCreated()->json('data.id');
+    $this->assertDatabaseCount('jobs', 1);
+
+    match ($change) {
+        'deadline passed' => $this->travel(4)->days(),
+        'answered' => $this->actingAs($data['patientUser'])->postJson("/api/offers/{$offerId}/accept")->assertOk(),
+        'clinic suspended' => $data['business']->update(['status' => 'suspended']),
+        'patient changed' => $data['patientProfile']->update(['user_id' => User::factory()->create()->id]),
+    };
+
+    $this->artisan('queue:work', ['--once' => true, '--sleep' => 0, '--tries' => 1])->assertSuccessful();
+
+    $this->assertDatabaseMissing('notifications', ['type' => NewOfferNotification::class]);
+    $this->assertDatabaseHas('offers', ['id' => $offerId]);
+    $this->assertDatabaseCount('jobs', 0);
+    $this->assertDatabaseCount('failed_jobs', 0);
+})->with(['deadline passed', 'answered', 'clinic suspended', 'patient changed']);
 
 test('patient cannot create offer', function () {
     $data = createOfferCreationData();

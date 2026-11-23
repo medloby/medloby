@@ -3,19 +3,17 @@
 namespace App\Notifications;
 
 use App\Models\Offer;
-use Illuminate\Bus\Queueable;
+use App\Models\User;
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 class NewOfferNotification extends Notification implements ShouldQueue
 {
-    use Queueable;
+    use QueuesWithApplicationTransaction;
 
     public function __construct(
         public Offer $offer
-    ) {
-    }
+    ) {}
 
     /**
      * Bildirimin hangi kanallardan gönderileceğini belirler.
@@ -25,6 +23,14 @@ class NewOfferNotification extends Notification implements ShouldQueue
         return [
             'database',
         ];
+    }
+
+    public function shouldSend(User $notifiable, string $channel): bool
+    {
+        return $this->offer->status === 'pending'
+            && ! $this->offer->hasPassedDeadline()
+            && $this->offer->hasActiveClinic()
+            && $notifiable->patientProfile()->whereKey($this->offer->patient_profile_id)->exists();
     }
 
     /**
