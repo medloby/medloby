@@ -7,6 +7,7 @@ use App\Models\CrmLead;
 use App\Models\CrmTask;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Route;
 
 uses(RefreshDatabase::class);
 
@@ -547,7 +548,8 @@ test('cannot update crm task with business user without active branch access', f
         ->toBeNull();
 });
 
-test('can move crm task to in progress and set started at', function () {
+test('can start and complete a task with timestamps through its update endpoint', function () {
+    $this->freezeSecond();
     $task = CrmTask::create([
         'business_id' => $this->business->id,
         'branch_id' => $this->branch->id,
@@ -570,7 +572,14 @@ test('can move crm task to in progress and set started at', function () {
             'in_progress'
         );
 
-    expect($task->fresh()->started_at)->not->toBeNull();
+    $this->travel(1)->minute();
+    $this->putJson("/api/branches/{$this->branch->id}/crm/tasks/{$task->id}", [
+        'status' => 'completed',
+        'completed_at' => null,
+    ])->assertOk()
+        ->assertJsonPath('data.status', 'completed')
+        ->assertJsonPath('data.started_at', now()->subMinute()->toISOString())
+        ->assertJsonPath('data.completed_at', now()->toISOString());
 });
 
 test('can complete crm task', function () {
@@ -599,6 +608,36 @@ test('can complete crm task', function () {
 
     expect($task->fresh()->completed_at)->not->toBeNull();
 });
+
+test('a task outcome survives later actions and edits based on its old state', function (string $status, string $laterAction, string $message) {
+    $this->freezeSecond();
+    $task = CrmTask::create([
+        'business_id' => $this->business->id,
+        'branch_id' => $this->branch->id,
+        'created_by_business_user_id' => $this->businessUser->id,
+        'title' => 'Hasta aranacak',
+        'status' => 'pending',
+    ]);
+
+    // These requests resolved the task before the first outcome was recorded.
+    Route::bind('crmTask', fn () => $task);
+    $completedAt = $status === 'completed' ? now()->subMinute() : null;
+    CrmTask::query()->whereKey($task->id)->update(['status' => $status, 'completed_at' => $completedAt]);
+
+    $path = "/api/branches/{$this->branch->id}/crm/tasks/{$task->id}";
+    $this->postJson("{$path}/{$laterAction}")->assertUnprocessable()->assertJsonPath('message', $message);
+    $this->putJson($path, ['status' => 'in_progress'])->assertUnprocessable();
+    $this->putJson($path, ['completed_at' => now()->toISOString()])->assertUnprocessable();
+    $this->putJson($path, ['status' => $status, 'description' => 'Arama notu'])
+        ->assertOk()->assertJsonPath('data.status', $status)->assertJsonPath('data.description', 'Arama notu');
+
+    $this->assertDatabaseHas('crm_tasks', [
+        'id' => $task->id, 'status' => $status, 'completed_at' => $completedAt, 'description' => 'Arama notu',
+    ]);
+})->with([
+    'completion comes first' => ['completed', 'cancel', 'Tamamlanmış görev iptal edilemez.'],
+    'cancellation comes first' => ['cancelled', 'complete', 'İptal edilen görev tamamlanamaz.'],
+]);
 
 test('cannot complete already completed crm task', function () {
     $task = CrmTask::create([

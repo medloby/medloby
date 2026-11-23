@@ -9,6 +9,7 @@ use App\Models\CrmLead;
 use App\Models\CrmTask;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class CrmTaskController extends Controller
@@ -352,75 +353,28 @@ class CrmTaskController extends Controller
             ], 422);
         }
 
-        if (
-            array_key_exists('status', $validated)
-            && $validated['status'] === 'in_progress'
-            && $crmTask->started_at === null
-            && ! array_key_exists('started_at', $validated)
-        ) {
-            $validated['started_at'] = now();
-        }
-
-        if (
-            array_key_exists('status', $validated)
-            && $validated['status'] === 'completed'
-            && $crmTask->completed_at === null
-            && ! array_key_exists('completed_at', $validated)
-        ) {
-            $validated['completed_at'] = now();
-        }
-
-        $crmTask->update($validated);
-
-        return response()->json([
-            'success' => true,
-            'data' => $crmTask->fresh([
-                'lead',
-                'assignedBusinessUser',
-                'createdByBusinessUser',
-            ]),
-        ]);
+        return $this->saveTask($branch, $crmTask, $validated);
     }
 
     public function complete(
         Branch $branch,
         CrmTask $crmTask
     ): JsonResponse {
-        if (
-            $crmTask->business_id !== $branch->business_id
-            || $crmTask->branch_id !== $branch->id
-        ) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Bu görev belirtilen şubeye ait değil.',
-            ], 404);
-        }
-
-        if ($crmTask->status === 'completed') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Bu görev zaten tamamlanmış.',
-            ], 422);
-        }
-
-        $crmTask->update([
-            'status' => 'completed',
-            'completed_at' => now(),
-        ]);
-
-        return response()->json([
-            'success' => true,
-            'data' => $crmTask->fresh([
-                'lead',
-                'assignedBusinessUser',
-                'createdByBusinessUser',
-            ]),
-        ]);
+        return $this->saveTask($branch, $crmTask, ['status' => 'completed'], requireOpen: true);
     }
 
     public function cancel(
         Branch $branch,
         CrmTask $crmTask
+    ): JsonResponse {
+        return $this->saveTask($branch, $crmTask, ['status' => 'cancelled'], requireOpen: true);
+    }
+
+    private function saveTask(
+        Branch $branch,
+        CrmTask $crmTask,
+        array $changes,
+        bool $requireOpen = false
     ): JsonResponse {
         if (
             $crmTask->business_id !== $branch->business_id
@@ -432,31 +386,40 @@ class CrmTaskController extends Controller
             ], 404);
         }
 
-        if ($crmTask->status === 'completed') {
+        return DB::transaction(function () use ($branch, $crmTask, $changes, $requireOpen): JsonResponse {
+            $task = CrmTask::query()
+                ->where('business_id', $branch->business_id)->where('branch_id', $branch->id)
+                ->lockForUpdate()->findOrFail($crmTask->id);
+            $previousStatus = $task->status;
+            $task->fill($changes);
+
+            if (in_array($previousStatus, ['completed', 'cancelled'], true)
+                && ($requireOpen || $task->isDirty(['status', 'completed_at']))) {
+                $message = match (true) {
+                    ! $requireOpen => 'Sonuçlandırılmış görevin durumu veya tamamlanma zamanı değiştirilemez.',
+                    $previousStatus === 'completed' && $task->status === 'cancelled' => 'Tamamlanmış görev iptal edilemez.',
+                    $previousStatus === 'cancelled' && $task->status === 'completed' => 'İptal edilen görev tamamlanamaz.',
+                    $previousStatus === 'completed' => 'Bu görev zaten tamamlanmış.',
+                    default => 'Bu görev zaten iptal edilmiş.',
+                };
+
+                return response()->json(['success' => false, 'message' => $message], 422);
+            }
+
+            if (($changes['status'] ?? null) === 'in_progress' && ! array_key_exists('started_at', $changes)) {
+                $task->started_at ??= now();
+            }
+
+            if ($task->status === 'completed' && $previousStatus !== 'completed') {
+                $task->completed_at = $requireOpen ? now() : ($task->completed_at ?? now());
+            }
+
+            $task->save();
+
             return response()->json([
-                'success' => false,
-                'message' => 'Tamamlanmış görev iptal edilemez.',
-            ], 422);
-        }
-
-        if ($crmTask->status === 'cancelled') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Bu görev zaten iptal edilmiş.',
-            ], 422);
-        }
-
-        $crmTask->update([
-            'status' => 'cancelled',
-        ]);
-
-        return response()->json([
-            'success' => true,
-            'data' => $crmTask->fresh([
-                'lead',
-                'assignedBusinessUser',
-                'createdByBusinessUser',
-            ]),
-        ]);
+                'success' => true,
+                'data' => $task->fresh(['lead', 'assignedBusinessUser', 'createdByBusinessUser']),
+            ]);
+        }, attempts: 3);
     }
 }
