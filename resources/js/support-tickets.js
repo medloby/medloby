@@ -15,6 +15,7 @@ export function mountSupportTickets(dialog, trigger, { api, timeLabel }) {
     const compose = find('compose');
     const thread = find('thread');
     const filter = find('filter');
+    const assignmentFilter = find('assignment-filter');
     const searchForm = find('search-form');
     const awaitingOption = find('awaiting-option');
     const list = find('list');
@@ -22,6 +23,8 @@ export function mountSupportTickets(dialog, trigger, { api, timeLabel }) {
     const subject = find('subject');
     const status = find('status');
     const reply = find('reply');
+    const assignmentForm = find('assignment-form');
+    const assignee = assignmentForm.elements.namedItem('assigned_to_user_id');
     const changeStatus = find('set-status');
     let endpoint;
     let admin;
@@ -75,9 +78,10 @@ export function mountSupportTickets(dialog, trigger, { api, timeLabel }) {
     function ticketSummary(item) {
         const response = Number.isFinite(item.first_response_seconds) ? 'İlk yanıt ' + elapsed(item.first_response_seconds) : '';
         const resolution = Number.isFinite(item.resolution_seconds) ? 'Son kapanışa kadar ' + elapsed(item.resolution_seconds) : '';
+        const owner = item.assignee ? 'Sorumlu ' + item.assignee.name : item.assignment_needs_attention ? 'Sorumlu seçilmeli' : 'Sorumlusuz';
         return [
             admin && 'Talep #' + item.id, item.awaiting_reply ? 'Yanıt bekliyor' : statusLabels[item.status],
-            item.requester_name, timeLabel(item.updated_at), response, resolution,
+            admin && owner, item.requester_name, timeLabel(item.updated_at), response, resolution,
         ].filter(Boolean).join(' · ');
     }
 
@@ -101,6 +105,9 @@ export function mountSupportTickets(dialog, trigger, { api, timeLabel }) {
         const query = new URLSearchParams({ page });
         if (filter.value) {
             query.set('status', filter.value);
+        }
+        if (admin && assignmentFilter.value) {
+            query.set('assignment', assignmentFilter.value);
         }
         if (requester) {
             query.set('requester_id', requester.id);
@@ -135,6 +142,13 @@ export function mountSupportTickets(dialog, trigger, { api, timeLabel }) {
         messages.replaceChildren(...item.messages.data.toReversed().map(messageRow));
         setPages('thread', item.messages);
         reply.hidden = item.status === 'closed';
+        assignmentForm.hidden = !admin || item.status === 'closed';
+        if (!assignmentForm.hidden) {
+            assignee.replaceChildren(new Option('Sorumlusuz', ''), ...item.assignment_candidates.map(
+                (candidate) => new Option(candidate.name + ' · #' + candidate.id, candidate.id),
+            ));
+            assignee.value = item.assignee?.id ?? '';
+        }
         changeStatus.hidden = !admin;
         changeStatus.textContent = item.status === 'closed' ? 'Yeniden aç' : 'Talebi kapat';
         showView(thread);
@@ -174,6 +188,9 @@ export function mountSupportTickets(dialog, trigger, { api, timeLabel }) {
         compose.reset();
         searchForm.reset();
         reply.reset();
+        assignmentFilter.value = '';
+        assignmentForm.hidden = true;
+        assignee.replaceChildren();
         showStatus();
         showView(overview);
     }
@@ -229,6 +246,16 @@ export function mountSupportTickets(dialog, trigger, { api, timeLabel }) {
         }
     });
 
+    assignmentForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const path = endpoint + '/' + ticket.id + '/assignment?message_page=' + messagePage;
+        const fields = { assigned_to_user_id: assignee.value || null, assignment_id: ticket.assignment_id };
+        const item = await run('Sorumlu güncelleniyor…', () => api(path, fields, 'PUT'));
+        if (item) {
+            renderTicket(item, 'Sorumlu güncellendi.');
+        }
+    });
+
     changeStatus.addEventListener('click', async () => {
         const closing = ticket.status === 'open';
         const path = endpoint + '/' + ticket.id + '/status';
@@ -245,6 +272,7 @@ export function mountSupportTickets(dialog, trigger, { api, timeLabel }) {
     }
 
     filter.addEventListener('change', reloadList);
+    assignmentFilter.addEventListener('change', reloadList);
     searchForm.addEventListener('submit', (event) => {
         event.preventDefault();
         if (admin) {
@@ -272,6 +300,7 @@ export function mountSupportTickets(dialog, trigger, { api, timeLabel }) {
             find('heading').textContent = trigger.textContent;
             find('create').hidden = admin;
             searchForm.hidden = !admin;
+            find('assignment-filter-field').hidden = !admin;
             awaitingOption.hidden = !admin;
             awaitingOption.disabled = !admin;
             trigger.hidden = false;

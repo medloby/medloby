@@ -42,9 +42,9 @@ Platform yönetimi tek ekran olarak `/yonetim` adresinde açılır. Üyelik söz
 
 ## ADMIN-G2 — Yönetici rolleri
 
-Durum **BLOCKED**. Kritik yetki geçişi onay gerektiriyor. Platform rolleri işletme üyeliği rollerinden bağımsız olacak. Yetkilendirme uçta yapılacak, yeni rollere açık izin dışındaki işlemler kapalı olacak. Mevcut ilk yönetici kurulumu korunacak. Geçiş planı mevcut yöneticilerin eşlenmesini, son üst yöneticiyi koruyan işlem kilidini ve atama/geri alma denetimini içerecek.
+Kritik yetki geçişi onay bekliyor. Önerilen görev ayrımında tam yönetici platform işlemlerini kullanır. Destek görevlisi kendisine atanan talepleri görür ve yanıtlar. Atama, klinik hesabı, sözleşme ve finans işlemleri tam yöneticiye açık kalır. Onaylanan görevler API düzeyinde ve klinik üyeliği rollerinden bağımsız uygulanacak. Geçiş planı mevcut yöneticileri eşler, son tam yöneticiyi korur ve yetki değişikliklerini işlem geçmişine kaydeder.
 
-**İşlem geçmişi** mevcut başvuru kararlarını, klinik durum değişikliklerini, sözleşme yayımlama tarihlerini ve destek yanıtlarını tek listede gösterir. İşlem türüne göre filtrelenebilir. Liste kayıt numarası, işlem tarihi ve kaynakta kesin olarak tutulmuşsa yönetici adını gösterir. Sözleşmenin son düzenleyicisi yayımlayan kişi olarak kabul edilmez. Ayrıntılı notlar ve mesajlar kendi yetkili ekranlarında kalır. Rol ve izin değişikliklerinin ortak denetimi yetki geçişiyle planlanır. [İşlem geçmişi sorgusu](app/Services/PlatformAdminAudit.php)
+**İşlem geçmişi** başvuru kararlarını, klinik durum değişikliklerini, sözleşme yayımlama tarihlerini, destek yanıtlarını ve atamaları tek listede gösterir. İşlem türüne göre filtrelenebilir. Liste kayıt numarası, işlem tarihi ve kaynakta kesin olarak tutulmuşsa yönetici adını gösterir. Sözleşmelerde yönetici adı için yayımlama kaydındaki bilgi kullanılır. Ayrıntılı notlar ve mesajlar kendi yetkili ekranlarında kalır. Rol ve izin değişikliklerinin ortak denetimi yetki geçişiyle planlanır. [İşlem geçmişi sorgusu](app/Services/PlatformAdminAudit.php)
 
 ## ADMIN-G3 — Klinik ve hasta hesabı yönetimi
 
@@ -64,13 +64,17 @@ Platform finansı **BLOCKED**. İleride finansal hareketler platformun kendi öd
 
 ## ADMIN-G6 — Destek, katalog ve uyum
 
-**PARTIAL.** Mevcut destek kuyruğunda hesap bağlantısı, ilk yanıt ve son kapanışa kadar geçen süre gösterilir. Süreler talep ve mesaj zamanlarından hesaplanır. Panel aktif tedavisi olan pasif kategorileri ve yayımdaki zorunlu klinik sözleşmesinin bitiş tarihini bildirir. İşlemler mevcut katalog ve sözleşme ekranlarında yapılır. Destek kategorileri, öncelikleri, atama ve denetim süreleri açık. Hukuki içerik onayı yayımdan önce yapılacak. [Destek](app/Http/Controllers/SupportTicketController.php) · [Panel uyarıları](app/Services/AdminDashboardMetrics.php)
+Mevcut destek kuyruğunda hesap bağlantısı, ilk yanıt ve son kapanışa kadar geçen süre gösterilir. Süreler talep ve mesaj zamanlarından hesaplanır. Panel aktif tedavisi olan pasif kategorileri ve yayımdaki zorunlu klinik sözleşmesinin bitiş tarihini bildirir. İşlemler mevcut katalog ve sözleşme ekranlarında yapılır. [Destek](app/Http/Controllers/SupportTicketController.php) · [Panel uyarıları](app/Services/AdminDashboardMetrics.php)
 
 **Yanıt bekliyor** filtresi açık ve son mesajı başvurandan gelen talepleri gösterir. Genel bakıştaki sayaç aynı kuyruğu açar. Yönetici talep numarası veya konuyla arayabilir. Hesaba bağlı destek geçmişinde arama ilgili hesabın kayıtlarıyla sınırlıdır. [Kuyruk testleri](tests/Feature/SupportTicketTest.php)
+
+Doğrulanmış platform yöneticisi açık bir talebe doğrulanmış yönetici atayabilir ve atamayı kaldırabilir. **Bana atananlar** ve **Sorumlusuz** filtreleri durum ve arama filtreleriyle birlikte çalışır. Sorumlunun platform erişimi kaldırıldığında talep tekrar sorumlusuz kuyruğunda görünür. Atanan diğer yönetici uygulama içi bildirim alır. Atamalar mevcut işlem geçmişine girer ve yalnızca yönetim ekranında görünür. [Atama ve yetki testleri](tests/Feature/SupportTicketTest.php)
 
 ## ADMIN-G7 — Sistem durumu
 
 **PENDING PRODUCTION ACCEPTANCE.** Sistem ekranı uygulama erişimini, veritabanı ve şema durumunu, kuyruk ve e-posta yapılandırmasını ve varsa belirtilen yayın sürümünü gösterir. Yayın komutuyla aynı teknik denetimleri kullanır. Kuyruk işçisinin tamamladığı son işi, son başarılı zamanlanmış görevi, SMTP’nin kabul ettiği son gönderimi ve doğrulanmış son yedek oluşturma işlemini paylaşılan veritabanı önbelleğinden gösterir. Önbellekte ölçüm bulunmadığında **Bilinmiyor** görünür. Sunucu kabulünden sonraki gelen kutusu teslimatı ve geri yükleme canlı yayın provasında sınanır. Veritabanı kesintisi yönetici oturumunun doğrulanmasını da engelliyorsa dış erişim kontrolü `/up` üzerinden yapılır. [Sistem ölçümleri](app/Services/PlatformOperationActivity.php) · [Yayın kontrolü](app/Console/Commands/CheckReleaseReadiness.php)
+
+Yerel provada veritabanı kuyruğundaki hasta doğrulama e-postası test SMTP alıcısına ulaştı. E-postadaki imzalı bağlantı hesabı doğruladı ve yönetim ekranındaki kuyruk ve SMTP ölçümleri güncellendi. SQLite ve PostgreSQL 17 yedekleri özel dosyalarıyla ayrı test ortamına geri yüklendi. [SQLite geri yükleme testi](tests/Feature/LocalBackupTest.php) · [PostgreSQL geri yükleme testi](tests/Feature/PostgresBackupTest.php) · [Canlı yayın provası](README.md#medloby-yayına-çıkmadan-önce)
 
 ## ADMIN-G8 — Kabul
 
@@ -85,10 +89,12 @@ Platform finansı **BLOCKED**. İleride finansal hareketler platformun kendi öd
 | RESULT, REMAINING RISKS ve DECISIONS REQUIRED | Yerel kabul **COMPLETE**. Canlı kabul **PENDING PRODUCTION ACCEPTANCE**. Rol geçişi, platform finansı ve hukuki politikalar aşağıda listelenmiştir. |
 | COMMIT, PUSH STATUS ve NEXT GROUP | Özellik commit’leri `4045328` ve `7575533`. Son doğrulanan `origin/main` `2991bb1`. Gönderim onayı ve ürün kararları bekleniyor. |
 
+Destek ataması eklendikten sonra SQLite’ta **1.087**, PostgreSQL 17’de **1.090** test geçti. SQLite’ta atlanan üç PostgreSQL yedekleme testi PostgreSQL’de çalıştı. Vite ve Blade derlendi. Atama, kuyruk filtreleri ve hasta erişim sınırı masaüstü ve mobil Chromium’da doğrulandı.
+
 ## PRODUCT_DECISIONS_REQUIRED
 
 - Platform rol matrisi, kritik yetki atama ve geri alma, son üst yöneticinin korunması ve geçiş onayı.
-- Abonelik fiyatı ve para birimi, ödeme sağlayıcısı, komisyon, iade, vergi, fatura türü ve zorunlu ücretli plan kararı.
+- İlk yayın için seçilebilen üç klinik planı ücretsizdir. Ücretli abonelik kararı alındığında fiyat, para birimi, ödeme sağlayıcısı, komisyon, iade, vergi ve fatura türü ayrıca belirlenecek.
 - Sağlık verisinin işlenmesi, KVKK kabulü, kayıt saklama ve imha süreleri, hesap durdurma, silme ve dışa aktarma yetkisi.
 - İlk klinik ruhsat doğrulamasında aranacak belgeler ve destek talebinin işletmeyle nasıl ilişkilendirileceği.
-- Destek önceliği, atama, SLA süresi, otomatik kapanış ve denetim saklama politikası.
+- Destek kategorileri ve öncelikleri, otomatik atama, hedef yanıt süresi, otomatik kapanış ve işlem geçmişinin saklama süresi.

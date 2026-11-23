@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class SupportTicket extends Model
 {
@@ -30,6 +31,16 @@ class SupportTicket extends Model
     public function messages(): HasMany
     {
         return $this->hasMany(SupportTicketMessage::class);
+    }
+
+    public function assignments(): HasMany
+    {
+        return $this->hasMany(SupportTicketAssignment::class);
+    }
+
+    public function assignment(): HasOne
+    {
+        return $this->assignments()->one()->latestOfMany();
     }
 
     #[Scope]

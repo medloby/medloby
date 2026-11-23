@@ -18,13 +18,13 @@ final class PlatformAdminAudit
             'clinic_application' => $this->clinicApplications(),
             'clinic_status' => $this->clinicStatuses(),
             'contract' => $this->publications(),
-            'support' => $this->supportReplies(),
+            'support' => $this->supportReplies()->unionAll($this->supportAssignments()),
             default => $this->clinicApplications()->unionAll($this->clinicStatuses())
-                ->unionAll($this->publications())->unionAll($this->supportReplies()),
+                ->unionAll($this->publications())->unionAll($this->supportReplies())->unionAll($this->supportAssignments()),
         };
 
         return DB::query()->fromSub($events, 'audit_events')
-            ->orderByDesc('occurred_at')->orderBy('source')->orderByDesc('event_id')->paginate(20)
+            ->orderByDesc('occurred_at')->orderBy('source')->orderByDesc('event_id')->orderBy('event_action')->paginate(20)
             ->through(fn (stdClass $event): array => [
                 'source' => $event->source,
                 'action' => $event->event_action,
@@ -66,5 +66,12 @@ final class PlatformAdminAudit
             ->where('entry.from_support', true)
             ->selectRaw("'support' AS source, entry.id AS event_id, entry.support_ticket_id AS target_id,
                 NULL AS target_name, actor.name AS actor_name, 'replied' AS event_action, entry.created_at AS occurred_at");
+    }
+
+    private function supportAssignments(): Builder
+    {
+        return DB::table('support_ticket_assignments as entry')->leftJoin('users as actor', 'actor.id', '=', 'entry.assigned_by_user_id')
+            ->selectRaw("'support' AS source, entry.id AS event_id, entry.support_ticket_id AS target_id,
+                NULL AS target_name, actor.name AS actor_name, entry.action AS event_action, entry.created_at AS occurred_at");
     }
 }

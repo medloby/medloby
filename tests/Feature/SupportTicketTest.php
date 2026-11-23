@@ -100,6 +100,80 @@ test('support tickets stay private and the inbox requires platform administratio
     $this->assertDatabaseCount('support_ticket_messages', 0);
 });
 
+test('verified platform administrators can assign tickets once per change and filter their own queue', function () {
+    $actor = User::factory()->create(['is_admin' => true, 'name' => 'Ayşe Yönetici']);
+    $assignee = User::factory()->create(['is_admin' => true, 'name' => 'Can Yönetici']);
+    User::factory()->unverified()->create(['is_admin' => true]);
+    $ticket = SupportTicket::factory()->create();
+    $other = SupportTicket::factory()->create();
+    $queue = '/api/admin/support-tickets';
+    $path = $queue.'/'.$ticket->id.'/assignment';
+    $assign = ['assigned_to_user_id' => $assignee->id, 'assignment_id' => null];
+
+    $this->actingAs($actor, 'sanctum');
+    $assignment = $this->putJson($path, $assign)->assertOk()->assertHeader('Cache-Control', 'no-store, private')
+        ->assertJsonPath('data.assignee', ['id' => $assignee->id, 'name' => $assignee->name])
+        ->assertJsonCount(2, 'data.assignment_candidates')->assertJsonMissingPath('data.assignment_candidates.0.email')
+        ->json('data.assignment_id');
+    $this->putJson($path, $assign)->assertOk()->assertJsonPath('data.assignment_id', $assignment);
+    $this->assertDatabaseCount('support_ticket_assignments', 1);
+    expect($assignee->notifications()->sole()->data)->toMatchArray([
+        'support_ticket_id' => $ticket->id, 'title' => 'Destek talebi size atandı',
+    ]);
+
+    $this->getJson($queue.'?status=open&assignment=unassigned')->assertOk()
+        ->assertJsonPath('data.total', 1)->assertJsonPath('data.data.0.id', $other->id);
+    $this->actingAs($assignee, 'sanctum')->getJson($queue.'?assignment=mine')->assertOk()
+        ->assertJsonPath('data.total', 1)->assertJsonPath('data.data.0.id', $ticket->id);
+
+    $this->actingAs($actor, 'sanctum')->putJson($path, ['assigned_to_user_id' => $actor->id, 'assignment_id' => $assignment])
+        ->assertOk()->assertJsonPath('data.assignee.id', $actor->id);
+    $this->putJson($path, ['assigned_to_user_id' => null, 'assignment_id' => $assignment])->assertConflict();
+    $this->getJson($queue.'?assignment=mine')->assertOk()->assertJsonPath('data.data.0.id', $ticket->id);
+    $this->actingAs($assignee, 'sanctum')->getJson($queue.'?assignment=mine')->assertOk()->assertJsonPath('data.total', 0);
+    $this->assertDatabaseCount('support_ticket_assignments', 2);
+    $this->assertDatabaseCount('notifications', 1);
+});
+
+test('invalid assignees stay private and clearing a stale assignment leaves an audit event', function () {
+    $actor = User::factory()->create(['is_admin' => true]);
+    $assignee = User::factory()->create(['is_admin' => true]);
+    $unverified = User::factory()->unverified()->create(['is_admin' => true]);
+    $ticket = SupportTicket::factory()->create();
+    $requester = $ticket->requester;
+    $queue = '/api/admin/support-tickets';
+    $detail = $queue.'/'.$ticket->id;
+    $assign = ['assigned_to_user_id' => $assignee->id, 'assignment_id' => null];
+
+    $this->actingAs($requester, 'sanctum')->putJson($detail.'/assignment', $assign)->assertForbidden();
+    $this->actingAs($unverified, 'sanctum')->putJson($detail.'/assignment', $assign)->assertForbidden();
+    $this->actingAs($actor, 'sanctum');
+    foreach ([$requester, $unverified] as $invalid) {
+        $this->putJson($detail.'/assignment', ['assigned_to_user_id' => $invalid->id, 'assignment_id' => null])
+            ->assertUnprocessable()->assertJsonValidationErrors('assigned_to_user_id');
+    }
+
+    $assignment = $this->putJson($detail.'/assignment', $assign)->assertOk()->json('data.assignment_id');
+    $assignee->forceFill(['is_admin' => false])->save();
+    $this->getJson($queue.'?assignment=unassigned')->assertOk()->assertJsonPath('data.total', 1)
+        ->assertJsonPath('data.data.0.assignment_needs_attention', true)->assertJsonPath('data.data.0.assignee', null);
+
+    $clear = ['assigned_to_user_id' => null, 'assignment_id' => $assignment];
+    $this->putJson($detail.'/status', ['status' => 'closed'])->assertOk();
+    $this->putJson($detail.'/assignment', $clear)->assertConflict();
+    $this->putJson($detail.'/status', ['status' => 'open'])->assertOk();
+    $this->putJson($detail.'/assignment', $clear)->assertOk()->assertJsonPath('data.assignee', null)
+        ->assertJsonPath('data.assignment_needs_attention', false);
+    $this->assertDatabaseCount('support_ticket_assignments', 2);
+    $this->getJson('/api/admin/audit?source=support')->assertOk()->assertJsonPath('data.total', 2)
+        ->assertJsonPath('data.data.0.action', 'unassigned')->assertJsonPath('data.data.0.target_id', $ticket->id)
+        ->assertJsonPath('data.data.0.actor_name', $actor->name)->assertJsonPath('data.data.1.action', 'assigned')
+        ->assertJsonMissingPath('data.data.1.assignee');
+    $this->actingAs($requester, 'sanctum')->getJson('/api/support-tickets/'.$ticket->id)
+        ->assertOk()->assertJsonMissingPath('data.assignee')->assertJsonMissingPath('data.assignment_id')
+        ->assertJsonMissingPath('data.assignment_candidates');
+});
+
 test('the platform can close and reopen a support request and both sides can read closed requests', function () {
     $ticket = SupportTicket::factory()->create();
     $admin = User::factory()->create(['is_admin' => true]);

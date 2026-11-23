@@ -17,6 +17,13 @@
                         <option value="closed">Kapalı</option>
                     </select>
                 </label>
+                <label class="offer-field" data-support-assignment-filter-field hidden>Sorumlu
+                    <select class="offer-control" data-support-assignment-filter>
+                        <option value="">Tümü</option>
+                        <option value="mine">Bana atananlar</option>
+                        <option value="unassigned">Sorumlusuz</option>
+                    </select>
+                </label>
                 <div class="flex flex-wrap gap-2">
                     <button type="button" class="offer-button offer-button-secondary" data-support-refresh-list>Yenile</button>
                     <button type="button" class="offer-button" data-support-create>Yeni talep</button>
@@ -57,6 +64,12 @@
                 <h3 id="support-thread-subject" class="break-words text-xl font-semibold" tabindex="-1" data-support-subject></h3>
                 <p class="text-sm text-slate-600 dark:text-slate-300" data-support-summary></p>
             </div>
+            <form method="post" class="flex flex-wrap items-end gap-2" data-support-assignment-form hidden>
+                <label class="offer-field min-w-0 flex-1">Sorumlu yönetici
+                    <select class="offer-control" name="assigned_to_user_id"></select>
+                </label>
+                <button type="submit" class="offer-button offer-button-secondary">Sorumluyu kaydet</button>
+            </form>
             <ol class="grid min-w-0 gap-2" data-support-messages></ol>
             <nav class="flex flex-wrap items-center justify-between gap-2" aria-label="Destek mesajı sayfaları" data-support-thread-pages hidden>
                 <button type="button" class="offer-button offer-button-secondary" data-support-thread-next>Daha eski mesajlar</button>

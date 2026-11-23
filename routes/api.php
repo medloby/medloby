@@ -230,12 +230,14 @@ Route::middleware('auth:sanctum')->group(function () {
             });
         });
 
-        Route::prefix('admin/support-tickets')->name('admin.support-tickets.')->middleware('admin')
+        Route::prefix('admin/support-tickets')->name('admin.support-tickets.')
+            ->middleware(['admin', \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class])
             ->controller(SupportTicketController::class)->group(function () {
                 Route::get('/', 'index')->name('index');
                 Route::get('/{ticket}', 'show')->whereNumber('ticket')->name('show');
                 Route::post('/{ticket}/messages', 'reply')->whereNumber('ticket')->name('reply');
                 Route::put('/{ticket}/status', 'updateStatus')->whereNumber('ticket')->name('status');
+                Route::put('/{ticket}/assignment', 'updateAssignment')->whereNumber('ticket')->name('assignment');
             });
 
         /*
