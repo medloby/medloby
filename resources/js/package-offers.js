@@ -203,7 +203,11 @@ export function mountPackageOffers(root) {
     let dialogRequest = 0;
 
     async function downloadAttachment(attachment) {
+        const sessionToken = token;
         const blob = await api('/attachments/' + attachment.id + '/view', undefined, 'GET', true);
+        if (sessionToken !== token) {
+            return;
+        }
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
@@ -1181,9 +1185,15 @@ export function mountPackageOffers(root) {
     async function activateSession(sessionToken, openDefaultCrm = false) {
         token = sessionToken;
         try {
-            user = (await api('/me')).user;
+            const sessionUser = (await api('/me')).user;
+            if (token !== sessionToken) {
+                return;
+            }
+            user = sessionUser;
         } catch (error) {
-            endSession();
+            if (token === sessionToken) {
+                endSession();
+            }
             throw error;
         }
 

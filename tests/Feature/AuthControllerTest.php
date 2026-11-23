@@ -194,6 +194,7 @@ test('authenticated user can logout', function () {
     $token = $user->createToken(
         'test-token'
     );
+    $otherToken = $user->createToken('separate-session');
 
     $response = $this
         ->withToken($token->plainTextToken)
@@ -209,6 +210,12 @@ test('authenticated user can logout', function () {
     expect(PersonalAccessToken::find(
         $token->accessToken->id
     ))->toBeNull();
+
+    Auth::forgetGuards();
+    $this->getJson('/api/me')->assertUnauthorized();
+
+    Auth::forgetGuards();
+    $this->withToken($otherToken->plainTextToken)->getJson('/api/me')->assertOk()->assertJsonPath('data.user.id', $user->id);
 });
 
 test('logout requires authentication', function () {

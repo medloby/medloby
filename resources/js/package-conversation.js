@@ -42,7 +42,9 @@ export function mountPackageConversation(thread, { api, downloadAttachment, time
                 try {
                     await downloadAttachment(attachment);
                 } catch (error) {
-                    showStatus(error.message);
+                    if (button.isConnected && error.name !== 'AbortError') {
+                        showStatus(error.message);
+                    }
                 } finally {
                     button.disabled = false;
                 }

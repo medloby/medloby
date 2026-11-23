@@ -362,6 +362,7 @@ export function mountPlatformAdmin(root) {
         }
         submit.disabled = true;
         status(loginStatus, 'Giriş yapılıyor…');
+        let sessionToken;
         try {
             const fields = Object.fromEntries(new FormData(form));
             fields.email = fields.email.trim().toLowerCase();
@@ -373,18 +374,28 @@ export function mountPlatformAdmin(root) {
                 status(loginStatus);
                 return;
             }
-            token = result.token;
+            sessionToken = result.token;
+            token = sessionToken;
             const html = await api('/admin/workspace', undefined, 'GET', true);
-            workspace.innerHTML = await html.text();
+            const markup = await html.text();
+            if (token !== sessionToken) {
+                return;
+            }
+            workspace.innerHTML = markup;
             workspace.hidden = false;
             signIn.hidden = true;
             form.reset();
             stop = mountDashboard(workspace, api, result.user, endSession);
         } catch (error) {
-            if (token) {
+            if (error.name === 'AbortError') {
+                return;
+            }
+            if (sessionToken && token === sessionToken) {
                 await api('/logout', {}).catch(() => {});
             }
-            endSession(error.message);
+            if (!token || token === sessionToken) {
+                endSession(error.message);
+            }
         } finally {
             submit.disabled = false;
         }

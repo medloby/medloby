@@ -93,6 +93,9 @@ jobs:
       - name: Run the SQLite test suite
         run: php artisan test --compact
 
+      - name: Run frontend session tests
+        run: node --test tests/workspace-api.test.js
+
       - name: Install PostgreSQL 17 client tools
         run: |
           curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc -o "$RUNNER_TEMP/medloby-postgresql.asc"

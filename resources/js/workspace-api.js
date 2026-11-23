@@ -2,6 +2,11 @@ export function createWorkspaceApi(getToken, onUnauthorized) {
     return async function api(path, body, method = body === undefined ? 'GET' : 'POST', download = false) {
         const headers = { Accept: 'application/json' };
         const requestToken = getToken();
+        const assertCurrentSession = () => {
+            if (requestToken && requestToken !== getToken()) {
+                throw new DOMException('Bu istek önceki oturuma ait.', 'AbortError');
+            }
+        };
         if (requestToken) {
             headers.Authorization = 'Bearer ' + requestToken;
         }
@@ -16,13 +21,17 @@ export function createWorkspaceApi(getToken, onUnauthorized) {
             body: multipart || body === undefined ? body : JSON.stringify(body),
             cache: 'no-store',
         });
+        assertCurrentSession();
         if (download && response.ok) {
-            return response.blob();
+            const blob = await response.blob();
+            assertCurrentSession();
+            return blob;
         }
 
         const result = await response.json().catch(() => null);
+        assertCurrentSession();
         if (!response.ok || !result?.success) {
-            if (response.status === 401 && requestToken && requestToken === getToken()) {
+            if (response.status === 401 && requestToken) {
                 onUnauthorized();
             }
 
