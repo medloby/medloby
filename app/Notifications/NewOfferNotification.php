@@ -4,10 +4,11 @@ namespace App\Notifications;
 
 use App\Models\Offer;
 use App\Models\User;
+use Illuminate\Contracts\Queue\ShouldBeEncrypted;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
 
-class NewOfferNotification extends Notification implements ShouldQueue
+class NewOfferNotification extends Notification implements ShouldBeEncrypted, ShouldQueue
 {
     use QueuesWithApplicationTransaction;
 

@@ -9,6 +9,7 @@ use App\Models\Treatment;
 use App\Models\TreatmentCategory;
 use App\Models\User;
 use App\Notifications\NewOfferNotification;
+use Illuminate\Contracts\Encryption\Encrypter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Queue\Events\JobQueued;
 use Illuminate\Support\Facades\DB;
@@ -159,6 +160,12 @@ test('returns 500 without saving an offer or a job when queuing fails and allows
     $this->assertDatabaseCount('offers', 1);
     $this->assertDatabaseCount('jobs', 1);
     $this->assertDatabaseCount('notifications', 0);
+
+    $queuedPayload = DB::table('jobs')->value('payload');
+    $encryptedCommand = json_decode($queuedPayload, true, 512, JSON_THROW_ON_ERROR)['data']['command'];
+    expect($encryptedCommand)->not->toStartWith('O:')
+        ->and(app(Encrypter::class)->decrypt($encryptedCommand))->toContain(NewOfferNotification::class);
+
     $this->artisan('queue:work', ['--once' => true, '--sleep' => 0, '--tries' => 1])->assertSuccessful();
 
     $notification = $data['patientUser']->notifications()->sole();

@@ -2,13 +2,16 @@
 
 namespace App\Providers;
 
+use App\Console\PrivateQueueWorkCommand;
 use App\Services\PlatformOperationActivity;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Events\DiagnosingHealth;
 use Illuminate\Http\Request;
 use Illuminate\Mail\Events\MessageSent;
 use Illuminate\Notifications\Messages\MailMessage;
+use Illuminate\Queue\Console\WorkCommand;
 use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -23,7 +26,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->extend(WorkCommand::class, static fn (WorkCommand $_command, Application $app): PrivateQueueWorkCommand => new PrivateQueueWorkCommand(
+            $app['queue.worker'],
+            $app['cache.store'],
+        ));
     }
 
     /**

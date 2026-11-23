@@ -9,6 +9,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -37,6 +38,11 @@ return Application::configure(basePath: dirname(__DIR__))
                 'exception_type' => $error::class,
                 'sqlstate' => preg_match('/\A[A-Z0-9]{5}\z/', $code) ? $code : null,
                 'route' => request()->route()?->uri(),
+            ]);
+        })->stop();
+        $exceptions->report(function (TransportExceptionInterface $error): void {
+            Log::error('E-posta taşıyıcısı işlemi tamamlayamadı.', [
+                'exception_type' => get_debug_type($error),
             ]);
         })->stop();
         $exceptions->dontFlash(['new_password', 'new_password_confirmation']);
