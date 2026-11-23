@@ -150,6 +150,8 @@ Kabul senaryosu e-posta doğrulama ve klinik onayıyla başlar. Klinik sahibi ya
 
 25. **3.25 Çevrimiçi randevu kaydı güncel başlangıç aralığını doğruluyor.** Saatler hekimin çalışma başlangıcından hesaplanır. Tekil randevu, paket seansı ve çevrimiçi tarih değişikliği kaydedilirken şubenin güncel aralığı uygulanır. Tarih değişikliğinde saat reddedilirse seçim listesi yenilenir. Klinik içinden manuel planlama çalışma saatlerine göre devam eder. [Randevu testleri](tests/Feature/ClinicAppointmentTest.php)
 
+26. **3.26 Klinik sayfası ve tekil randevu seçimi güncel hekim kaydını kullanıyor.** Görevi sona eren veya kişi kaydı pasife alınan hekim seçilemez. Şubede çevrimiçi randevuya uygun hekim kalmazsa randevu bağlantısı gizlenir. İleri tarihte başlayacak bir hekim kendi çalışma günleri için seçilebilir. Bekleme bildirimi, seçilen hekimin güncel durumunu kontrol eder. [Klinik sayfası testleri](tests/Feature/ClinicDirectoryTest.php) · [Randevu testleri](tests/Feature/ClinicAppointmentTest.php) · [Bekleme listesi testleri](tests/Feature/AppointmentWaitingListTest.php)
+
 Kabul senaryosu şubede hekim ve uygunluk hazırlığından başlayıp hastanın birkaç seansı seçmesi ve kliniğin randevuyu yönetmesiyle tamamlanır.
 
 ### 4. Kamuya açık site ve yayın içeriği

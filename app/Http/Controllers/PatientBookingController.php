@@ -159,8 +159,7 @@ class PatientBookingController extends Controller
 
     private function publicDoctors(Branch $branch): BelongsToMany
     {
-        return $branch->doctors()->wherePivot('status', 'active')->where('doctors.status', 'active')->where('doctors.is_public', true)
-            ->whereHas('person', fn (Builder $person) => $person->where('business_id', $branch->business_id));
+        return $branch->doctors()->withPublicBookingAssignment(fn (Builder $person) => $person->where('people.business_id', $branch->business_id));
     }
 
     private function bookableTreatments(Branch $branch): BelongsToMany

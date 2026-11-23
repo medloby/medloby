@@ -188,3 +188,21 @@ test('the clinic directory lists only currently assigned public doctors and thei
         ->assertDontSeeText('KLINIK-RUHSAT-TEST-01')->assertDontSeeText('merkez@example.test')
         ->assertSee($bookingLink.'/'.$bookableDoctor->id)->assertDontSee($bookingLink.'/'.$offlineDoctor->id);
 });
+
+test('the clinic page hides the booking link when no public doctor has a remaining assignment', function () {
+    $this->travelTo(Carbon::parse('2026-12-04 22:00:00', 'UTC'));
+    $branch = Branch::factory()->create();
+    $treatment = Treatment::create([
+        'treatment_category_id' => TreatmentCategory::factory()->create()->id,
+        'name' => 'Şube Muayenesi', 'slug' => 'sube-muayenesi', 'is_active' => true,
+    ]);
+    $branch->treatments()->attach($treatment->id, ['is_active' => true, 'is_online_bookable' => true]);
+    $person = Person::factory()->for($branch->business)->for($branch)->create();
+    $retiredDoctor = Doctor::factory()->for($person)->create();
+    $retiredDoctor->branches()->attach($branch->id, ['status' => 'active', 'end_date' => '2026-12-04']);
+    $retiredDoctor->treatments()->attach($treatment->id, ['is_active' => true]);
+
+    $this->get(route('clinics.show', $branch->business->slug))->assertOk()
+        ->assertSeeText('Çevrimiçi randevu kapalı.')
+        ->assertDontSee(route('package-offers').'#randevu-al/'.$branch->id);
+});

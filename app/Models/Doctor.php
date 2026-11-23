@@ -2,6 +2,9 @@
 
 namespace App\Models;
 
+use Closure;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -27,6 +30,23 @@ class Doctor extends Model
         return [
             'is_public' => 'boolean',
         ];
+    }
+
+    /**
+     * The query must join doctor_branch for the selected branch.
+     *
+     * @param  Closure(Builder<Person>): Builder<Person>  $inClinic
+     */
+    #[Scope]
+    protected function withPublicBookingAssignment(Builder $query, Closure $inClinic, ?string $today = null): Builder
+    {
+        $today ??= Appointment::clinicLocalNow()->toDateString();
+
+        return $query->where('doctors.status', 'active')->where('doctors.is_public', true)
+            ->where('doctor_branch.status', 'active')
+            ->where(fn (Builder $assignment) => $assignment->whereNull('doctor_branch.end_date')
+                ->orWhere('doctor_branch.end_date', '>=', $today))
+            ->whereHas('person', fn (Builder $person) => $inClinic($person->where('people.status', 'active')));
     }
 
     public function person(): BelongsTo

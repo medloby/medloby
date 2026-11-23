@@ -61,11 +61,9 @@ class ClinicDirectoryController extends Controller
                     ->orderBy('id')->select('id', 'branch_id', 'platform', 'page_name', 'profile_url'),
                 'treatments' => fn (BelongsToMany $treatments) => $treatments->wherePivot('is_active', true)
                     ->where('treatments.is_active', true)->orderBy('treatments.name')->select('treatments.id', 'treatments.name'),
-                'doctors' => fn (BelongsToMany $doctors) => $doctors->wherePivot('status', 'active')
-                    ->where('doctors.status', 'active')->where('doctors.is_public', true)
-                    ->whereHas('person', fn (Builder $person) => $person->where('business_id', $clinic->id)->where('status', 'active'))
+                'doctors' => fn (BelongsToMany $doctors) => $doctors
+                    ->withPublicBookingAssignment(fn (Builder $person) => $person->where('people.business_id', $clinic->id), $today)
                     ->where(fn (Builder $assignment) => $assignment->whereNull('doctor_branch.start_date')->orWhere('doctor_branch.start_date', '<=', $today))
-                    ->where(fn (Builder $assignment) => $assignment->whereNull('doctor_branch.end_date')->orWhere('doctor_branch.end_date', '>=', $today))
                     ->select('doctors.id', 'doctors.person_id', 'doctors.specialty')
                     ->with(['person:id,first_name,last_name,title,specialty', 'treatments' => fn (BelongsToMany $treatments) => $treatments
                         ->wherePivot('is_active', true)->where('treatments.is_active', true)->select('treatments.id')]),

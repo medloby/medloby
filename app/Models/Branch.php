@@ -53,9 +53,8 @@ class Branch extends Model
                 ->where('branch_treatment.is_active', true)->where('branch_treatment.is_online_bookable', true)
                 ->whereHas('doctors', fn (Builder $doctors) => $doctors
                     ->join('doctor_branch', 'doctor_branch.doctor_id', '=', 'doctors.id')
-                    ->whereColumn('doctor_branch.branch_id', 'branches.id')->where('doctor_branch.status', 'active')
-                    ->where('doctors.status', 'active')->where('doctors.is_public', true)->where('doctor_treatment.is_active', true)
-                    ->whereHas('person', fn (Builder $person) => $person->whereColumn('people.business_id', 'branches.business_id'))));
+                    ->whereColumn('doctor_branch.branch_id', 'branches.id')->where('doctor_treatment.is_active', true)
+                    ->withPublicBookingAssignment(fn (Builder $person) => $person->whereColumn('people.business_id', 'branches.business_id'))));
     }
 
     public function business(): BelongsTo

@@ -123,10 +123,12 @@ final class AppointmentWaitingList
     private function availableSlots(WaitingList $request): array
     {
         $doctor = $request->doctor;
+        $person = $doctor?->person;
         $treatment = $request->treatment;
 
         if ($request->branch === null || ! $this->canWait($request->branch, $request->preferred_date)
-            || ! $doctor?->is_public || $doctor->person?->business_id !== $request->business_id || ! $treatment?->is_active) {
+            || ! $doctor?->is_public || $person?->status !== 'active' || $person->business_id !== $request->business_id
+            || ! $treatment?->is_active) {
             return [];
         }
 

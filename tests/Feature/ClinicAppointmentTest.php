@@ -188,6 +188,46 @@ test('a verified patient can book a standalone visit through the online branch a
     expect($owner->notifications()->where('type', NewAppointmentNotification::class)->count())->toBe(2);
 });
 
+test('online booking excludes unavailable doctors and still lists doctors who start on a future booking date', function (string $unavailable) {
+    $this->travelTo(Carbon::parse('2026-12-01 22:00:00', 'UTC'));
+    [$business, , $branch, , $doctor, $treatment] = clinicAppointmentFixture();
+    $doctor->update(['is_public' => true]);
+    match ($unavailable) {
+        'expired assignment' => $doctor->branches()->updateExistingPivot($branch->id, ['end_date' => '2026-12-01']),
+        'inactive person' => $doctor->person->update(['status' => 'inactive']),
+    };
+    $scheduledDoctor = Doctor::factory()->for(Person::factory()->for($business)->for($branch))->create();
+    $scheduledDoctor->branches()->attach($branch->id, ['status' => 'active', 'start_date' => '2026-12-04', 'end_date' => '2026-12-04']);
+    $scheduledDoctor->treatments()->attach($treatment->id, ['is_active' => true]);
+    DoctorWorkingHour::create([
+        'doctor_id' => $scheduledDoctor->id, 'branch_id' => $branch->id,
+        'day_of_week' => 5, 'start_time' => '09:00', 'end_time' => '10:00', 'is_active' => true,
+    ]);
+    $branch->treatments()->updateExistingPivot($treatment->id, ['is_online_bookable' => true]);
+    $branch->appointmentSetting()->update(['online_booking_enabled' => true]);
+    $patient = User::factory()->create();
+    $patient->patientProfile()->create(['first_name' => 'Deneme', 'last_name' => 'Hasta']);
+    $endpoint = '/api/patient/appointments/booking-branches';
+    $booking = $endpoint.'/'.$branch->id;
+    $selection = ['doctor_id' => $doctor->id, 'treatment_id' => $treatment->id, 'date' => '2026-12-04'];
+
+    $this->actingAs($patient, 'sanctum')->getJson($endpoint)->assertOk()
+        ->assertJsonCount(1, 'data.branches')->assertJsonPath('data.branches.0.id', $branch->id);
+    $this->getJson($booking.'/treatments')->assertOk()->assertJsonCount(1, 'data.treatments.0.doctors')
+        ->assertJsonPath('data.treatments.0.doctors.0.id', $scheduledDoctor->id);
+    $this->getJson($booking.'/slots?'.http_build_query($selection))->assertNotFound();
+    $this->postJson($booking, $selection + ['starts_at' => '2026-12-04 09:00:00'])->assertNotFound();
+    $this->postJson($booking.'/waiting-list', $selection)->assertNotFound();
+    $this->getJson($booking.'/slots?'.http_build_query([...$selection, 'doctor_id' => $scheduledDoctor->id]))->assertOk()
+        ->assertJsonPath('data.slots.0', '2026-12-04 09:00:00');
+
+    $scheduledDoctor->branches()->detach($branch->id);
+    $this->getJson($endpoint)->assertOk()->assertJsonCount(0, 'data.branches');
+    $this->getJson($booking.'/treatments')->assertNotFound();
+    $this->assertDatabaseCount('appointments', 0);
+    $this->assertDatabaseCount('waiting_lists', 0);
+})->with(['expired assignment', 'inactive person']);
+
 test('the patient appointment list combines standalone and package visits and protects patient details', function () {
     $this->travelTo(Carbon::parse('2026-12-04 05:00:00', 'UTC'));
     [$business, $owner, $branch, , $doctor, $treatment] = clinicAppointmentFixture();

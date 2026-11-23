@@ -120,6 +120,29 @@ test('a newly available time sends one notification and opens the exact booking 
         ->assertJsonPath('data.slots.0', '2026-12-04 09:00:00')->assertJsonPath('data.can_wait', false);
 });
 
+test('a waiting patient is notified only while the selected doctor has an active person record', function () {
+    $this->travelTo(Carbon::parse('2026-12-01 00:00:00', 'UTC'));
+    [$branch, $appointment, $booking, $selection] = waitingListBookingFixture();
+    $otherDoctor = Doctor::factory()->for(Person::factory()->for($branch->business)->for($branch))->create();
+    $otherDoctor->branches()->attach($branch->id, ['status' => 'active']);
+    $otherDoctor->treatments()->attach($appointment->treatment_id, ['is_active' => true]);
+    $patient = waitingListPatient();
+    $id = $this->actingAs($patient, 'sanctum')->postJson($booking.'/waiting-list', $selection)
+        ->assertCreated()->json('data.id');
+    $person = $appointment->doctor->person;
+    $person->update(['status' => 'inactive']);
+    $appointment->update(['status' => 'cancelled']);
+
+    $this->artisan('medloby:notify-waiting-list')->assertSuccessful();
+    $this->assertDatabaseCount('notifications', 0);
+    $this->assertDatabaseHas('waiting_lists', ['id' => $id, 'status' => 'waiting']);
+
+    $person->update(['status' => 'active']);
+    $this->artisan('medloby:notify-waiting-list')->assertSuccessful();
+    $this->assertDatabaseCount('notifications', 1);
+    $this->assertDatabaseHas('waiting_lists', ['id' => $id, 'status' => 'notified']);
+});
+
 test('the waiting list rejects dates outside booking settings and dates with available times', function () {
     $this->travelTo(Carbon::parse('2026-12-01 00:00:00', 'UTC'));
     [, $appointment, $booking, $selection] = waitingListBookingFixture();
