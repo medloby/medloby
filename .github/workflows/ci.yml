@@ -68,10 +68,38 @@ jobs:
       - name: Install JavaScript dependencies
         run: npm ci --ignore-scripts
 
-      - name: Audit locked dependencies
+      - name: Audit locked PHP dependencies
         run: |
-          composer audit --locked --no-interaction
-          npm audit
+          report="$RUNNER_TEMP/composer-audit.json"
+          status=0
+          composer audit --locked --no-interaction --format=json > "$report" || status=$?
+
+          if [ "$status" -ne 0 ]; then
+            if jq -e 'type == "object"' "$report" >/dev/null 2>&1; then
+              jq -r '
+                ((.advisories // {}) | to_entries[] | .key as $package | .value[] |
+                  "::error title=Composer security advisory::\($package) \(.cve // .advisoryId // "unidentified advisory")"),
+                ((.abandoned // {}) | keys[] | "::error title=Composer abandoned dependency::\(.)")
+              ' "$report"
+            fi
+            printf '::error title=Composer dependency audit::Exit code %s\n' "$status"
+            exit "$status"
+          fi
+
+      - name: Audit locked JavaScript dependencies
+        if: ${{ !cancelled() }}
+        run: |
+          report="$RUNNER_TEMP/npm-audit.json"
+          status=0
+          npm audit --json > "$report" || status=$?
+
+          if [ "$status" -ne 0 ]; then
+            if jq -e 'type == "object"' "$report" >/dev/null 2>&1; then
+              jq -r '(.vulnerabilities // {}) | keys[] | "::error title=npm security advisory::\(.)"' "$report"
+            fi
+            printf '::error title=JavaScript dependency audit::Exit code %s\n' "$status"
+            exit "$status"
+          fi
 
       - name: Build frontend assets
         run: npm run build
