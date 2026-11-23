@@ -151,6 +151,29 @@ test('unverified user cannot access admin business detail', function () {
     $response->assertForbidden();
 });
 
+test('a clinic detail returns its recorded application decisions in a stable order', function () {
+    $reviewer = User::factory()->create(['is_admin' => true, 'name' => 'Prova Yöneticisi']);
+    $clinic = Business::factory()->create(['status' => 'suspended']);
+    $defaults = ['reviewed_by_user_id' => $reviewer->id, 'decision' => 'approved'];
+    $first = $clinic->reviews()->create(['reviewed_at' => '2026-11-19 10:00:00'] + $defaults);
+    $second = $clinic->reviews()->create(['reviewed_at' => '2026-11-19 10:00:00'] + $defaults);
+    $legacy = $clinic->reviews()->create(['reviewed_at' => null] + $defaults);
+    Business::factory()->create()->reviews()->create(['notes' => 'Başka kliniğin inceleme notu'] + $defaults);
+    Branch::factory()->for($clinic)->create(['status' => 'inactive']);
+
+    $this->actingAs($reviewer, 'sanctum')->getJson("/api/admin/businesses/{$clinic->id}")
+        ->assertOk()->assertHeader('Cache-Control', 'no-store, private')
+        ->assertJsonPath('data.status', 'suspended')
+        ->assertJsonPath('data.branches.0.status', 'inactive')
+        ->assertJsonCount(3, 'data.reviews')
+        ->assertJsonPath('data.reviews.0.id', $second->id)
+        ->assertJsonPath('data.reviews.0.decision', 'approved')
+        ->assertJsonPath('data.reviews.0.reviewed_by.name', 'Prova Yöneticisi')
+        ->assertJsonPath('data.reviews.1.id', $first->id)
+        ->assertJsonPath('data.reviews.2.id', $legacy->id)
+        ->assertDontSee('Başka kliniğin inceleme notu');
+});
+
 test('guest cannot access admin business list', function () {
     $response = $this->getJson('/api/admin/businesses');
 

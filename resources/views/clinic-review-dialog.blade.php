@@ -27,6 +27,10 @@
             </div>
             <dl class="grid gap-3 rounded-xl border border-slate-200 p-4 text-sm sm:grid-cols-2 dark:border-slate-700">
                 <div class="min-w-0">
+                    <dt class="font-semibold">Klinik durumu</dt>
+                    <dd class="break-words" data-clinic-business-status></dd>
+                </div>
+                <div class="min-w-0">
                     <dt class="font-semibold">Başvuran</dt>
                     <dd class="whitespace-pre-line break-words" data-clinic-owners></dd>
                 </div>
@@ -54,6 +58,12 @@
                 <p class="text-sm text-slate-600 dark:text-slate-300" data-clinic-no-acceptance hidden>Sözleşme kabulü bulunamadı.</p>
                 <div class="grid gap-2" data-clinic-acceptances></div>
             </div>
+
+            <section class="grid gap-2" aria-labelledby="clinic-application-history-title">
+                <h4 id="clinic-application-history-title" class="font-semibold">Başvuru kararları</h4>
+                <p class="text-sm text-slate-600 dark:text-slate-300" data-clinic-no-reviews hidden>Kayıtlı başvuru kararı yok.</p>
+                <ul class="grid gap-2" data-clinic-reviews></ul>
+            </section>
 
             <form class="grid gap-3 border-t border-slate-200 pt-4 dark:border-slate-700" data-clinic-decision hidden>
                 <fieldset class="grid gap-3">
@@ -90,5 +100,26 @@
             <p class="mt-2 text-sm text-slate-600 dark:text-slate-300" data-clinic-accepted-date></p>
             <p class="mt-3 max-h-64 overflow-y-auto whitespace-pre-wrap break-words text-sm leading-relaxed" tabindex="0" data-clinic-contract-content></p>
         </details>
+    </template>
+
+    <template data-clinic-review-record>
+        <li class="grid gap-1 rounded-xl border border-slate-200 p-3 text-sm dark:border-slate-700">
+            <strong data-clinic-review-decision></strong>
+            <p class="break-words text-slate-600 dark:text-slate-300" data-clinic-review-meta></p>
+            <dl class="grid gap-2">
+                <div data-clinic-review-notes>
+                    <dt class="font-medium">İnceleme notu</dt>
+                    <dd class="whitespace-pre-wrap break-words"></dd>
+                </div>
+                <div data-clinic-review-reason>
+                    <dt class="font-medium">Ret nedeni (yöneticiye özel)</dt>
+                    <dd class="whitespace-pre-wrap break-words"></dd>
+                </div>
+                <div data-clinic-review-applicant-reason>
+                    <dt class="font-medium">Klinik sahibine yönelik açıklama</dt>
+                    <dd class="whitespace-pre-wrap break-words"></dd>
+                </div>
+            </dl>
+        </li>
     </template>
 </dialog>

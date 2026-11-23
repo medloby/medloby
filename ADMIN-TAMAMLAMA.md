@@ -48,6 +48,8 @@ Durum **BLOCKED**. Kritik yetki geçişi onay gerektiriyor. Platform rolleri iş
 
 **PARTIAL.** Klinik dizinine il ve ücretsiz üyelik planı filtreleri ile kayıtlı şube sayıları eklendi. Yeni hasta hesabı ekranında hesap numarası ve adı, profil durumu, e-posta doğrulaması ve kayıt tarihi görünür. E-posta ile tam eşleşme üzerinden arama yapılabilir. Liste e-posta adresi, telefon ve sağlık alanlarını döndürmez. Hesaba bağlı destek geçmişi mevcut destek ekranında açılır. Klinik ruhsatı ve doğrulama ölçütleri ile işletme bazlı destek ilişkilendirmesi için ürün kararı açık. [Klinik yönetimi](app/Http/Controllers/AdminBusinessController.php) · [Hasta hesabı](app/Http/Controllers/AdminPatientAccountController.php) · [Gizlilik ve erişim testleri](tests/Feature/AdminPatientAccountTest.php)
 
+Klinik ayrıntısından **Başvuru geçmişi** ile mevcut başvuru ekranı açılır. Klinik ve şubelerin güncel durumları, kayıtlı karar, karar tarihi, inceleyen yönetici ve varsa gerekçeler gösterilir. Kararlar tarih ve kayıt sırasıyla listelenir. Tarihi olmayan eski kararlar sonda görünür. [Başvuru ekranı](resources/views/clinic-review-dialog.blade.php) · [Başvuru testleri](tests/Feature/AdminBusinessTest.php)
+
 ## ADMIN-G4 — Üyelik planları
 
 **PARTIAL.** Mevcut üç ücretsiz ve isteğe bağlı planın dağılımı ve klinik filtreleri modeldeki plan tanımlarını kullanır. Klinik plan seçimi klinik ve başvuru yönetiminde görülebilir. Planları değiştirme yetkisi ve bundan doğacak değişiklik geçmişi tanımlanmayı bekler. [Plan tanımları](app/Models/Business.php) · [Yönetim özeti testi](tests/Feature/AdminDashboardTest.php)

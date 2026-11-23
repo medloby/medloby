@@ -46,7 +46,7 @@
             </div>
             <button type="button" class="offer-button offer-button-secondary" data-admin-clinic-to-list>Klinik listesine dön</button>
         </div>
-        <button type="button" class="offer-button justify-self-start" data-admin-clinic-review hidden>Başvuruyu incele</button>
+        <button type="button" class="offer-button offer-button-secondary justify-self-start" data-admin-clinic-review>Başvuruyu incele</button>
         <form class="rounded-xl border border-slate-200 p-4 dark:border-slate-700" data-admin-clinic-transition hidden>
             <fieldset class="grid gap-3">
                 <label class="offer-field">Durum değişikliği gerekçesi

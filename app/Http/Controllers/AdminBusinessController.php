@@ -78,13 +78,15 @@ class AdminBusinessController extends Controller
             'branches',
             'memberships.user',
             'contractAcceptances.platformContract',
+            'reviews' => fn ($reviews) => $reviews->orderByRaw('CASE WHEN reviewed_at IS NULL THEN 1 ELSE 0 END')
+                ->latest('reviewed_at')->orderByDesc('id'),
             'reviews.reviewedBy',
         ]);
 
         return response()->json([
             'success' => true,
             'data' => $this->clinicWithPlan($business),
-        ]);
+        ])->header('Cache-Control', 'private, no-store');
     }
 
     private function clinicWithPlan(Business $business): array

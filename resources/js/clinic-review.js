@@ -1,3 +1,7 @@
+import { clinicBusinessStatusLabels as statusLabels } from './clinic-records';
+
+const decisionLabels = { pending: 'İnceleme bekliyor', approved: 'Onaylandı', rejected: 'Reddedildi' };
+
 export function mountClinicReview(dialog, trigger, { api, timeLabel }) {
     const find = (part, root = dialog) => root.querySelector('[data-clinic-' + part + ']');
     const overview = find('overview');
@@ -16,6 +20,7 @@ export function mountClinicReview(dialog, trigger, { api, timeLabel }) {
     const approve = find('approve');
     const rejection = find('rejection');
     const acceptances = find('acceptances');
+    const reviews = find('reviews');
     let page = 1;
     let request = 0;
     let selected;
@@ -34,7 +39,8 @@ export function mountClinicReview(dialog, trigger, { api, timeLabel }) {
         rejection.open = false;
         title.textContent = '';
         acceptances.replaceChildren();
-        for (const part of ['date', 'owners', 'contact', 'address', 'branches', 'description']) {
+        reviews.replaceChildren();
+        for (const part of ['date', 'business-status', 'owners', 'plan', 'contact', 'address', 'branches', 'description']) {
             find(part).textContent = '';
         }
     }
@@ -70,6 +76,25 @@ export function mountClinicReview(dialog, trigger, { api, timeLabel }) {
             : 'Kabul tarihi kayıtlı değil.';
         find('contract-content', card).textContent = contract?.content ?? 'Sözleşme metni bulunamadı.';
         return card;
+    }
+
+    function reviewRecord(review) {
+        const item = find('review-record').content.firstElementChild.cloneNode(true);
+        find('review-decision', item).textContent = decisionLabels[review.decision] ?? 'Karar durumu bilinmiyor';
+        find('review-meta', item).textContent = [
+            review.reviewed_at ? timeLabel(review.reviewed_at) : 'Karar tarihi kayıtlı değil',
+            review.reviewed_by?.name,
+        ].filter(Boolean).join(' · ');
+        for (const [part, text] of [
+            ['notes', review.notes],
+            ['reason', review.rejection_reason],
+            ['applicant-reason', review.applicant_rejection_reason],
+        ]) {
+            const field = find('review-' + part, item);
+            field.hidden = !text;
+            field.querySelector('dd').textContent = text ?? '';
+        }
+        return item;
     }
 
     async function loadList(requestedPage, confirmation = '') {
@@ -110,6 +135,7 @@ export function mountClinicReview(dialog, trigger, { api, timeLabel }) {
 
     async function loadBusiness(id) {
         const pending = ++request;
+        clearDetails();
         overview.hidden = true;
         detail.hidden = false;
         back.focus();
@@ -123,6 +149,7 @@ export function mountClinicReview(dialog, trigger, { api, timeLabel }) {
 
             selected = business;
             title.textContent = business.name;
+            find('business-status').textContent = statusLabels[business.status] ?? 'Klinik durumu bilinmiyor';
             find('plan').textContent = business.membership_plan ? business.membership_plan + ' · Ücretsiz' : 'Plan seçilmedi.';
             find('date').textContent = business.created_at ? 'Başvuru tarihi · ' + timeLabel(business.created_at) : '';
             const owners = business.memberships
@@ -133,7 +160,7 @@ export function mountClinicReview(dialog, trigger, { api, timeLabel }) {
                 contact: [business.email, business.phone, business.website],
                 address: [business.address, [business.district, business.city].filter(Boolean).join(' / '),
                     [business.postal_code, business.country_code].filter(Boolean).join(' ')],
-                branches: business.branches.map((branch) => branch.name),
+                branches: business.branches.map((branch) => branch.name + ' · ' + (statusLabels[branch.status] ?? 'Durum bilinmiyor')),
             };
             for (const [part, values] of Object.entries(fields)) {
                 find(part).textContent = values.filter(Boolean).join('\n') || 'Kayıtlı bilgi yok.';
@@ -145,11 +172,14 @@ export function mountClinicReview(dialog, trigger, { api, timeLabel }) {
             const accepted = business.contract_acceptances.filter((acceptance) => acceptance.is_accepted);
             find('no-acceptance').hidden = Boolean(accepted.length);
             acceptances.replaceChildren(...accepted.map(contractAcceptance));
+            const history = business.reviews ?? [];
+            find('no-reviews').hidden = history.length > 0;
+            reviews.replaceChildren(...history.map(reviewRecord));
             approve.disabled = !accepted.length;
             decision.hidden = business.status !== 'pending';
             information.hidden = false;
             title.focus();
-            showStatus(decision.hidden ? 'Bu başvuru daha önce sonuçlandırılmış.' : '');
+            showStatus();
         } catch (error) {
             if (pending === request) {
                 showStatus(error.message);

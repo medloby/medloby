@@ -1,10 +1,6 @@
+import { clinicBusinessStatusLabels as statusLabels } from './clinic-records';
+
 const endpoint = '/admin/businesses';
-const statusLabels = {
-    pending: 'İncelemede',
-    active: 'Aktif',
-    suspended: 'Askıda',
-    rejected: 'Reddedildi',
-};
 const roleLabels = { business_owner: 'Klinik sahibi', manager: 'Yönetici', staff: 'Personel' };
 
 function pagedList(panel, fetchPage, createRow, emptyMessage) {
@@ -147,7 +143,7 @@ export function mountClinicAdministration(dialog, trigger, { api, timeLabel, ope
     function renderClinic() {
         find('name').textContent = selectedClinic.name;
         find('context').textContent = clinicContext(selectedClinic);
-        find('review').hidden = selectedClinic.status !== 'pending';
+        find('review').textContent = selectedClinic.status === 'pending' ? 'Başvuruyu incele' : 'Başvuru geçmişi';
         transition.reset();
         transition.hidden = !['active', 'suspended'].includes(selectedClinic.status);
         transition.querySelector('button').textContent = selectedClinic.status === 'active' ? 'Kliniği askıya al' : 'Kliniği yeniden aç';

@@ -1,5 +1,13 @@
 const integer = new Intl.NumberFormat('tr-TR');
 
+export const clinicBusinessStatusLabels = {
+    pending: 'İncelemede',
+    active: 'Aktif',
+    suspended: 'Askıda',
+    rejected: 'Reddedildi',
+    inactive: 'Pasif',
+};
+
 export function formatClinicAmount(value, currency) {
     const [whole, fraction] = value.replace(/^-/, '').split('.');
     return (value.startsWith('-') ? '−' : '') + integer.format(BigInt(whole)) + ',' + fraction + ' ' + currency;
