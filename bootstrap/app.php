@@ -3,10 +3,12 @@
 use App\Http\Middleware\AdminMiddleware;
 use App\Http\Middleware\ApplyResponseSecurity;
 use App\Http\Middleware\EnsureMedlobyAccountVerified;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -29,6 +31,14 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->report(function (QueryException $error): void {
+            $code = (string) $error->getCode();
+            Log::error('Veritabanı sorgusu başarısız oldu.', [
+                'exception_type' => $error::class,
+                'sqlstate' => preg_match('/\A[A-Z0-9]{5}\z/', $code) ? $code : null,
+                'route' => request()->route()?->uri(),
+            ]);
+        })->stop();
         $exceptions->dontFlash(['new_password', 'new_password_confirmation']);
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),

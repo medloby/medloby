@@ -36,6 +36,8 @@ final class CheckReleaseReadiness extends Command
             ['Güvenli oturum çerezi', config('session.secure') === true && config('session.http_only') === true
                 && in_array(config('session.same_site'), ['lax', 'strict'], true),
                 'SESSION_SECURE_COOKIE ve SESSION_HTTP_ONLY ayarlarını true yapın. SameSite için lax veya strict kullanın.'],
+            ['API oturumu süresi', is_int(config('sanctum.expiration')) && config('sanctum.expiration') > 0,
+                'Onaylanan API oturumu süresini SANCTUM_EXPIRATION ayarına dakika olarak girin.'],
             ['Güvenilen vekil sunucular', config('trustedproxy.valid') === true,
                 'MEDLOBY_TRUSTED_PROXIES değeri için yalnızca vekil sunucunun IP adreslerini veya CIDR aralıklarını kullanın.'],
             ['İstek sınırlandırma deposu', $this->probe($release->limiterReady(...)),
@@ -45,7 +47,7 @@ final class CheckReleaseReadiness extends Command
             ['Derlenmiş arayüz dosyaları', $this->probe(fn (): bool => $this->assetsReady($vite)),
                 'Vite yayın derlemesini oluşturun ve yazı tipi bildirimi dahil public/build dizinini dağıtıma ekleyin.'],
             ['Özel dosya dizini', $this->probe(fn (): bool => $this->privateStorageReady()),
-                'Özel dosya dizinini, dosya izinlerini ve web dizinindeki bağlantıları doğrulayın.'],
+                'Özel dosya izinlerini ve web dizinindeki bağlantıları doğrulayın. Ortam dosyalarını, logları ve yedekleri web kökü dışında saklayın.'],
             ['Veritabanı bağlantısı', $databaseReady, 'Dağıtım ortamındaki veritabanı bağlantısını kontrol edin.'],
             ['Veritabanı şeması', $schemaReady, $databaseReady ? 'Bekleyen migration kayıtlarını kontrol edin.' : 'Veritabanı bağlantısı doğrulanınca kontrol edilir.'],
             ['İlk platform yöneticisi', $administratorReady, $schemaReady
@@ -56,6 +58,8 @@ final class CheckReleaseReadiness extends Command
                 : 'Veritabanı şeması doğrulanınca kontrol edilir.'],
             ['İşletmeci iletişim bilgileri ve KVKK yayını', $privacy->isPublished() && $privacy->contactSettingsReady(),
                 'İşletmeci unvanını, posta adresini ve KVKK yayını ayarını doğrulayın. Destek ve editör adresleri ile girilmiş KVKK e-posta ve KEP adreslerini kontrol edin.'],
+            ['Politika sayfaları yayın ayarı', $privacy->policiesArePublished(),
+                'Onaylı politika metinleri ve KVKK ayarları hazır olduğunda MEDLOBY_POLICIES_PUBLISHED değerini etkinleştirin.'],
             ['Arka plan kuyruğu ayarı', $this->probe($release->queueReady(...)),
                 'Kuyruk bağlantısını ve veritabanı kuyruğu kullanılıyorsa iş tablosunu doğrulayın.'],
             ['SMTP ve gönderen ayarı', $this->probe($release->mailReady(...)),
@@ -179,12 +183,16 @@ final class CheckReleaseReadiness extends Command
             return false;
         }
 
-        return ! $this->publicPathsExposePrivateStorage($public, $root);
+        return ! $this->publicPathsExposeSensitiveFiles($public, [
+            $root, base_path('.git'), base_path('vendor'), config_path(), database_path(),
+            base_path('bootstrap/cache'), storage_path('logs'), storage_path('framework'),
+        ]);
     }
 
-    private function publicPathsExposePrivateStorage(string $public, string $private): bool
+    /** @param list<string> $protectedPaths */
+    private function publicPathsExposeSensitiveFiles(string $public, array $protectedPaths): bool
     {
-        $privatePrefix = rtrim($private, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
+        $protectedPrefixes = array_map(fn (string $path): string => rtrim(realpath($path) ?: $path, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR, $protectedPaths);
         $pending = [$public];
         $visited = [];
 
@@ -196,12 +204,20 @@ final class CheckReleaseReadiness extends Command
             $visited[$path] = true;
 
             $pathPrefix = rtrim($path, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
-            if (str_starts_with($pathPrefix, $privatePrefix) || str_starts_with($privatePrefix, $pathPrefix)) {
-                return true;
+            foreach ($protectedPrefixes as $protectedPrefix) {
+                if (str_starts_with($pathPrefix, $protectedPrefix) || str_starts_with($protectedPrefix, $pathPrefix)) {
+                    return true;
+                }
             }
 
+            if ($this->hasSensitivePublicName(basename($path))) {
+                return true;
+            }
             if (is_dir($path)) {
                 foreach (new FilesystemIterator($path, FilesystemIterator::SKIP_DOTS) as $entry) {
+                    if ($this->hasSensitivePublicName($entry->getFilename())) {
+                        return true;
+                    }
                     if ($entry->isLink() || $entry->isDir()) {
                         $pending[] = $entry->getPathname();
                     }
@@ -210,5 +226,11 @@ final class CheckReleaseReadiness extends Command
         }
 
         return false;
+    }
+
+    private function hasSensitivePublicName(string $name): bool
+    {
+        return $name === '.git'
+            || preg_match('/\A\.env(?:\.|\z)|\.(?:sqlite3?(?:-(?:wal|shm|journal))?|dump|sql(?:\.gz)?|log(?:\.\d+)?|pem|key|pfx|p12)\z/i', $name) === 1;
     }
 }

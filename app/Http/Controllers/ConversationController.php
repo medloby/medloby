@@ -240,9 +240,11 @@ class ConversationController extends Controller
                 'file',
                 'max:'.($maxAttachmentSize * 1024),
                 'mimes:jpg,jpeg,png,pdf',
+                'extensions:jpg,jpeg,png,pdf',
             ],
         ], [
             'attachment.max' => "Ek dosya en fazla {$maxAttachmentSize} MB olabilir.",
+            'attachment.extensions' => 'Dosya uzantısı JPG, JPEG, PNG veya PDF olmalıdır.',
             'attachment.uploaded' => 'Dosya yüklenemedi. Daha küçük bir dosyayla tekrar deneyin.',
         ]);
 

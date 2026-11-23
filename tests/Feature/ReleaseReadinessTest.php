@@ -42,6 +42,7 @@ beforeEach(function () {
         'app.key' => 'base64:'.base64_encode(str_repeat('k', 32)),
         'session.secure' => true,
         'session.http_only' => true,
+        'sanctum.expiration' => 60,
         'cache.limiter' => 'database',
         'filesystems.disks.private.driver' => 'local',
         'filesystems.disks.private.root' => $this->releaseDirectory.'/private',
@@ -56,6 +57,7 @@ beforeEach(function () {
         'mail.mailers.smtp.password' => 'test-relay-password',
         'mail.from.address' => 'mailer@example.test',
         'medloby.privacy_published' => true,
+        'medloby.policies_published' => true,
         'medloby.operator.legal_name' => 'Medloby Test İşletmesi',
         'medloby.operator.postal_address' => 'Test Mahallesi',
         'medloby.operator.support_email' => 'support@example.test',
@@ -97,11 +99,13 @@ test('release readiness reports incompatible settings and missing build files to
         'app.key' => '',
         'session.secure' => false,
         'session.same_site' => 'none',
+        'sanctum.expiration' => null,
         'trustedproxy.valid' => false,
         'cache.limiter' => 'array',
         'queue.default' => 'sync',
         'mail.default' => 'log',
         'medloby.operator.editor_email' => 'invalid',
+        'medloby.policies_published' => false,
     ]);
     File::delete(public_path('build/assets/app.js'));
 
@@ -111,11 +115,13 @@ test('release readiness reports incompatible settings and missing build files to
         'Eksik · Yayın ortamı ve hata ayıklama',
         'Eksik · Site adresi',
         'Eksik · Güvenli oturum çerezi',
+        'Eksik · API oturumu süresi',
         'Eksik · Güvenilen vekil sunucular',
         'Eksik · İstek sınırlandırma deposu',
         'Eksik · Uygulama anahtarı',
         'Eksik · Derlenmiş arayüz dosyaları',
         'Eksik · İşletmeci iletişim bilgileri ve KVKK yayını',
+        'Eksik · Politika sayfaları yayın ayarı',
         'Eksik · Arka plan kuyruğu ayarı',
         'Eksik · SMTP ve gönderen ayarı',
         'Hazır · Veritabanı şeması',
@@ -244,6 +250,22 @@ test('release readiness detects a public path to any part of private storage', f
         ->not->toContain($this->releaseDirectory, 'Synthetic private attachment');
     expect(File::get($folder.'/attachment.txt'))->toBe('Synthetic private attachment');
 })->with(['attachment directory', 'individual attachment', 'link inside published storage', 'public within private root']);
+
+test('the release check detects public credential files and backups without printing the file', function (string $filename) {
+    File::put(public_path($filename), 'synthetic-public-exposure-fixture');
+
+    expect(Artisan::call('medloby:release-check'))->toBe(Command::FAILURE);
+    expect(Artisan::output())->toContain('Eksik · Özel dosya dizini')
+        ->not->toContain($filename, 'synthetic-public-exposure-fixture');
+    expect(File::exists(public_path($filename)))->toBeTrue();
+})->with(['.env.staging', 'backup.sql.gz', 'application.sqlite-wal']);
+
+test('the release check refuses a public link to application dependencies', function () {
+    File::link(base_path('vendor'), public_path('published-files'));
+
+    expect(Artisan::call('medloby:release-check'))->toBe(Command::FAILURE);
+    expect(Artisan::output())->toContain('Eksik · Özel dosya dizini')->not->toContain(base_path());
+});
 
 test('release readiness accepts separate public storage even when a link points back to public', function () {
     $published = $this->releaseDirectory.'/private-public';

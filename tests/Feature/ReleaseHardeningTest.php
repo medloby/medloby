@@ -6,9 +6,11 @@ use App\Models\Treatment;
 use App\Models\TreatmentCategory;
 use App\Models\User;
 use Illuminate\Cache\RateLimiter;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 uses(RefreshDatabase::class);
 
@@ -123,4 +125,18 @@ test('database-backed limiter consumers share the same counter and expiry', func
     expect($second->tooManyAttempts('shared-limit-fixture', maxAttempts: 1))->toBeTrue();
     $this->travel(61)->seconds();
     expect($second->tooManyAttempts('shared-limit-fixture', maxAttempts: 1))->toBeFalse();
+});
+
+test('database exception reporting keeps bindings and driver details out of the application log', function () {
+    Log::spy();
+    $binding = 'synthetic-private-message';
+    $driverDetail = 'synthetic-driver-detail';
+    $error = new QueryException('fixture', 'select ?', [$binding], new RuntimeException($driverDetail, 23000));
+
+    report($error);
+
+    Log::shouldHaveReceived('error')->once()->with('Veritabanı sorgusu başarısız oldu.', [
+        'exception_type' => QueryException::class, 'sqlstate' => '23000', 'route' => null,
+    ]);
+    expect(config('database.connections.'.config('database.default').'.mask_bindings_in_exception_messages'))->toBeTrue();
 });

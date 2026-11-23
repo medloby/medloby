@@ -4,8 +4,9 @@ use App\Models\Business;
 use App\Models\BusinessUser;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Laravel\Sanctum\PersonalAccessToken;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Laravel\Sanctum\PersonalAccessToken;
 
 uses(RefreshDatabase::class);
 
@@ -56,6 +57,18 @@ test('login rejects invalid password', function () {
         ->assertJsonValidationErrors([
             'email',
         ]);
+});
+
+test('bearer sessions stop authorizing requests after the configured lifetime', function () {
+    config(['sanctum.expiration' => 2]);
+    $user = User::factory()->create();
+    $token = $user->createToken('test-session')->plainTextToken;
+
+    $this->withToken($token)->getJson('/api/me')->assertOk()->assertJsonPath('data.user.id', $user->id);
+
+    $this->travel(3)->minutes();
+    Auth::forgetGuards();
+    $this->getJson('/api/me')->assertUnauthorized();
 });
 
 test('login rejects unknown email', function () {

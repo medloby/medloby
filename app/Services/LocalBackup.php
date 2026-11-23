@@ -51,6 +51,8 @@ final class LocalBackup
             if ($this->files->put($target.'/manifest.json', $manifest.PHP_EOL) === false) {
                 throw new RuntimeException('Yedek doğrulama dosyası yazılamadı.');
             }
+            $this->protectFile($target.'/manifest.json');
+            $this->protectFile($target.'/'.($driver === 'pgsql' ? self::POSTGRES_FILE : self::SQLITE_FILE));
         });
     }
 
@@ -249,6 +251,14 @@ final class LocalBackup
     {
         if (is_link($source) || ! is_file($source) || ! $this->files->copy($source, $target)) {
             throw new RuntimeException('Yedek dosyası okunamadı veya kopyalanamadı.');
+        }
+        $this->protectFile($target);
+    }
+
+    private function protectFile(string $path): void
+    {
+        if (PHP_OS_FAMILY !== 'Windows' && ! $this->files->chmod($path, 0600)) {
+            throw new RuntimeException('Yedek dosyasının erişim izinleri ayarlanamadı.');
         }
     }
 

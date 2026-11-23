@@ -5,6 +5,11 @@ use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Laravel\Sanctum\Http\Middleware\AuthenticateSession;
 use Laravel\Sanctum\Sanctum;
 
+$expirationSetting = env('SANCTUM_EXPIRATION');
+$expiration = is_int($expirationSetting) || is_string($expirationSetting)
+    ? filter_var($expirationSetting, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]])
+    : false;
+
 return [
 
     /*
@@ -50,7 +55,7 @@ return [
     |
     */
 
-    'expiration' => null,
+    'expiration' => $expiration === false ? null : $expiration,
 
     /*
     |--------------------------------------------------------------------------

@@ -796,6 +796,21 @@ test('user cannot upload unsupported attachment type', function () {
     $this->assertDatabaseCount('message_attachments', 0);
 });
 
+test('a PDF payload with an unsupported filename extension leaves no message or attachment', function () {
+    Storage::fake('private');
+    $data = createConversationTestData();
+    $conversation = createConversation($data);
+
+    $this->actingAs($data['patientUser'])->postJson("/api/conversations/{$conversation->id}/messages", [
+        'attachment' => UploadedFile::fake()->create('prova.txt', 5, 'application/pdf'),
+    ])->assertUnprocessable()
+        ->assertJsonValidationErrors(['attachment' => 'Dosya uzantısı JPG, JPEG, PNG veya PDF olmalıdır.']);
+
+    $this->assertDatabaseCount('messages', 0);
+    $this->assertDatabaseCount('message_attachments', 0);
+    expect(Storage::disk('private')->allFiles())->toBe([]);
+});
+
 test('user cannot upload attachment larger than 10 mb', function () {
     Storage::fake('private');
 

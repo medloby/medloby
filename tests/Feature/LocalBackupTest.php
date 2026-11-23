@@ -64,9 +64,18 @@ test('a backup restores a SQLite snapshot and private attachment with the origin
     $this->artisan('medloby:backup', ['destination' => $backup])->assertSuccessful();
     expect(app(PlatformOperationActivity::class)->lastObserved()['backup_verification'])->not->toBeNull();
     expect(fileperms($backup) & 0077)->toBe(0);
+    if (PHP_OS_FAMILY !== 'Windows') {
+        foreach (['manifest.json', 'database.sqlite', 'storage/app/private/'.$attachment->path] as $file) {
+            expect(fileperms($backup.'/'.$file) & 0777)->toBe(0600);
+        }
+    }
     $patient->update(['name' => 'Yedekten sonra değişen ad']);
     Storage::disk('private')->put($attachment->path, 'Değişen dosya');
     $this->artisan('medloby:restore', ['backup' => $backup, 'destination' => $restored])->assertSuccessful();
+    if (PHP_OS_FAMILY !== 'Windows') {
+        expect(fileperms($restored.'/database.sqlite') & 0777)->toBe(0600)
+            ->and(fileperms($restored.'/storage/app/private/'.$attachment->path) & 0777)->toBe(0600);
+    }
     $this->assertDatabaseHas('users', ['id' => $patient->id, 'name' => 'Yedekten sonra değişen ad']);
     expect(Storage::disk('private')->get($attachment->path))->toBe('Değişen dosya');
 
