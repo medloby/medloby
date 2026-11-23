@@ -1362,7 +1362,15 @@ export function mountPackageOffers(root) {
             body.reason = reason || null;
         }
 
-        const result = await api(path + '/' + appointment.id + '/' + action, body);
+        let result;
+        try {
+            result = await api(path + '/' + appointment.id + '/' + action, body);
+        } catch (error) {
+            if (patient && action === 'reschedule' && error.status === 422) {
+                await loadAppointmentSlots();
+            }
+            throw error;
+        }
         appointmentDialog.close();
         showStatus(notice, 'Randevu güncellendi.');
         await refresh(result);

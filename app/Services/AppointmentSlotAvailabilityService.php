@@ -69,7 +69,7 @@ class AppointmentSlotAvailabilityService
          * Şube ayarı henüz oluşturulmamışsa
          * güvenli varsayılan olarak 30 dakika kullan.
          */
-        $slotIntervalMinutes ??= 30;
+        $slotIntervalMinutes ??= BranchAppointmentSetting::DEFAULT_SLOT_INTERVAL_MINUTES;
 
         if ($slotIntervalMinutes <= 0) {
             throw new InvalidArgumentException(
@@ -131,7 +131,8 @@ class AppointmentSlotAvailabilityService
                             treatment: $treatment,
                             startsAt: $slot,
                             ignoreAppointmentId: $ignoreAppointmentId,
-                            requireOnlineBookable: $requireOnlineBookable
+                            requireOnlineBookable: $requireOnlineBookable,
+                            fallbackSlotIntervalMinutes: $slotIntervalMinutes,
                         )
                     ) {
                         $slots[$slotKey] = $slot;

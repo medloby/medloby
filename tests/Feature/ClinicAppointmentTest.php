@@ -233,6 +233,36 @@ test('the patient appointment list combines standalone and package visits and pr
         ->assertJsonPath('data.starts_at', '2026-12-04 11:00:00')->assertJsonMissingPath('data.patient_email');
 });
 
+test('online bookings use the current branch interval starting at the working hour', function () {
+    $this->travelTo(Carbon::parse('2026-12-01 00:00:00', 'UTC'));
+    [, $owner, $branch, , $doctor, $treatment, $calendar] = clinicAppointmentFixture();
+    $doctor->update(['is_public' => true]);
+    $branch->treatments()->updateExistingPivot($treatment->id, ['is_online_bookable' => true]);
+    $branch->appointmentSetting()->update(['online_booking_enabled' => true, 'slot_interval_minutes' => 30]);
+    DoctorWorkingHour::query()->where('doctor_id', $doctor->id)->where('branch_id', $branch->id)
+        ->update(['start_time' => '09:10:00']);
+    $patient = User::factory()->create()->patientProfile()->create(['first_name' => 'Deneme', 'last_name' => 'Hasta']);
+    $url = '/api/patient/appointments/booking-branches/'.$branch->id;
+    $selection = ['doctor_id' => $doctor->id, 'treatment_id' => $treatment->id];
+    $slots = $url.'/slots?'.http_build_query($selection + ['date' => '2026-12-04']);
+
+    $this->actingAs($patient->user, 'sanctum')->getJson($slots)->assertOk()
+        ->assertJsonPath('data.slots.0', '2026-12-04 09:10:00')
+        ->assertJsonPath('data.slots.1', '2026-12-04 09:40:00');
+
+    $branch->appointmentSetting()->update(['slot_interval_minutes' => 20]);
+    $this->postJson($url, $selection + ['starts_at' => '2026-12-04 09:40:00'])->assertUnprocessable();
+    $this->assertDatabaseCount('appointments', 0);
+    $this->getJson($slots)->assertOk()->assertJsonPath('data.slots.1', '2026-12-04 09:30:00');
+    $id = $this->postJson($url, $selection + ['starts_at' => '2026-12-04 09:30:00'])->assertCreated()->json('data.id');
+
+    $moved = $this->actingAs($owner, 'sanctum')->postJson($calendar.'/appointments/'.$id.'/reschedule', [
+        'starts_at' => '2026-12-04 10:20:00',
+    ])->assertOk()->json('data.id');
+    $this->actingAs($patient->user, 'sanctum')->getJson('/api/patient/appointments/'.$id)->assertOk()
+        ->assertJsonPath('data.id', $moved)->assertJsonPath('data.starts_at', '2026-12-04 10:20:00');
+});
+
 test('patient appointment history is paginated in a stable order', function () {
     $this->travelTo(Carbon::parse('2026-12-04 05:00:00', 'UTC'));
     [$business, , $branch] = clinicAppointmentFixture();
@@ -501,6 +531,7 @@ test('patients can move and cancel their own package session from the offered sc
     $slots = $this->getJson($options)->assertOk()->json('data.slots');
     expect($slots)->toContain('2026-12-04 09:45:00')->not->toContain('2026-12-04 10:00:00', '2026-12-04 11:00:00');
     $this->postJson($action.'/reschedule', ['starts_at' => '2026-12-04 11:00:00'])->assertUnprocessable();
+    $this->postJson($action.'/reschedule', ['starts_at' => '2026-12-04 09:46:00'])->assertUnprocessable();
     $moved = $this->postJson($action.'/reschedule', ['starts_at' => '2026-12-04 09:45:00'])
         ->assertOk()->assertJsonPath('data.status', 'confirmed')->assertJsonMissingPath('data.notes')->json('data.id');
     $this->postJson($action.'/reschedule', ['starts_at' => '2026-12-04 09:30:00'])->assertUnprocessable();

@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class BranchAppointmentSetting extends Model
 {
+    public const int DEFAULT_SLOT_INTERVAL_MINUTES = 30;
+
     public const int MAX_BUFFER_MINUTES = 1440;
 
     public const int DEFAULT_PATIENT_ACTION_NOTICE_MINUTES = 120;

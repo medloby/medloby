@@ -69,7 +69,8 @@ class AppointmentAvailabilityService
         Treatment $treatment,
         Carbon $startsAt,
         ?int $ignoreAppointmentId = null,
-        bool $requireOnlineBookable = true
+        bool $requireOnlineBookable = true,
+        int $fallbackSlotIntervalMinutes = BranchAppointmentSetting::DEFAULT_SLOT_INTERVAL_MINUTES,
     ): bool {
         $now = Appointment::clinicLocalNow();
         $startsAt = Appointment::calendarDateTime($startsAt);
@@ -115,7 +116,7 @@ class AppointmentAvailabilityService
         }
 
         $settings = BranchAppointmentSetting::query()->where('branch_id', $branchId)->where('is_active', true)->first([
-            'online_booking_enabled', 'minimum_booking_notice_minutes', 'same_day_booking_enabled', 'maximum_booking_days',
+            'online_booking_enabled', 'minimum_booking_notice_minutes', 'same_day_booking_enabled', 'maximum_booking_days', 'slot_interval_minutes',
             'buffer_before_minutes', 'buffer_after_minutes',
         ]);
 
@@ -144,13 +145,16 @@ class AppointmentAvailabilityService
 
         $occupiedStart = $startsAt->copy()->subMinutes($settings?->buffer_before_minutes ?? 0);
         $occupiedEnd = $endsAt->copy()->addMinutes($settings?->buffer_after_minutes ?? 0);
+        $slotIntervalMinutes = $requireOnlineBookable ? ($settings?->slot_interval_minutes ?? $fallbackSlotIntervalMinutes) : null;
 
         // 6. Hekimin çalışma saatleri hazırlık ve temizlik süresini de kapsamalı.
         if ($occupiedStart->lt($now) || ! $this->isWithinWorkingHours(
             $doctor->id,
             $branchId,
             $occupiedStart,
-            $occupiedEnd
+            $occupiedEnd,
+            $startsAt,
+            $slotIntervalMinutes,
         )) {
             return false;
         }
@@ -311,16 +315,22 @@ class AppointmentAvailabilityService
     }
 
     /**
-     * Randevu başlangıç-bitiş aralığı doktorun çalışma
-     * saatlerinden birinin tamamen içinde mi?
+     * Randevu, hazırlık ve temizlik süresiyle bir çalışma aralığına sığmalı.
+     * Çevrimiçi seçimler çalışma aralığından hesaplanan başlangıç saatini kullanır.
      */
     protected function isWithinWorkingHours(
         int $doctorId,
         int $branchId,
+        Carbon $occupiedStart,
+        Carbon $occupiedEnd,
         Carbon $startsAt,
-        Carbon $endsAt
+        ?int $slotIntervalMinutes,
     ): bool {
-        $dayOfWeek = $startsAt->dayOfWeek;
+        if ($slotIntervalMinutes !== null && $slotIntervalMinutes <= 0) {
+            return false;
+        }
+
+        $dayOfWeek = $occupiedStart->dayOfWeek;
 
         $workingHours = DB::table('doctor_working_hours')
             ->where('doctor_id', $doctorId)
@@ -333,17 +343,20 @@ class AppointmentAvailabilityService
             ]);
 
         foreach ($workingHours as $workingHour) {
-            $workStart = $startsAt->copy()->setTimeFromTimeString(
+            $workStart = $occupiedStart->copy()->setTimeFromTimeString(
                 $workingHour->start_time
             );
 
-            $workEnd = $startsAt->copy()->setTimeFromTimeString(
+            $workEnd = $occupiedStart->copy()->setTimeFromTimeString(
                 $workingHour->end_time
             );
+            $matchesSlotInterval = $slotIntervalMinutes === null
+                || ($startsAt->timestamp - $workStart->timestamp) % ($slotIntervalMinutes * 60) === 0;
 
             if (
-                $startsAt->greaterThanOrEqualTo($workStart) &&
-                $endsAt->lessThanOrEqualTo($workEnd)
+                $occupiedStart->greaterThanOrEqualTo($workStart) &&
+                $occupiedEnd->lessThanOrEqualTo($workEnd) &&
+                $matchesSlotInterval
             ) {
                 return true;
             }
