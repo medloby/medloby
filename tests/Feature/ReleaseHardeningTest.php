@@ -11,11 +11,25 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Symfony\Component\Process\Process;
 
 uses(RefreshDatabase::class);
 
 afterEach(function () {
     Request::setTrustedHosts([]);
+});
+
+test('the application boots with the default cache store when the rate limiter store is blank', function () {
+    $process = new Process([PHP_BINARY, 'artisan', 'config:show', 'cache.default', '--no-interaction'], base_path(), [
+        'APP_ENV' => 'testing',
+        'APP_CONFIG_CACHE' => false,
+        'CACHE_STORE' => 'array',
+        'CACHE_LIMITER' => '',
+    ]);
+
+    $process->mustRun();
+
+    expect($process->getOutput())->toContain('array');
 });
 
 test('private responses prevent caching, indexing and referrer leakage', function () {

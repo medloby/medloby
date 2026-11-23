@@ -362,6 +362,8 @@ A	tests/workspace-api.test.js
 
 Hosted CI kabulü için `main` üzerindeki teslim SHA’sına ait **Medloby CI** çalışmasında SQLite, PostgreSQL 17, ön yüz derlemesi, Node testleri ve güvenlik adımları başarılı olmalıdır. GitHub çalışma kaydı commit kimliğini, iş adımlarını ve sonucu birlikte gösterir. [Main dalı için Medloby CI](https://github.com/medloby/medloby/actions/workflows/ci.yml?query=branch%3Amain)
 
+İlk teslimin 96 numaralı çalışması test ortamı hazırlanırken durdu. Temiz kurulumda boş `CACHE_LIMITER` değeri, Laravel’in adı boş bir önbellek deposu aramasına ve Artisan’ın açılmadan durmasına yol açtı. Boş değer uygulamanın varsayılan deposuna yönlendirildi. Bu davranış ayrı bir Artisan süreciyle sınanıyor. [İlk çalışma](https://github.com/medloby/medloby/actions/runs/45276241232) · [Regresyon testi](tests/Feature/ReleaseHardeningTest.php)
+
 | Kapsam | Durum |
 | --- | --- |
 | Üretim kabulü | `PRODUCTION_ACCEPTANCE_PENDING`. Yetkili deneme ortamı, DNS/TLS, gerçek e-posta, üretim yedek geri dönüşü ve işletim onayları bekliyor. |
