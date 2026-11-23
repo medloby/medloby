@@ -8,6 +8,7 @@ use App\Models\CrmFollowUp;
 use App\Models\CrmLead;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
@@ -139,7 +140,7 @@ class CrmFollowUpController extends Controller
             'type' => $validated['type'],
             'title' => $validated['title'],
             'notes' => $validated['notes'] ?? null,
-            'scheduled_at' => $validated['scheduled_at'],
+            'scheduled_at' => Date::parse($validated['scheduled_at'])->utc(),
             'status' => 'pending',
         ]);
 
@@ -269,6 +270,10 @@ class CrmFollowUpController extends Controller
             }
         }
 
+        if (isset($validated['scheduled_at'])) {
+            $validated['scheduled_at'] = Date::parse($validated['scheduled_at'])->utc();
+        }
+
         $crmFollowUp = DB::transaction(function () use ($crmFollowUp, $validated): CrmFollowUp {
             $followUp = CrmFollowUp::query()->lockForUpdate()->findOrFail($crmFollowUp->id);
             $followUp->fill($validated);
@@ -303,17 +308,17 @@ class CrmFollowUpController extends Controller
             ], 404);
         }
 
-        if ($crmFollowUp->status !== 'pending') {
+        $updated = CrmFollowUp::query()->whereKey($crmFollowUp->id)->where('status', 'pending')->update([
+            'status' => 'completed',
+            'completed_at' => now(),
+        ]);
+
+        if ($updated === 0) {
             return response()->json([
                 'success' => false,
                 'message' => 'Sadece bekleyen takipler tamamlanabilir.',
             ], 422);
         }
-
-        $crmFollowUp->update([
-            'status' => 'completed',
-            'completed_at' => now(),
-        ]);
 
         return response()->json([
             'success' => true,
@@ -338,17 +343,17 @@ class CrmFollowUpController extends Controller
             ], 404);
         }
 
-        if ($crmFollowUp->status !== 'pending') {
+        $updated = CrmFollowUp::query()->whereKey($crmFollowUp->id)->where('status', 'pending')->update([
+            'status' => 'cancelled',
+            'cancelled_at' => now(),
+        ]);
+
+        if ($updated === 0) {
             return response()->json([
                 'success' => false,
                 'message' => 'Sadece bekleyen takipler iptal edilebilir.',
             ], 422);
         }
-
-        $crmFollowUp->update([
-            'status' => 'cancelled',
-            'cancelled_at' => now(),
-        ]);
 
         return response()->json([
             'success' => true,

@@ -5,6 +5,7 @@ use App\Models\CrmFollowUp;
 use App\Models\CrmLead;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Date;
 
 uses(RefreshDatabase::class);
 
@@ -121,4 +122,33 @@ test('only rescheduling or reassigning a previously notified follow-up enables a
     $this->artisan('medloby:remind-crm-follow-ups')->assertSuccessful();
     $this->assertDatabaseCount('notifications', 3);
     expect($owner->notifications()->count())->toBe(2);
+});
+
+test('a follow-up uses the same reminder time across different timezone offsets', function () {
+    $this->travelTo(Date::parse('2026-11-23T07:29:00Z'));
+    $branch = Branch::factory()->create();
+    $owner = User::factory()->create();
+    $branch->business->memberships()->create(['user_id' => $owner->id, 'role' => 'business_owner', 'is_active' => true]);
+    $lead = CrmLead::create([
+        'business_id' => $branch->business_id, 'branch_id' => $branch->id,
+        'first_name' => 'Deneme', 'status' => 'new',
+    ]);
+    $base = "/api/branches/{$branch->id}/crm/follow-ups";
+
+    $created = $this->actingAs($owner, 'sanctum')->postJson($base, [
+        'crm_lead_id' => $lead->id, 'type' => 'call', 'title' => 'Geri arama',
+        'scheduled_at' => '2026-11-23T10:30:00+03:00',
+    ])->assertCreated()->assertJsonPath('data.scheduled_at', '2026-11-23T07:30:00.000000Z');
+
+    $this->artisan('medloby:remind-crm-follow-ups')->assertSuccessful();
+    expect($owner->notifications()->count())->toBe(0);
+
+    $this->travel(1)->minute();
+    $this->artisan('medloby:remind-crm-follow-ups')->assertSuccessful();
+    expect($owner->notifications()->count())->toBe(1);
+
+    $this->putJson("{$base}/{$created->json('data.id')}", ['scheduled_at' => '2026-11-23T03:30:00-04:00'])
+        ->assertOk()->assertJsonPath('data.scheduled_at', '2026-11-23T07:30:00.000000Z');
+    $this->artisan('medloby:remind-crm-follow-ups')->assertSuccessful();
+    expect($owner->notifications()->count())->toBe(1);
 });

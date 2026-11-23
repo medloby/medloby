@@ -7,6 +7,7 @@ use App\Models\CrmFollowUp;
 use App\Models\CrmLead;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Route;
 
 uses(RefreshDatabase::class);
 
@@ -527,6 +528,34 @@ test('can complete crm follow up', function () {
     expect($followUp->completed_at)
         ->not->toBeNull();
 });
+
+test('a follow-up action cannot overwrite the outcome recorded by another request', function (string $status, string $timestamp, string $nextAction, string $message) {
+    $this->freezeSecond();
+    $followUp = $this->lead->followUps()->create([
+        'business_id' => $this->business->id,
+        'branch_id' => $this->branch->id,
+        'title' => 'Eşzamanlı sonuçlandırılan takip',
+        'type' => 'call',
+        'scheduled_at' => now()->subMinute(),
+        'status' => 'pending',
+    ]);
+
+    // This request resolved the record before the other request committed its outcome.
+    Route::bind('crmFollowUp', fn () => $followUp);
+    CrmFollowUp::query()->whereKey($followUp->id)->update(['status' => $status, $timestamp => now()]);
+
+    $this->postJson("/api/branches/{$this->branch->id}/crm/follow-ups/{$followUp->id}/{$nextAction}")
+        ->assertUnprocessable()
+        ->assertJsonPath('message', $message);
+
+    $otherTimestamp = $timestamp === 'completed_at' ? 'cancelled_at' : 'completed_at';
+    $this->assertDatabaseHas('crm_follow_ups', [
+        'id' => $followUp->id, 'status' => $status, $timestamp => now(), $otherTimestamp => null,
+    ]);
+})->with([
+    'completion wins' => ['completed', 'completed_at', 'cancel', 'Sadece bekleyen takipler iptal edilebilir.'],
+    'cancellation wins' => ['cancelled', 'cancelled_at', 'complete', 'Sadece bekleyen takipler tamamlanabilir.'],
+]);
 
 test('cannot complete already completed crm follow up', function () {
     $followUp = CrmFollowUp::create([
