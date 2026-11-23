@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\PlatformContract;
 use App\Models\User;
 use App\Services\PrivacyPublication;
+use FilesystemIterator;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -40,7 +41,8 @@ final class CheckReleaseReadiness extends Command
                 'Dağıtım ortamındaki APP_KEY değerini doğrulayın.'],
             ['Derlenmiş arayüz dosyaları', $this->probe(fn (): bool => $this->assetsReady($vite)),
                 'Vite yayın derlemesini oluşturun ve yazı tipi bildirimi dahil public/build dizinini dağıtıma ekleyin.'],
-            ['Özel dosya dizini', $this->privateStorageReady(), 'Özel dosya dizininin konumunu ve dosya izinlerini doğrulayın.'],
+            ['Özel dosya dizini', $this->probe(fn (): bool => $this->privateStorageReady()),
+                'Özel dosya dizinini, dosya izinlerini ve web dizinindeki bağlantıları doğrulayın.'],
             ['Veritabanı bağlantısı', $databaseReady, 'Dağıtım ortamındaki veritabanı bağlantısını kontrol edin.'],
             ['Veritabanı şeması', $schemaReady, $databaseReady ? 'Bekleyen migration kayıtlarını kontrol edin.' : 'Veritabanı bağlantısı doğrulanınca kontrol edilir.'],
             ['İlk platform yöneticisi', $administratorReady, $schemaReady
@@ -182,13 +184,37 @@ final class CheckReleaseReadiness extends Command
             return false;
         }
 
-        foreach ([$public, realpath(public_path('storage'))] as $published) {
-            if ($published !== false && ($published === $root || str_starts_with($root, $published.DIRECTORY_SEPARATOR))) {
-                return false;
+        return ! $this->publicPathsExposePrivateStorage($public, $root);
+    }
+
+    private function publicPathsExposePrivateStorage(string $public, string $private): bool
+    {
+        $privatePrefix = rtrim($private, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
+        $pending = [$public];
+        $visited = [];
+
+        while ($pending !== []) {
+            $path = realpath(array_pop($pending));
+            if ($path === false || isset($visited[$path])) {
+                continue;
+            }
+            $visited[$path] = true;
+
+            $pathPrefix = rtrim($path, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
+            if (str_starts_with($pathPrefix, $privatePrefix) || str_starts_with($privatePrefix, $pathPrefix)) {
+                return true;
+            }
+
+            if (is_dir($path)) {
+                foreach (new FilesystemIterator($path, FilesystemIterator::SKIP_DOTS) as $entry) {
+                    if ($entry->isLink() || $entry->isDir()) {
+                        $pending[] = $entry->getPathname();
+                    }
+                }
             }
         }
 
-        return true;
+        return false;
     }
 
     private function migrationsReady(Migrator $migrator): bool

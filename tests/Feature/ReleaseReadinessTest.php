@@ -202,6 +202,41 @@ test('release readiness requires a verified administrator and a currently effect
     $this->getJson('/api/register/business/contract')->assertNotFound();
 });
 
+test('release readiness detects a public path to any part of private storage', function (string $exposure) {
+    $folder = $this->releaseDirectory.'/private/conversations/1';
+    File::ensureDirectoryExists($folder);
+    File::put($folder.'/attachment.txt', 'Synthetic private attachment');
+
+    if ($exposure === 'attachment directory') {
+        File::link($folder, public_path('storage'));
+    } elseif ($exposure === 'individual attachment') {
+        File::ensureDirectoryExists(public_path('downloads'));
+        File::link($folder.'/attachment.txt', public_path('downloads/attachment.txt'));
+    } elseif ($exposure === 'link inside published storage') {
+        $published = $this->releaseDirectory.'/published';
+        File::ensureDirectoryExists($published);
+        File::link($published, public_path('storage'));
+        File::link($folder, $published.'/attachments');
+    } else {
+        config(['filesystems.disks.private.root' => $this->releaseDirectory]);
+    }
+
+    expect(Artisan::call('medloby:release-check'))->toBe(Command::FAILURE);
+    expect(Artisan::output())->toContain('Eksik · Özel dosya dizini', 'Hazır · Derlenmiş arayüz dosyaları')
+        ->not->toContain($this->releaseDirectory, 'Synthetic private attachment');
+    expect(File::get($folder.'/attachment.txt'))->toBe('Synthetic private attachment');
+})->with(['attachment directory', 'individual attachment', 'link inside published storage', 'public within private root']);
+
+test('release readiness accepts separate public storage even when a link points back to public', function () {
+    $published = $this->releaseDirectory.'/private-public';
+    File::ensureDirectoryExists($published);
+    File::link($published, public_path('storage'));
+    File::link(public_path(), $published.'/back');
+
+    expect(Artisan::call('medloby:release-check'))->toBe(Command::SUCCESS);
+    expect(Artisan::output())->toContain('Hazır · Özel dosya dizini');
+});
+
 test('release readiness checks the public storage link, queue table and effective SMTP URL', function () {
     File::link($this->releaseDirectory.'/private', public_path('storage'));
     config([
