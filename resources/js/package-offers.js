@@ -2,12 +2,8 @@ import { mountPackageCatalog } from './package-catalog';
 import { mountPackageServiceAdministration } from './package-service-administration';
 import { mountPackageDiscovery } from './package-discovery';
 import { mountPackageConversation } from './package-conversation';
-import { mountWorkspaceNotifications } from './workspace-notifications';
+import { mountWorkspaceNotifications, platformNotificationTarget } from './workspace-notifications';
 import { mountWorkspaceRegistration } from './workspace-registration';
-import { mountClinicReview } from './clinic-review';
-import { mountClinicAdministration } from './clinic-administration';
-import { mountClinicContracts } from './clinic-contracts';
-import { mountTreatmentAdministration } from './treatment-administration';
 import { mountClinicApplications } from './clinic-applications';
 import { mountClinicCrm } from './clinic-crm';
 import { mountSupportTickets } from './support-tickets';
@@ -124,20 +120,9 @@ export function mountPackageOffers(root) {
     const conversationList = get('conversation-list');
     const branchField = bookingForm.elements.namedItem('branch');
     const catalogButton = get('catalog-button');
-    const sharedServicesButton = get('shared-package-services-button');
+    const platformAdmin = get('platform-admin-link');
     const packageServiceAdministration = mountPackageServiceAdministration(get('package-service-dialog'), api);
     const packageCatalog = mountPackageCatalog(get('catalog-dialog'), api, packageServiceAdministration.open);
-    const clinicReview = mountClinicReview(get('clinic-review-dialog'), get('clinic-review-button'), {
-        api,
-        timeLabel: (value) => offerDeadline.format(new Date(value)),
-    });
-    const clinicAdministration = mountClinicAdministration(get('clinic-administration-dialog'), get('clinic-administration-button'), {
-        api,
-        timeLabel: (value) => offerDeadline.format(new Date(value)),
-        openApplication: (id) => clinicReview.open(id),
-    });
-    const clinicContracts = mountClinicContracts(get('clinic-contracts-dialog'), get('clinic-contracts-button'), { api });
-    const treatmentAdministration = mountTreatmentAdministration(get('treatment-administration-dialog'), get('treatment-administration-button'), { api });
     const clinicApplications = mountClinicApplications(get('clinic-applications'), {
         api,
         timeLabel: (value) => offerDeadline.format(new Date(value)),
@@ -398,6 +383,10 @@ export function mountPackageOffers(root) {
 
     async function openNotificationTarget(data) {
         const actor = user;
+        const platformTarget = platformNotificationTarget(data);
+        if (platformTarget && actor?.is_admin && actor.email_verified_at) {
+            return { platformTarget };
+        }
         const supportTicketId = Number(data.support_ticket_id);
         if (Number.isSafeInteger(supportTicketId) && supportTicketId > 0) {
             const supportTicket = await supportTickets.fetchTicket(supportTicketId);
@@ -422,11 +411,7 @@ export function mountPackageOffers(root) {
         const applicationId = Number(data.clinic_application_id);
         if (Number.isSafeInteger(applicationId) && applicationId > 0) {
             if (data.notification_type === 'clinic_application_submitted') {
-                if (!actor?.is_admin) {
-                    throw new Error('Klinik başvurularını incelemek için yönetici yetkisi gerekir.');
-                }
-
-                return { applicationReviewId: applicationId };
+                throw new Error('Klinik başvurularını incelemek için doğrulanmış yönetici hesabı gerekir.');
             }
 
             const applicationHeading = await clinicApplications.getApplicationHeading(applicationId);
@@ -546,6 +531,11 @@ export function mountPackageOffers(root) {
     });
 
     function focusNotificationTarget(target) {
+        if (target.platformTarget) {
+            const { section, id } = target.platformTarget;
+            window.location.assign(platformAdmin.href + '#' + section + '/' + id);
+            return;
+        }
         if (target.supportTicket) {
             supportTickets.open(target.supportTicket);
             return;
@@ -573,10 +563,6 @@ export function mountPackageOffers(root) {
             window.location.hash = 'klinik-crm/' + target.followUp.business_id;
             syncPage();
             clinicCrm.openLead(target.followUp, { followUpId: target.followUp.id });
-            return;
-        }
-        if (target.applicationReviewId) {
-            clinicReview.open(target.applicationReviewId);
             return;
         }
         if (target.applicationHeading) {
@@ -623,16 +609,11 @@ export function mountPackageOffers(root) {
         notifications.stop();
         supportTickets.stop();
         travelPlan.stop();
-        clinicReview.stop();
-        clinicAdministration.stop();
-        clinicContracts.stop();
-        treatmentAdministration.stop();
         clinicApplications.stop();
         staffCrmIds.clear();
         get('staff-crm-list').replaceChildren();
         catalogButton.hidden = true;
-        sharedServicesButton.hidden = true;
-        get('platform-admin-link').hidden = true;
+        platformAdmin.hidden = true;
         appointmentForm.reset();
         offerForm.reset();
         rejectForm.reset();
@@ -656,7 +637,6 @@ export function mountPackageOffers(root) {
     }
 
     catalogButton.addEventListener('click', () => packageCatalog.open(ownedBusinesses()));
-    sharedServicesButton.addEventListener('click', () => packageServiceAdministration.open());
 
     function canSendOffer(item) {
         return item.status === 'open' && user.business_memberships.some(
@@ -1169,20 +1149,11 @@ export function mountPackageOffers(root) {
         const initialHash = window.location.hash;
         const businesses = ownedBusinesses();
         catalogButton.hidden = businesses.length === 0;
-        sharedServicesButton.hidden = !(user.is_admin && user.email_verified_at);
-        get('platform-admin-link').hidden = !(user.is_admin && user.email_verified_at);
+        platformAdmin.hidden = !(user.is_admin && user.email_verified_at);
         notifications.start(businesses);
-        supportTickets.start(user);
+        supportTickets.start();
         clinicApplications.setAccount(businesses, true);
         const staffWorkspaces = loadStaffCrm();
-        if (user.is_admin) {
-            clinicReview.start();
-            clinicAdministration.start();
-            clinicContracts.start();
-            if (user.email_verified_at) {
-                treatmentAdministration.start();
-            }
-        }
         if (pendingPackage && !user.patient_profile_exists) {
             rememberPackage(undefined);
             showStatus(notice, 'Paket görüşmesi başlatmak için hasta hesabınızla giriş yapın.');

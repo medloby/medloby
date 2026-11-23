@@ -246,7 +246,7 @@ Kamuya açılış için içeriğin uygunluğu, onaylı sözleşme ve kişisel ve
 
 ### 8. Platform yönetim merkezi
 
-Bağımsız **Platform yönetimi** ekranı `/yonetim` adresinde açılır. Doğrulanmış yöneticiler platform sayımlarını ve operasyon uyarılarını görür. Klinik, katalog, destek ve sözleşme işlemleri mevcut diyaloglardan yürütülür. [Admin tamamlama envanteri](ADMIN-TAMAMLAMA.md)
+**Platform yönetimi** ekranı `/yonetim` adresinde açılır. Doğrulanmış yöneticiler platform sayımlarını ve uyarıları görür. Klinik başvuruları, klinik yönetimi, ortak katalog, destek kuyruğu ve sözleşmeler bu ekrandan açılır. Paket ve Teklifler sayfasındaki **Platform yönetimi** bağlantısı ve yönetim bildirimleri aynı panele gider. [Admin tamamlama envanteri](ADMIN-TAMAMLAMA.md)
 
 ## Uygulama düzeni
 

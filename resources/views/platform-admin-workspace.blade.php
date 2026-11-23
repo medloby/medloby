@@ -25,7 +25,13 @@
     <div class="min-w-0">
         <header class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-4 sm:px-8 dark:border-slate-800 dark:bg-slate-900">
             <p class="min-w-0 break-words text-sm font-medium" data-admin-account></p>
-            <button type="button" class="offer-button offer-button-secondary" data-admin-logout>Çıkış yap</button>
+            <div class="flex flex-wrap items-center gap-2">
+                <button type="button" class="offer-button offer-button-secondary inline-flex items-center gap-2" data-admin-notifications hidden>
+                    Bildirimler
+                    <span class="rounded-full bg-teal-100 px-1.5 text-xs font-semibold text-teal-950" data-admin-notification-count aria-hidden="true" hidden></span>
+                </button>
+                <button type="button" class="offer-button offer-button-secondary" data-admin-logout>Çıkış yap</button>
+            </div>
         </header>
         <main id="admin-overview" tabindex="-1" class="grid min-w-0 gap-6 px-4 py-6 sm:px-8 sm:py-8" aria-labelledby="admin-overview-title">
             <div class="flex flex-wrap items-start justify-between gap-3">
@@ -119,3 +125,4 @@
 @include('package-service-dialog')
 @include('support-tickets-dialog')
 @include('platform-admin-patients-dialog')
+@include('workspace-notifications')

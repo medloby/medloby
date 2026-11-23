@@ -42,6 +42,18 @@ test('the public admin page only offers sign in and both private routes require 
         ->assertSee('Klinik başvuruları')->assertSee('Üyelik sözleşmeleri')->assertSee('Destek talepleri');
 });
 
+test('platform operations are presented only in the admin workspace', function () {
+    $this->withoutVite()->get('/paket-teklifleri')->assertOk()
+        ->assertSee('id="platform-admin-link"', false)
+        ->assertDontSee('id="clinic-review-dialog"', false)
+        ->assertDontSee('id="clinic-administration-dialog"', false)
+        ->assertDontSee('id="clinic-contracts-dialog"', false)
+        ->assertDontSee('id="treatment-administration-dialog"', false)
+        ->assertDontSee('id="shared-package-services-button"', false)
+        ->assertSee('id="package-service-dialog"', false)
+        ->assertSee('id="support-tickets-dialog"', false);
+});
+
 test('only verified administrators receive tokens through the admin login without affecting other accounts', function () {
     $patient = User::factory()->create();
     $oldToken = $patient->createToken('patient');

@@ -38,6 +38,8 @@ Mimari karar, platform yönetimini ayrı sayfada açmak ve mevcut yönetim diyal
 | RESULT ve REMAINING RISKS | COMPLETE. Canlı ortam kabulü ve genişletilmiş rol yetkileri sonraki aşamada. |
 | COMMIT, PUSH STATUS ve NEXT GROUP | Yerel `4045328`. GitHub gönderimi onay bekliyor. Sonraki güvenli işler klinik ve hasta yönetimiyle devam ediyor. |
 
+Platform yönetimi tek ekran olarak `/yonetim` adresinde açılır. Üyelik sözleşmesi, klinik başvurusu, klinik ve ortak katalog yönetimi ile yönetici destek kuyruğu bu adreste toplanır. Paket ve Teklifler sayfasındaki yönetici bağlantısı ile başvuru ve destek bildirimleri aynı adrese gider. Hasta ve klinik hesabının kendi destek talepleri Paket ve Teklifler sayfasından açılabilir. [Tek paneli doğrulayan test](tests/Feature/AdminDashboardTest.php)
+
 ## ADMIN-G2 — Yönetici rolleri
 
 Durum **BLOCKED**. Kritik yetki geçişi onay gerektiriyor. Platform rolleri işletme üyeliği rollerinden bağımsız olacak. Yetkilendirme uçta yapılacak, yeni rollere açık izin dışındaki işlemler kapalı olacak. Mevcut ilk yönetici kurulumu korunacak. Geçiş planı mevcut yöneticilerin eşlenmesini, son üst yöneticiyi koruyan işlem kilidini ve atama/geri alma denetimini içerecek.

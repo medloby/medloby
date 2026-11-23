@@ -8,7 +8,13 @@ const clinicNotifications = new Set([
     'offer_rejected',
 ]);
 
-export function mountWorkspaceNotifications(dialog, button, badge, { api, openTarget, timeLabel, focusTarget }) {
+export function platformNotificationTarget(data) {
+    const application = data.notification_type === 'clinic_application_submitted';
+    const id = Number(application ? data.clinic_application_id : data.support_ticket_id);
+    return Number.isSafeInteger(id) && id > 0 ? { section: application ? 'basvuru' : 'destek', id } : null;
+}
+
+export function mountWorkspaceNotifications(dialog, button, badge, { api, openTarget, timeLabel, focusTarget, canOpenTarget }) {
     const find = (selector) => dialog.querySelector(selector);
     const previous = find('[data-notifications-previous]');
     const next = find('[data-notifications-next]');
@@ -79,8 +85,8 @@ export function mountWorkspaceNotifications(dialog, button, badge, { api, openTa
 
         const open = row.querySelector('[data-notification-open]');
         const read = row.querySelector('[data-notification-read]');
-        open.hidden = !data.conversation_id && !data.appointment_id && !data.clinic_application_id
-            && !data.crm_follow_up_id && !data.waiting_list_id && !data.support_ticket_id;
+        open.hidden = canOpenTarget ? !canOpenTarget(data) : !data.conversation_id && !data.appointment_id
+            && !data.clinic_application_id && !data.crm_follow_up_id && !data.waiting_list_id && !data.support_ticket_id;
         read.hidden = Boolean(notification.read_at);
 
         async function act(task) {
@@ -233,14 +239,13 @@ export function mountWorkspaceNotifications(dialog, button, badge, { api, openTa
         }
     });
 
-    document.addEventListener('visibilitychange', refreshBadge);
-
     return {
         start(businesses) {
             preferences.hidden = !businesses.length;
             business.replaceChildren(...businesses.map((item) => new Option(item.name, item.id)));
             if (!timer) {
                 timer = setInterval(refreshBadge, 30000);
+                document.addEventListener('visibilitychange', refreshBadge);
             }
             button.hidden = false;
             setBadge(0);
@@ -248,6 +253,7 @@ export function mountWorkspaceNotifications(dialog, button, badge, { api, openTa
         },
         stop() {
             clearInterval(timer);
+            document.removeEventListener('visibilitychange', refreshBadge);
             timer = undefined;
             listRequest++;
             badgeRequest++;

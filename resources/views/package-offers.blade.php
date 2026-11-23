@@ -29,11 +29,6 @@
                         </button>
                         <button id="support-tickets-button" type="button" class="rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800" hidden>Destek taleplerim</button>
                         <button id="catalog-button" type="button" class="rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800" hidden>Paketleri yönet</button>
-                        <button id="clinic-review-button" type="button" class="rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800" hidden>Klinik başvuruları</button>
-                        <button id="clinic-administration-button" type="button" class="rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800" hidden>Klinik yönetimi</button>
-                        <button id="treatment-administration-button" type="button" class="rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800" hidden>Tedavi kataloğu</button>
-                        <button id="shared-package-services-button" type="button" class="rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800" hidden>Ortak ek hizmetler</button>
-                        <button id="clinic-contracts-button" type="button" class="rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800" hidden>Üyelik sözleşmeleri</button>
                         <a id="platform-admin-link" href="{{ route('platform-admin') }}" class="rounded-lg bg-teal-300 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-teal-200" hidden>Platform yönetimi</a>
                         <button id="logout" type="button" class="rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800">Çıkış yap</button>
                     </div>
@@ -145,10 +140,6 @@
             @include('workspace-notifications')
             @include('support-tickets-dialog')
             @include('offer-travel-plan')
-            @include('clinic-review-dialog')
-            @include('clinic-administration-dialog')
-            @include('treatment-administration-dialog')
-            @include('clinic-contracts-dialog')
 
             <dialog id="offer-dialog" class="offer-dialog" aria-labelledby="offer-dialog-title">
                 <div class="flex items-start justify-between gap-4">

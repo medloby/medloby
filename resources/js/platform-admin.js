@@ -6,6 +6,7 @@ import { mountSupportTickets } from './support-tickets';
 import { mountTreatmentAdministration } from './treatment-administration';
 import { mountAdminPatients } from './platform-admin-patients';
 import { createWorkspaceApi } from './workspace-api';
+import { mountWorkspaceNotifications, platformNotificationTarget } from './workspace-notifications';
 
 const number = new Intl.NumberFormat('tr-TR');
 const time = new Intl.DateTimeFormat('tr-TR', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Istanbul' });
@@ -139,11 +140,22 @@ function mountDashboard(root, api, account, endSession) {
     const services = mountPackageServiceAdministration(root.querySelector('#package-service-dialog'), api);
     const support = mountSupportTickets(root.querySelector('#support-tickets-dialog'), action('support-tickets'), { api, timeLabel: formatTime });
     const patients = mountAdminPatients(find('patients'), action('patient-accounts'), api, support.openForAccount);
+    const notifications = mountWorkspaceNotifications(root.querySelector('#notifications-dialog'), find('notifications'), find('notification-count'), {
+        api, timeLabel: formatTime, openTarget: platformNotificationTarget, focusTarget: openTarget, canOpenTarget: platformNotificationTarget,
+    });
     const main = root.querySelector('main');
     const refresh = find('refresh');
     const results = find('dashboard-results');
     mountDetailsReport(find('analytics'), find('analytics-link'), () => api('/admin/analytics'), renderAnalytics, endSession);
     mountDetailsReport(find('operations'), find('operations-link'), () => api('/admin/operations'), renderOperations, endSession);
+
+    function openTarget({ section, id }) {
+        if (section === 'basvuru') {
+            review.open(id);
+        } else {
+            support.openTicket(id);
+        }
+    }
 
     function showAlerts(data) {
         const alerts = [];
@@ -229,7 +241,8 @@ function mountDashboard(root, api, account, endSession) {
     for (const module of [review, clinics, contracts, treatments]) {
         module.start();
     }
-    support.start({ is_admin: true });
+    support.start({ administrator: true });
+    notifications.start([]);
     action('shared-services').addEventListener('click', () => services.open(null));
     refresh.addEventListener('click', load);
     for (const dialog of root.querySelectorAll('dialog')) {
@@ -251,9 +264,13 @@ function mountDashboard(root, api, account, endSession) {
     });
     main.focus();
     load();
+    const target = /^#(basvuru|destek)\/([1-9]\d*)$/.exec(window.location.hash);
+    if (target && Number.isSafeInteger(Number(target[2]))) {
+        openTarget({ section: target[1], id: Number(target[2]) });
+    }
 
     return () => {
-        for (const module of [review, clinics, contracts, treatments, patients, support]) {
+        for (const module of [review, clinics, contracts, treatments, patients, support, notifications]) {
             module.stop();
         }
         services.close();

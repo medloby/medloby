@@ -167,7 +167,7 @@ export function mountSupportTickets(dialog, trigger, { api, timeLabel }) {
         showView(overview);
     }
 
-    function open(item = null, relatedAccount = null) {
+    function open(item = null, { relatedAccount = null, ticketId = null } = {}) {
         if (!endpoint || dialog.open) {
             return;
         }
@@ -179,6 +179,8 @@ export function mountSupportTickets(dialog, trigger, { api, timeLabel }) {
         dialog.showModal();
         if (item) {
             renderTicket(item);
+        } else if (ticketId) {
+            loadTicket(ticketId);
         } else {
             loadList(1, true);
         }
@@ -239,10 +241,11 @@ export function mountSupportTickets(dialog, trigger, { api, timeLabel }) {
 
     return {
         open,
-        openForAccount: (account) => open(null, account),
+        openForAccount: (account) => open(null, { relatedAccount: account }),
+        openTicket: (ticketId) => open(null, { ticketId }),
         fetchTicket,
-        start(user) {
-            admin = user.is_admin;
+        start({ administrator = false } = {}) {
+            admin = administrator;
             endpoint = admin ? '/admin/support-tickets' : '/support-tickets';
             trigger.textContent = admin ? 'Destek talepleri' : 'Destek taleplerim';
             find('heading').textContent = trigger.textContent;
