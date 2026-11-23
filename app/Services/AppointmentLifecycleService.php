@@ -75,7 +75,7 @@ class AppointmentLifecycleService
         ?string $notes = null,
         ?Branch $calendarBranch = null
     ): Appointment {
-        $result = DB::transaction(function () use (
+        return DB::transaction(function () use (
             $appointment,
             $changedBy,
             $reason,
@@ -113,6 +113,8 @@ class AppointmentLifecycleService
                 'changed_at' => now(),
             ]);
 
+            $this->notificationService->notifyAppointmentConfirmed($appointment);
+
             return $appointment->fresh([
                 'business',
                 'branch',
@@ -122,11 +124,6 @@ class AppointmentLifecycleService
                 'statusHistories',
             ]);
         });
-
-        $this->notificationService
-            ->notifyAppointmentConfirmed($result);
-
-        return $result;
     }
 
     public function complete(
@@ -136,7 +133,7 @@ class AppointmentLifecycleService
         ?string $notes = null,
         ?Branch $calendarBranch = null
     ): Appointment {
-        $result = DB::transaction(function () use (
+        return DB::transaction(function () use (
             $appointment,
             $changedBy,
             $reason,
@@ -174,6 +171,8 @@ class AppointmentLifecycleService
                 'changed_at' => now(),
             ]);
 
+            $this->notificationService->notifyAppointmentCompleted($appointment);
+
             return $appointment->fresh([
                 'business',
                 'branch',
@@ -183,11 +182,6 @@ class AppointmentLifecycleService
                 'statusHistories',
             ]);
         });
-
-        $this->notificationService
-            ->notifyAppointmentCompleted($result);
-
-        return $result;
     }
 
     public function cancel(
@@ -198,7 +192,7 @@ class AppointmentLifecycleService
         ?Branch $calendarBranch = null,
         bool $byPatient = false,
     ): Appointment {
-        $result = DB::transaction(function () use (
+        return DB::transaction(function () use (
             $appointment,
             $cancellationReason,
             $changedBy,
@@ -251,6 +245,8 @@ class AppointmentLifecycleService
                 'changed_at' => now(),
             ]);
 
+            $this->notificationService->notifyAppointmentCancelled($appointment, $byPatient);
+
             return $appointment->fresh([
                 'business',
                 'branch',
@@ -261,11 +257,6 @@ class AppointmentLifecycleService
                 'statusHistories',
             ]);
         });
-
-        $this->notificationService
-            ->notifyAppointmentCancelled($result, $byPatient);
-
-        return $result;
     }
 
     public function noShow(
@@ -275,7 +266,7 @@ class AppointmentLifecycleService
         ?string $notes = null,
         ?Branch $calendarBranch = null
     ): Appointment {
-        $result = DB::transaction(function () use (
+        return DB::transaction(function () use (
             $appointment,
             $changedBy,
             $reason,
@@ -313,6 +304,8 @@ class AppointmentLifecycleService
                 'changed_at' => now(),
             ]);
 
+            $this->notificationService->notifyAppointmentNoShow($appointment);
+
             return $appointment->fresh([
                 'business',
                 'branch',
@@ -322,11 +315,6 @@ class AppointmentLifecycleService
                 'statusHistories',
             ]);
         });
-
-        $this->notificationService
-            ->notifyAppointmentNoShow($result);
-
-        return $result;
     }
 
     public function reschedule(
@@ -339,7 +327,7 @@ class AppointmentLifecycleService
         ?Branch $calendarBranch = null,
         bool $byPatient = false,
     ): Appointment {
-        $newAppointment = $this->availabilityService->runBookingTransaction(function () use (
+        return $this->availabilityService->runBookingTransaction(function () use (
             $appointment,
             $newStartsAt,
             $changedBy,
@@ -465,6 +453,8 @@ class AppointmentLifecycleService
                 'changed_at' => now(),
             ]);
 
+            $this->notificationService->notifyAppointmentRescheduled($newAppointment, $byPatient);
+
             return $newAppointment->fresh([
                 'business',
                 'branch',
@@ -475,16 +465,5 @@ class AppointmentLifecycleService
                 'statusHistories',
             ]);
         });
-
-        /*
-         * Bildirim yeni randevu kaydına gider.
-         *
-         * Eski kayıt "rescheduled" olarak kalır,
-         * takvimde aktif olan kayıt yeni randevudur.
-         */
-        $this->notificationService
-            ->notifyAppointmentRescheduled($newAppointment, $byPatient);
-
-        return $newAppointment;
     }
 }

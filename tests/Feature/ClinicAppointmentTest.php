@@ -20,6 +20,8 @@ use App\Notifications\PatientAppointmentChangedNotification;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Notifications\Events\NotificationSent;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
@@ -311,6 +313,7 @@ test('a database failure recording the second package session rolls the whole bo
         'package_snapshot' => ['branch_id' => $branch->id, 'treatments' => [['treatment_id' => $treatment->id, 'quantity' => 2]]],
     ]);
     Exceptions::fake();
+    Mail::fake();
     Appointment::creating(static function (Appointment $appointment): void {
         if ($appointment->starts_at->toTimeString() === '10:00:00') {
             throw new QueryException('test', 'insert into appointments', [], new PDOException('Package write test marker'));
@@ -324,6 +327,8 @@ test('a database failure recording the second package session rolls the whole bo
 
     $this->assertDatabaseCount('appointments', 0);
     $this->assertDatabaseCount('appointment_status_histories', 0);
+    $this->assertDatabaseCount('notifications', 0);
+    Mail::assertNothingQueued();
     Exceptions::assertReported(QueryException::class);
 });
 
@@ -343,6 +348,59 @@ test('an appointment status stays pending when its status history cannot be save
     expect($visit->refresh()->status)->toBe('pending');
     Exceptions::assertReported(QueryException::class);
 });
+
+test('clinic appointment changes can be retried after an in-app notification failure', function (string $action, string $previousStatus, string $resultingStatus, string $notificationType) {
+    $this->travelTo(Carbon::parse('2026-12-01 00:00:00', 'UTC'));
+    [$business, $owner, $branch, , $doctor, $treatment, $calendar] = clinicAppointmentFixture();
+    $patientUser = User::factory()->create();
+    $patient = $patientUser->patientProfile()->create(['first_name' => 'Deneme', 'last_name' => 'Hastası']);
+    $visit = $patient->appointments()->create([
+        'business_id' => $business->id, 'branch_id' => $branch->id, 'doctor_id' => $doctor->id,
+        'treatment_id' => $treatment->id, 'status' => $previousStatus,
+        'starts_at' => '2026-12-04 09:00:00', 'ends_at' => '2026-12-04 09:30:00',
+    ]);
+    $url = $calendar.'/appointments/'.$visit->id.'/'.$action;
+    $payload = match ($action) {
+        'cancel' => ['cancellation_reason' => 'Klinik programı değişti.'],
+        'reschedule' => ['starts_at' => '2026-12-04 10:00:00'],
+        default => [],
+    };
+    $failNotification = true;
+
+    Exceptions::fake();
+    Event::listen(NotificationSent::class, function (NotificationSent $event) use (&$failNotification): void {
+        if ($failNotification && $event->channel === 'database') {
+            throw new RuntimeException('Appointment change notification unavailable.');
+        }
+    });
+
+    $this->actingAs($owner, 'sanctum')->postJson($url, $payload)->assertInternalServerError();
+
+    expect($visit->refresh()->status)->toBe($previousStatus);
+    $this->assertDatabaseCount('appointments', 1);
+    $this->assertDatabaseCount('appointment_status_histories', 0);
+    $this->assertDatabaseCount('notifications', 0);
+    Exceptions::assertReported(RuntimeException::class);
+
+    $failNotification = false;
+    $currentId = $this->postJson($url, $payload)->assertOk()->assertJsonPath('data.status', $resultingStatus)->json('data.id');
+
+    $this->assertDatabaseHas('appointment_status_histories', ['appointment_id' => $currentId, 'new_status' => $resultingStatus]);
+    $notification = $patientUser->notifications()->sole();
+    expect($notification->data['notification_type'])->toBe($notificationType)
+        ->and($notification->data['appointment_id'])->toBe($currentId);
+
+    $this->actingAs($patientUser, 'sanctum')->getJson('/api/patient/appointments/'.$visit->id)->assertOk()
+        ->assertJsonPath('data.id', $currentId)
+        ->assertJsonPath('data.status', $resultingStatus)
+        ->assertJsonPath('data.starts_at', $payload['starts_at'] ?? '2026-12-04 09:00:00');
+})->with([
+    'confirm' => ['confirm', 'pending', 'confirmed', NotificationType::APPOINTMENT_CONFIRMED],
+    'cancel' => ['cancel', 'confirmed', 'cancelled', NotificationType::APPOINTMENT_CANCELLED],
+    'complete' => ['complete', 'confirmed', 'completed', NotificationType::APPOINTMENT_COMPLETED],
+    'no show' => ['no-show', 'confirmed', 'no_show', NotificationType::APPOINTMENT_NO_SHOW],
+    'reschedule' => ['reschedule', 'confirmed', 'confirmed', NotificationType::APPOINTMENT_RESCHEDULED],
+]);
 
 test('package booking and rescheduling respect a patients other active appointments', function () {
     $this->travelTo(Carbon::parse('2026-12-01 00:00:00', 'UTC'));

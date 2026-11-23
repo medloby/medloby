@@ -19,6 +19,7 @@ use App\Services\AppointmentBookingService;
 use App\Services\BusinessNotificationPreferenceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Mail\Events\MessageSending;
+use Illuminate\Notifications\Events\NotificationSent;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Exceptions;
@@ -68,7 +69,7 @@ function createAppointmentNotificationTestData(): array
 
     $doctor = Doctor::create([
         'person_id' => $person->id,
-        'license_number' => 'TEST-' . uniqid(),
+        'license_number' => 'TEST-'.uniqid(),
         'specialty' => 'Diş Hekimi',
         'bio' => 'Bildirim test doktoru.',
         'profile_photo' => null,
@@ -79,7 +80,7 @@ function createAppointmentNotificationTestData(): array
     $branch = Branch::create([
         'business_id' => $business->id,
         'name' => 'Bildirim Test Şubesi',
-        'slug' => 'bildirim-test-subesi-' . uniqid(),
+        'slug' => 'bildirim-test-subesi-'.uniqid(),
         'country_code' => 'TR',
         'city' => 'Istanbul',
         'district' => 'Kadikoy',
@@ -118,7 +119,7 @@ function createAppointmentNotificationTestData(): array
     $category = TreatmentCategory::create([
         'parent_id' => null,
         'name' => 'Bildirim Test Kategorisi',
-        'slug' => 'bildirim-test-kategorisi-' . uniqid(),
+        'slug' => 'bildirim-test-kategorisi-'.uniqid(),
         'description' => null,
         'image' => null,
         'icon' => null,
@@ -129,7 +130,7 @@ function createAppointmentNotificationTestData(): array
     $treatment = Treatment::create([
         'treatment_category_id' => $category->id,
         'name' => 'Bildirim Test Tedavisi',
-        'slug' => 'bildirim-test-tedavisi-' . uniqid(),
+        'slug' => 'bildirim-test-tedavisi-'.uniqid(),
         'description' => null,
         'duration_minutes' => 60,
         'preparation' => null,
@@ -174,6 +175,43 @@ function createAppointmentNotificationTestData(): array
         'treatment' => $treatment,
     ];
 }
+
+test('online booking can be retried when an in-app notification fails', function () {
+    $this->travelTo(now()->setDate(2026, 12, 1)->startOfDay());
+    $data = createAppointmentNotificationTestData();
+    $url = "/api/patient/appointments/booking-branches/{$data['branch']->id}";
+    $payload = [
+        'doctor_id' => $data['doctor']->id,
+        'treatment_id' => $data['treatment']->id,
+        'starts_at' => now()->addDay()->setTime(10, 0)->toDateTimeString(),
+    ];
+    $failNotification = true;
+    Exceptions::fake();
+    Mail::fake();
+    Event::listen(NotificationSent::class, function (NotificationSent $event) use (&$failNotification): void {
+        if ($failNotification && $event->notification instanceof NewPatientAppointmentNotification) {
+            throw new RuntimeException('Patient booking notification unavailable.');
+        }
+    });
+
+    $this->actingAs($data['patientUser'], 'sanctum')->postJson($url, $payload)->assertInternalServerError();
+
+    $this->assertDatabaseCount('appointments', 0);
+    $this->assertDatabaseCount('appointment_status_histories', 0);
+    $this->assertDatabaseCount('notifications', 0);
+    Mail::assertNothingQueued();
+    Exceptions::assertReported(RuntimeException::class);
+
+    $failNotification = false;
+    $appointmentId = $this->postJson($url, $payload)->assertCreated()->json('data.id');
+
+    $this->assertDatabaseCount('appointments', 1);
+    $this->assertDatabaseHas('appointment_status_histories', ['appointment_id' => $appointmentId]);
+    expect($data['patientUser']->notifications()->sole()->data['appointment_id'])->toBe($appointmentId);
+    expect($data['businessUser']->notifications()->sole()->data['appointment_id'])->toBe($appointmentId);
+    Mail::assertQueued(NewAppointmentMail::class, 1);
+    Mail::assertQueued(NewPatientAppointmentMail::class, 1);
+});
 
 test('online booking and both in-app notifications survive an email outage', function (string $queue) {
     config(['queue.default' => $queue, 'mail.default' => 'array']);

@@ -14,6 +14,7 @@ use App\Notifications\NewAppointmentNotification;
 use App\Notifications\NewPatientAppointmentNotification;
 use App\Notifications\NotificationType;
 use App\Notifications\PatientAppointmentChangedNotification;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 
 class AppointmentNotificationService
@@ -58,21 +59,19 @@ class AppointmentNotificationService
         );
 
         $patientUser = $appointment->patientProfile?->user;
-        $patientUser?->notify(new NewPatientAppointmentNotification($appointment));
+        $patientUser?->notifyNow(new NewPatientAppointmentNotification($appointment));
 
-        if (
-            $this->preferenceService->isEmailEnabled(
-                $business,
-                NotificationType::NEW_APPOINTMENT
-            )
-            && filled($business->email)
-        ) {
-            rescue(fn () => Mail::to($business->email)->queue(new NewAppointmentMail($appointment)));
-        }
+        DB::afterCommit(function () use ($appointment, $business, $patientUser): void {
+            rescue(function () use ($appointment, $business): void {
+                if (filled($business->email) && $this->preferenceService->isEmailEnabled($business, NotificationType::NEW_APPOINTMENT)) {
+                    Mail::to($business->email)->queue(new NewAppointmentMail($appointment));
+                }
+            });
 
-        if (filled($patientUser?->email)) {
-            rescue(fn () => Mail::to($patientUser->email)->queue(new NewPatientAppointmentMail($appointment)));
-        }
+            if (filled($patientUser?->email)) {
+                rescue(fn () => Mail::to($patientUser->email)->queue(new NewPatientAppointmentMail($appointment)));
+            }
+        });
     }
 
     /**
@@ -190,7 +189,7 @@ class AppointmentNotificationService
 
         $members = $business->memberships()->activeForBranch($appointment->branch)->with('user')->get();
         foreach ($members as $membership) {
-            $membership->user?->notify($notification);
+            $membership->user?->notifyNow($notification);
         }
     }
 
@@ -214,6 +213,6 @@ class AppointmentNotificationService
             return;
         }
 
-        $patientUser->notify($notification);
+        $patientUser->notifyNow($notification);
     }
 }

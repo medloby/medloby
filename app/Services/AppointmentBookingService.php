@@ -153,18 +153,7 @@ class AppointmentBookingService
             'changed_at' => now(),
         ]);
 
-        DB::afterCommit(function () use ($appointment) {
-            $this->notificationService->notifyNewAppointment(
-                $appointment->fresh([
-                    'business',
-                    'branch',
-                    'patientProfile',
-                    'doctor.person',
-                    'treatment',
-                    'offer',
-                ])
-            );
-        });
+        $this->notificationService->notifyNewAppointment($appointment);
 
         return $appointment->fresh([
             'business',

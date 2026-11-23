@@ -134,6 +134,8 @@ Kabul senaryosu e-posta doğrulama ve klinik onayıyla başlar. Klinik sahibi ya
 
 22. **3.22 Randevu saati karşılaştırmaları Türkiye takvimiyle uyumlu.** Uygunluk, kayıt ve tarih değişikliği aynı yerel gün ve saat değerini saniye hassasiyetinde kullanır. Eski API’nin kabul ettiği zaman dilimi eki ve saniye kesri içeren biçimlerle mevcut saatin tanınması ve farklı bir saatin randevu kartında doğru görünmesi test edildi. [Randevu testleri](tests/Feature/ClinicAppointmentTest.php)
 
+23. **3.23 Randevu ve uygulama içi bildirimi birlikte kaydediliyor.** Tekil randevu, paket seansları ve randevu durum değişiklikleri geçmiş kayıtları ve uygulama içi bildirimleriyle birlikte tamamlanır. Bildirim kaydı başarısız olursa işlem geri alınır ve yeniden denenebilir. Tarihi değişen randevunun bildirimi güncel kaydı açar. Yeni randevu e-postaları kayıt tamamlandıktan sonra kuyruğa alınır. [Klinik randevu testleri](tests/Feature/ClinicAppointmentTest.php) · [Bildirim testleri](tests/Feature/AppointmentNotificationTest.php)
+
 Kabul senaryosu şubede hekim ve uygunluk hazırlığından başlayıp hastanın birkaç seansı seçmesi ve kliniğin randevuyu yönetmesiyle tamamlanır.
 
 ### 4. Kamuya açık site ve yayın içeriği
