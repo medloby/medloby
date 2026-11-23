@@ -7,9 +7,12 @@
         </a>
         <nav class="flex flex-wrap gap-2 text-sm lg:grid lg:gap-1" aria-label="Platform yönetimi">
             <a href="#admin-overview" class="rounded-lg bg-slate-800 px-3 py-2.5 font-semibold text-teal-200" aria-current="page">Genel bakış</a>
+            <a href="#admin-analytics" class="rounded-lg px-3 py-2.5 hover:bg-slate-800" data-admin-analytics-link>İşlem analitiği</a>
+            <a href="#admin-operations" class="rounded-lg px-3 py-2.5 hover:bg-slate-800" data-admin-operations-link>Sistem durumu</a>
             @foreach ([
                 'clinic-review' => 'Klinik başvuruları',
                 'clinic-administration' => 'Klinik yönetimi',
+                'patient-accounts' => 'Hasta hesapları',
                 'treatment-administration' => 'Tedavi kataloğu',
                 'shared-services' => 'Ortak ek hizmetler',
                 'support-tickets' => 'Destek talepleri',
@@ -95,12 +98,16 @@
                             <h2 id="{{ $chart }}-title" class="font-semibold">{{ $label }}</h2>
                             @if ($chart === 'appointment-statuses')
                                 <p class="text-xs text-slate-600 dark:text-slate-300">Son 30 gün</p>
+                            @elseif ($chart === 'plans')
+                                <p class="text-xs text-slate-600 dark:text-slate-300">Ücretsiz ve isteğe bağlı planlar</p>
                             @endif
                             <ul class="grid gap-2 text-sm" data-chart-bars></ul>
                         </section>
                     @endforeach
                 </div>
             </div>
+            @include('platform-admin-analytics')
+            @include('platform-admin-operations')
         </main>
     </div>
 </div>
@@ -111,3 +118,4 @@
 @include('clinic-contracts-dialog')
 @include('package-service-dialog')
 @include('support-tickets-dialog')
+@include('platform-admin-patients-dialog')

@@ -103,7 +103,10 @@ export function mountClinicAdministration(dialog, trigger, { api, timeLabel, ope
 
     function clinicContext(clinic) {
         const plan = clinic.membership_plan ? 'Plan ' + clinic.membership_plan + ' (Ücretsiz)' : 'Plan seçilmedi';
-        return [statusLabels[clinic.status] ?? clinic.status, clinic.city, clinic.district, plan].filter(Boolean).join(' · ');
+        const branches = Number.isInteger(clinic.branches_count)
+            ? clinic.active_branches_count + ' aktif / ' + clinic.branches_count + ' şube'
+            : '';
+        return [statusLabels[clinic.status] ?? clinic.status, clinic.city, clinic.district, plan, branches].filter(Boolean).join(' · ');
     }
 
     const clinics = pagedList(find('directory-list'), (page) => {

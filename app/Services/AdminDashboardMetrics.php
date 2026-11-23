@@ -9,6 +9,7 @@ use App\Models\Offer;
 use App\Models\PatientProfile;
 use App\Models\PlatformContract;
 use App\Models\SupportTicket;
+use App\Models\Treatment;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
@@ -47,6 +48,8 @@ final class AdminDashboardMetrics
         $pendingOffers = $openOffers->where(fn (Builder $offer) => $offer->whereNull('valid_until')
             ->orWhere('valid_until', '>=', $now->utc()->startOfSecond()))->count();
         $openTickets = (int) $support->open;
+        $membershipContracts = PlatformContract::query()->effectiveClinicMembership();
+        $membershipExpiry = (clone $membershipContracts)->whereNotNull('expires_at')->orderBy('expires_at')->first(['expires_at']);
 
         return [
             'as_of' => $now->toIso8601String(),
@@ -84,10 +87,50 @@ final class AdminDashboardMetrics
                 'appointments' => $this->dailyTrend($appointments, 'starts_at', $firstDay, $tomorrow, false),
             ],
             'alerts' => [
-                'membership_contract_missing' => ! PlatformContract::query()->effectiveClinicMembership()->exists(),
+                'membership_contract_missing' => ! $membershipContracts->exists(),
+                'membership_contract_expires_at' => $membershipExpiry?->expires_at?->toIso8601String(),
                 'offers_awaiting_expiry' => $awaitingExpiry,
                 'failed_jobs' => $this->failedJobs(),
+                'active_treatments_in_inactive_categories' => Treatment::query()->where('is_active', true)
+                    ->whereHas('treatmentCategory', fn (Builder $categories) => $categories->where('is_active', false))->count(),
             ],
+        ];
+    }
+
+    public function analytics(): array
+    {
+        $today = CarbonImmutable::today('Europe/Istanbul');
+        $from = $today->subDays(29);
+        $until = $today->addDay();
+        $clinics = Business::query()->where('type', 'clinic');
+        $offers = Offer::query()->where('created_at', '>=', $from->utc()->toDateTimeString())
+            ->where('created_at', '<', $until->utc()->toDateTimeString());
+        $outcomes = $this->distribution(clone $offers, 'status', [
+            'pending' => 'Yanıt bekliyor', 'accepted' => 'Kabul edildi',
+            'rejected' => 'Reddedildi', 'expired' => 'Süresi doldu',
+        ]);
+        $accepted = (clone $offers)->where('status', 'accepted');
+        $converted = (clone $accepted)->whereHas('appointments', fn (Builder $visits) => $visits
+            ->whereColumn('appointments.business_id', 'offers.business_id')
+            ->whereColumn('appointments.patient_profile_id', 'offers.patient_profile_id')
+            ->whereIn('appointments.status', ClinicAppointmentPerformance::BOOKED_STATES))->count();
+        $activeClinicDays = Appointment::query()->whereIn('status', ClinicAppointmentPerformance::BOOKED_STATES)
+            ->where('starts_at', '>=', $from->toDateTimeString())->where('starts_at', '<', $until->toDateTimeString())
+            ->whereHas('business', fn (Builder $business) => $business->where('type', 'clinic'));
+        $cities = $clinics->toBase()->select(['city', 'country_code'])->selectRaw('COUNT(*) AS tally')
+            ->groupBy('city', 'country_code')->orderByDesc('tally')->orderBy('country_code')->orderBy('city')->limit(12)->get();
+
+        return [
+            'starts_on' => $from->toDateString(),
+            'ends_on' => $today->toDateString(),
+            'offers_created' => array_sum(array_column($outcomes, 'count')),
+            'offers_converted' => $converted,
+            'clinics_with_appointments' => $activeClinicDays->distinct()->count('business_id'),
+            'outcomes' => array_values($outcomes),
+            'cities' => $cities->map(fn (object $row): array => [
+                'label' => (blank($row->city) ? 'İl belirtilmemiş' : $row->city).' · '.$row->country_code,
+                'count' => (int) $row->tally,
+            ])->all(),
         ];
     }
 

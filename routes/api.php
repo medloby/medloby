@@ -22,6 +22,8 @@ use App\Http\Controllers\AdminBusinessStatusHistoryController;
 
 use App\Http\Controllers\AdminDashboardController;
 
+use App\Http\Controllers\AdminPatientAccountController;
+
 use App\Http\Controllers\AdminPlatformContractController;
 
 use App\Http\Controllers\AppointmentBookingController;
@@ -138,7 +140,10 @@ Route::post('/admin/login', [AuthController::class, 'adminLogin'])->middleware('
 Route::middleware(['auth:sanctum', \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class, 'admin'])
     ->prefix('admin')->group(function () {
         Route::get('/dashboard', [AdminDashboardController::class, 'show']);
+        Route::get('/analytics', [AdminDashboardController::class, 'analytics']);
+        Route::get('/operations', [AdminDashboardController::class, 'operations']);
         Route::get('/workspace', [AdminDashboardController::class, 'workspace']);
+        Route::get('/patient-accounts', AdminPatientAccountController::class);
     });
 
 Route::post('/register/patient', [

@@ -7,6 +7,7 @@
 
     <fieldset class="mt-4 min-w-0" data-support-workspace>
         <section class="grid gap-3" data-support-overview aria-label="Destek talebi listesi">
+            <p class="text-sm font-medium" data-support-requester hidden></p>
             <div class="flex flex-wrap items-end justify-between gap-2">
                 <label class="offer-field">Durum
                     <select class="offer-control" data-support-filter>

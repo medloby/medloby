@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Branch;
 use App\Models\Business;
 use App\Models\ClinicContractAcceptance;
 use App\Models\PlatformContract;
@@ -8,6 +9,24 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 
 uses(RefreshDatabase::class);
+
+test('clinic administrators can filter by city and free plan and see branch counts', function () {
+    $admin = User::factory()->create(['is_admin' => true]);
+    $clinic = Business::factory()->create(['city' => 'Ankara', 'membership_plan' => 'standard']);
+    Business::factory()->create(['city' => 'Ankara', 'membership_plan' => 'starter']);
+    $noPlan = Business::factory()->create(['city' => 'Ankara', 'membership_plan' => null]);
+    Business::factory()->create(['city' => 'İzmir', 'membership_plan' => 'standard']);
+    Branch::factory()->for($clinic)->create(['status' => 'active']);
+    Branch::factory()->for($clinic)->create(['status' => 'inactive']);
+
+    $path = '/api/admin/businesses/directory?city=Ankara&plan=';
+    $this->actingAs($admin, 'sanctum')->getJson($path.'standard')->assertOk()->assertJsonCount(1, 'data.data')
+        ->assertJsonPath('data.data.0.id', $clinic->id)->assertJsonPath('data.data.0.membership_plan', 'Standart')
+        ->assertJsonPath('data.data.0.branches_count', 2)->assertJsonPath('data.data.0.active_branches_count', 1);
+    $this->getJson($path.'unselected')->assertOk()->assertJsonCount(1, 'data.data')
+        ->assertJsonPath('data.data.0.id', $noPlan->id);
+    $this->getJson($path.'arbitrary')->assertUnprocessable()->assertJsonValidationErrors('plan');
+});
 
 test('non admin user cannot access admin business list', function () {
     $user = User::factory()->create([

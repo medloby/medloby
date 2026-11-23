@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\SupportTicket;
 use App\Models\User;
 use App\Notifications\SupportTicketNotification;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,9 +18,17 @@ class SupportTicketController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $status = $request->validate(['status' => ['sometimes', 'required', 'in:open,closed']])['status'] ?? null;
         $admin = $this->isAdminInbox($request);
+        $filters = $request->validate(['status' => ['sometimes', 'required', 'in:open,closed']]
+            + ($admin ? ['requester_id' => ['sometimes', 'required', 'integer', 'min:1']] : []));
+        $status = $filters['status'] ?? null;
         $tickets = $this->tickets($request);
+        if (isset($filters['requester_id'])) {
+            $tickets->where('requester_id', $filters['requester_id']);
+        }
+        if ($admin) {
+            $tickets->withMin(['messages as first_support_reply_at' => fn (Builder $messages) => $messages->where('from_support', true)], 'created_at');
+        }
         if ($status === 'open') {
             $tickets->whereNull('closed_at');
         } elseif ($status === 'closed') {
@@ -139,6 +148,13 @@ class SupportTicketController extends Controller
         ];
         if ($admin) {
             $data['requester_name'] = $ticket->requester->name;
+            if (array_key_exists('first_support_reply_at', $ticket->getAttributes())) {
+                $firstReply = $ticket->first_support_reply_at;
+                $data['first_response_seconds'] = $ticket->created_at && $firstReply
+                    ? (int) $ticket->created_at->diffInSeconds(CarbonImmutable::parse($firstReply)) : null;
+                $data['resolution_seconds'] = $ticket->created_at && $ticket->closed_at
+                    ? (int) $ticket->created_at->diffInSeconds($ticket->closed_at) : null;
+            }
         }
 
         return $data;

@@ -2,7 +2,10 @@
 
 use App\Models\Branch;
 use App\Models\Business;
+use App\Models\PlatformContract;
 use App\Models\SupportTicket;
+use App\Models\Treatment;
+use App\Models\TreatmentCategory;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -15,7 +18,7 @@ uses(RefreshDatabase::class);
 test('the public admin page only offers sign in and both private routes require a verified platform administrator', function () {
     $this->withoutVite()->get('/yonetim')->assertOk()->assertSee('Yönetici e-postası')
         ->assertDontSee('Dikkat gerektiren işlemler')->assertDontSee('data-admin-dashboard-results', false);
-    foreach (['dashboard', 'workspace'] as $endpoint) {
+    foreach (['dashboard', 'workspace', 'analytics', 'patient-accounts', 'operations'] as $endpoint) {
         $this->getJson('/api/admin/'.$endpoint)->assertUnauthorized();
     }
 
@@ -28,7 +31,7 @@ test('the public admin page only offers sign in and both private routes require 
     $unverifiedAdmin = User::factory()->unverified()->create(['is_admin' => true]);
     foreach ([$patient, $staff, $unverifiedAdmin] as $account) {
         $this->actingAs($account, 'sanctum');
-        foreach (['dashboard', 'workspace'] as $endpoint) {
+        foreach (['dashboard', 'workspace', 'analytics', 'patient-accounts', 'operations'] as $endpoint) {
             $this->getJson('/api/admin/'.$endpoint)->assertForbidden();
         }
     }
@@ -121,7 +124,10 @@ test('dashboard counts use Istanbul calendar boundaries and report aggregates wi
         ->assertJsonPath('data.plans.1', ['key' => 'standard', 'label' => 'Standart', 'count' => 1])
         ->assertJsonPath('data.plans.3.count', 1)
         ->assertJsonPath('data.support.1.count', 1)
-        ->assertJsonPath('data.alerts', ['membership_contract_missing' => true, 'offers_awaiting_expiry' => 1, 'failed_jobs' => 1])
+        ->assertJsonPath('data.alerts', [
+            'membership_contract_missing' => true, 'membership_contract_expires_at' => null,
+            'offers_awaiting_expiry' => 1, 'failed_jobs' => 1, 'active_treatments_in_inactive_categories' => 0,
+        ])
         ->assertDontSee('Gizli')->assertDontSee('private-patient@example.test')
         ->assertDontSee('5558134567')->assertDontSee('75123.44');
 });
@@ -133,4 +139,67 @@ test('the dashboard distinguishes empty totals from an unknown failed job count'
         ->assertJsonPath('data.summary.clinics', 0)->assertJsonPath('data.summary.patient_accounts', 0)
         ->assertJsonPath('data.summary.appointments.today', 0)->assertJsonPath('data.alerts.failed_jobs', null)
         ->assertJsonCount(30, 'data.trends.clinics');
+});
+
+test('admin offer analytics count a converted offer once across multiple valid appointments', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-12-06 21:30:00', 'UTC'));
+    $admin = User::factory()->create(['is_admin' => true]);
+    $branch = Branch::factory()->for(Business::factory()->state(['city' => 'Ankara']))->create();
+    $otherBranch = Branch::factory()->for(Business::factory()->state(['city' => null]))->create();
+    $patient = User::factory()->create()->patientProfile()->create(['first_name' => 'Gizli', 'last_name' => 'Kişi']);
+    $conversation = $patient->conversations()->create(['business_id' => $branch->business_id, 'branch_id' => $branch->id]);
+    $offer = fn (string $status, string $created) => $conversation->offers()->forceCreate([
+        'business_id' => $branch->business_id, 'branch_id' => $branch->id, 'patient_profile_id' => $patient->id,
+        'created_by' => $admin->id, 'status' => $status, 'title' => 'Gizli Teklif', 'amount' => '1230.25', 'created_at' => $created,
+    ]);
+    $converted = $offer('accepted', '2026-11-07 21:00:00');
+    $wrongBusiness = $offer('accepted', '2026-12-06 21:00:00');
+    $offer('expired', '2026-12-06 21:15:00');
+    $offer('pending', '2026-11-07 20:59:59');
+    foreach ([[$branch, $converted->id], [$branch, $converted->id], [$otherBranch, $wrongBusiness->id]] as $index => [$location, $offerId]) {
+        $start = CarbonImmutable::parse('2026-12-07 09:30:00')->addHours($index);
+        $location->appointments()->create([
+            'business_id' => $location->business_id, 'patient_profile_id' => $patient->id, 'offer_id' => $offerId,
+            'status' => 'confirmed', 'starts_at' => $start, 'ends_at' => $start->addMinutes(30),
+        ]);
+    }
+
+    $this->actingAs($admin, 'sanctum')->getJson('/api/admin/analytics')->assertOk()
+        ->assertHeader('Cache-Control', 'no-store, private')
+        ->assertJsonPath('data.starts_on', '2026-11-08')->assertJsonPath('data.ends_on', '2026-12-07')
+        ->assertJsonPath('data.offers_created', 3)->assertJsonPath('data.offers_converted', 1)
+        ->assertJsonPath('data.clinics_with_appointments', 2)->assertJsonPath('data.outcomes.1.count', 2)
+        ->assertJsonFragment(['label' => 'Ankara · TR', 'count' => 1])
+        ->assertJsonFragment(['label' => 'İl belirtilmemiş · TR', 'count' => 1])
+        ->assertDontSee('Gizli')->assertDontSee('1230.25');
+});
+
+test('the dashboard reports only configured operational observations and catalog and contract indicators', function () {
+    $admin = User::factory()->create(['is_admin' => true]);
+    config([
+        'medloby.release_version' => '2991bb1',
+        'queue.default' => 'database', 'queue.connections.database.connection' => null,
+        'mail.default' => 'log', 'mail.mailers.smtp.password' => 'Loga girmemeli',
+    ]);
+    $contract = PlatformContract::create([
+        'contract_type' => 'clinic_membership', 'title' => 'Gizli sözleşme başlığı', 'version' => 'test',
+        'content' => 'Gizli sözleşme metni', 'status' => 'published', 'is_required' => true,
+        'published_at' => now()->subDay(), 'expires_at' => now()->addDays(5),
+    ]);
+    $category = TreatmentCategory::factory()->create(['is_active' => false]);
+    Treatment::create(['treatment_category_id' => $category->id, 'name' => 'Örnek', 'slug' => 'ornek', 'is_active' => true]);
+
+    $this->actingAs($admin, 'sanctum')->getJson('/api/admin/operations')->assertOk()
+        ->assertHeader('Cache-Control', 'no-store, private')
+        ->assertJsonPath('data.application', 'reachable')->assertJsonPath('data.database', 'ready')
+        ->assertJsonPath('data.migrations', 'ready')->assertJsonPath('data.queue_configuration', 'ready')
+        ->assertJsonPath('data.queue_worker', 'unknown')->assertJsonPath('data.scheduler', 'unknown')
+        ->assertJsonPath('data.smtp_configuration', 'not_configured')->assertJsonPath('data.email_delivery', 'unknown')
+        ->assertJsonPath('data.backup_verification', 'unknown')->assertJsonPath('data.release_version', '2991bb1')
+        ->assertDontSee('Loga girmemeli');
+    $this->getJson('/api/admin/dashboard')->assertOk()
+        ->assertJsonPath('data.alerts.membership_contract_missing', false)
+        ->assertJsonPath('data.alerts.membership_contract_expires_at', $contract->fresh()->expires_at->toIso8601String())
+        ->assertJsonPath('data.alerts.active_treatments_in_inactive_categories', 1)
+        ->assertDontSee('Gizli sözleşme');
 });

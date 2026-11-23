@@ -4,6 +4,7 @@ import { mountClinicReview } from './clinic-review';
 import { mountPackageServiceAdministration } from './package-service-administration';
 import { mountSupportTickets } from './support-tickets';
 import { mountTreatmentAdministration } from './treatment-administration';
+import { mountAdminPatients } from './platform-admin-patients';
 import { createWorkspaceApi } from './workspace-api';
 
 const number = new Intl.NumberFormat('tr-TR');
@@ -46,7 +47,12 @@ function showTrend(chart, values) {
 
 function showDistribution(chart, values) {
     const total = values.reduce((sum, { count }) => sum + count, 0);
-    chart.querySelector('[data-chart-bars]').replaceChildren(...values.map(({ label, count }) => {
+    const bars = chart.querySelector('[data-chart-bars]');
+    if (!values.length) {
+        bars.replaceChildren(textElement('li', 'Gösterilecek kayıt yok.'));
+        return;
+    }
+    bars.replaceChildren(...values.map(({ label, count }) => {
         const row = document.createElement('li');
         row.className = 'grid gap-1';
         const caption = textElement('div', '', 'flex flex-wrap justify-between gap-x-2');
@@ -59,6 +65,64 @@ function showDistribution(chart, values) {
         row.append(caption, track);
         return row;
     }));
+}
+
+function mountDetailsReport(panel, link, fetchReport, render, endSession) {
+    const message = panel.querySelector('[data-report-status]');
+    const refresh = panel.querySelector('[data-report-refresh]');
+    const result = panel.querySelector('[data-report-result]');
+    async function load() {
+        refresh.disabled = true;
+        status(message, 'Rapor yükleniyor…');
+        try {
+            const data = await fetchReport();
+            if (panel.isConnected) {
+                render(panel, data);
+                result.hidden = false;
+                status(message);
+            }
+        } catch (error) {
+            if (error.status === 403) {
+                endSession(error.message);
+            } else if (panel.isConnected) {
+                status(message, error.message);
+            }
+        } finally {
+            refresh.disabled = false;
+        }
+    }
+    link.addEventListener('click', () => {
+        panel.open = true;
+        panel.querySelector('summary').focus();
+    });
+    panel.addEventListener('toggle', () => {
+        if (panel.open && !refresh.disabled) {
+            load();
+        }
+    });
+    refresh.addEventListener('click', load);
+}
+
+function renderAnalytics(panel, data) {
+    for (const field of panel.querySelectorAll('[data-analytics-metric]')) {
+        field.textContent = number.format(data[field.dataset.analyticsMetric]);
+    }
+    panel.querySelector('[data-analytics-period]').textContent =
+        dateLabel(data.starts_on) + ' – ' + dateLabel(data.ends_on) + ' · İl sayımları tüm klinik kayıtlarını kapsar.';
+    showDistribution(panel.querySelector('[data-analytics-outcomes]'), data.outcomes);
+    showDistribution(panel.querySelector('[data-analytics-cities]'), data.cities);
+}
+
+const operationLabels = {
+    reachable: 'Erişilebilir', ready: 'Hazır', unavailable: 'Erişilemiyor',
+    needs_attention: 'Kontrol gerekiyor', not_configured: 'Yapılandırılmamış', unknown: 'Bilinmiyor',
+};
+
+function renderOperations(panel, data) {
+    for (const field of panel.querySelectorAll('[data-operation]')) {
+        const value = data[field.dataset.operation];
+        field.textContent = operationLabels[value] ?? value ?? operationLabels.unknown;
+    }
 }
 
 function mountDashboard(root, api, account, endSession) {
@@ -74,9 +138,12 @@ function mountDashboard(root, api, account, endSession) {
     const treatments = mountTreatmentAdministration(root.querySelector('#treatment-administration-dialog'), action('treatment-administration'), { api });
     const services = mountPackageServiceAdministration(root.querySelector('#package-service-dialog'), api);
     const support = mountSupportTickets(root.querySelector('#support-tickets-dialog'), action('support-tickets'), { api, timeLabel: formatTime });
+    const patients = mountAdminPatients(find('patients'), action('patient-accounts'), api, support.openForAccount);
     const main = root.querySelector('main');
     const refresh = find('refresh');
     const results = find('dashboard-results');
+    mountDetailsReport(find('analytics'), find('analytics-link'), () => api('/admin/analytics'), renderAnalytics, endSession);
+    mountDetailsReport(find('operations'), find('operations-link'), () => api('/admin/operations'), renderOperations, endSession);
 
     function showAlerts(data) {
         const alerts = [];
@@ -100,6 +167,9 @@ function mountDashboard(root, api, account, endSession) {
         if (data.alerts.membership_contract_missing) {
             add('Yürürlükte zorunlu klinik üyelik sözleşmesi bulunmuyor', 'clinic-contracts');
         }
+        if (data.alerts.membership_contract_expires_at) {
+            add('Klinik üyelik sözleşmesi bitişi · ' + formatTime(data.alerts.membership_contract_expires_at), 'clinic-contracts');
+        }
         if (data.alerts.offers_awaiting_expiry > 0) {
             add(number.format(data.alerts.offers_awaiting_expiry) + ' teklifin süresi doldu, durum kaydı güncelleme bekliyor');
         }
@@ -108,6 +178,9 @@ function mountDashboard(root, api, account, endSession) {
         }
         if (data.alerts.failed_jobs === null) {
             add('Başarısız arka plan işi sayısı doğrulanamadı');
+        }
+        if (data.alerts.active_treatments_in_inactive_categories > 0) {
+            add(number.format(data.alerts.active_treatments_in_inactive_categories) + ' aktif tedavi pasif bir kategoride', 'treatment-administration');
         }
         find('alerts').replaceChildren(...(alerts.length ? alerts : [textElement('li', 'Gösterilecek açık uyarı yok.', 'text-sm')]));
     }
@@ -180,7 +253,7 @@ function mountDashboard(root, api, account, endSession) {
     load();
 
     return () => {
-        for (const module of [review, clinics, contracts, treatments, support]) {
+        for (const module of [review, clinics, contracts, treatments, patients, support]) {
             module.stop();
         }
         services.close();

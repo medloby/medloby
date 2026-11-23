@@ -6,7 +6,7 @@
     <p class="mt-3 text-sm text-slate-600 dark:text-slate-300" data-admin-clinic-status role="status" hidden></p>
 
     <section class="mt-4 grid gap-4" data-admin-clinic-directory>
-        <form class="grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,12rem)_auto]" data-admin-clinic-filters>
+        <form class="grid items-end gap-3 sm:grid-cols-2" data-admin-clinic-filters>
             <label class="offer-field">Klinik adı
                 <input type="search" name="search" class="offer-control" maxlength="120">
             </label>
@@ -19,7 +19,19 @@
                     <option value="rejected">Reddedildi</option>
                 </select>
             </label>
-            <button type="submit" class="offer-button">Ara</button>
+            <label class="offer-field">İl
+                <input type="search" name="city" class="offer-control" maxlength="120">
+            </label>
+            <label class="offer-field">Üyelik planı
+                <select name="plan" class="offer-control">
+                    <option value="">Tüm planlar</option>
+                    @foreach (\App\Models\Business::MEMBERSHIP_PLANS as $code => $label)
+                        <option value="{{ $code }}">{{ $label }}</option>
+                    @endforeach
+                    <option value="unselected">Plan seçilmedi</option>
+                </select>
+            </label>
+            <button type="submit" class="offer-button justify-self-start">Ara</button>
         </form>
         <div data-admin-clinic-directory-list>
             @include('clinic-administration-list', ['paginationLabel' => 'Klinik sayfaları'])

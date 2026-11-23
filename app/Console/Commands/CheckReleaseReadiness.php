@@ -5,27 +5,24 @@ namespace App\Console\Commands;
 use App\Models\PlatformContract;
 use App\Models\User;
 use App\Services\PrivacyPublication;
+use App\Services\ReleaseConfiguration;
 use FilesystemIterator;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 use Illuminate\Contracts\Encryption\Encrypter;
-use Illuminate\Database\Migrations\Migrator;
 use Illuminate\Foundation\Vite;
 use Illuminate\Foundation\ViteFonts;
-use Illuminate\Support\ConfigurationUrlParser;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Throwable;
 
 #[Signature('medloby:release-check')]
 #[Description('Medloby’nin yayın öncesi teknik ayarlarını kontrol et')]
 final class CheckReleaseReadiness extends Command
 {
-    public function handle(PrivacyPublication $privacy, Vite $vite): int
+    public function handle(PrivacyPublication $privacy, Vite $vite, ReleaseConfiguration $release): int
     {
-        $databaseReady = $this->probe(fn (): bool => DB::connection()->selectOne('select 1', useReadPdo: false) !== null);
-        $schemaReady = $databaseReady ? $this->probe(fn (): bool => $this->migrationsReady(app('migrator'))) : null;
+        $databaseReady = $this->probe($release->databaseReady(...));
+        $schemaReady = $databaseReady ? $this->probe(fn (): bool => $release->migrationsReady(app('migrator'))) : null;
         $administratorReady = $schemaReady ? $this->probe(fn (): bool => User::query()->useWritePdo()
             ->where('is_admin', true)->whereNotNull('email')->whereNotNull('email_verified_at')->exists()) : null;
         $contractReady = $schemaReady ? $this->probe(fn (): bool => PlatformContract::query()->useWritePdo()
@@ -54,9 +51,9 @@ final class CheckReleaseReadiness extends Command
             ['İşletmeci iletişim bilgileri ve KVKK yayını', $privacy->isPublished()
                 && $privacy->email('support_email') !== null && $privacy->email('editor_email') !== null,
                 'Onaylı işletmeci bilgilerini, iletişim adreslerini ve KVKK yayını ayarını doğrulayın.'],
-            ['Arka plan kuyruğu ayarı', $this->probe(fn (): bool => $this->queueReady()),
+            ['Arka plan kuyruğu ayarı', $this->probe($release->queueReady(...)),
                 'Kuyruk bağlantısını ve veritabanı kuyruğu kullanılıyorsa iş tablosunu doğrulayın.'],
-            ['SMTP ve gönderen ayarı', $this->probe(fn (): bool => $this->mailReady()),
+            ['SMTP ve gönderen ayarı', $this->probe($release->mailReady(...)),
                 'SMTP sunucusunu, portunu ve yetkili gönderen adresini ayarlayın.'],
         ];
 
@@ -215,47 +212,5 @@ final class CheckReleaseReadiness extends Command
         }
 
         return false;
-    }
-
-    private function migrationsReady(Migrator $migrator): bool
-    {
-        if (! $migrator->repositoryExists()) {
-            return false;
-        }
-
-        $files = $migrator->getMigrationFiles([...$migrator->paths(), database_path('migrations')]);
-
-        return array_diff(array_keys($files), $migrator->getRepository()->getRan()) === [];
-    }
-
-    private function queueReady(): bool
-    {
-        $queue = config('queue.connections.'.config('queue.default'), []);
-        $driver = $queue['driver'] ?? null;
-        if (! in_array($driver, ['database', 'redis', 'sqs', 'beanstalkd'], true)) {
-            return false;
-        }
-
-        return $driver !== 'database' || Schema::connection($queue['connection'] ?? config('database.default'))
-            ->hasTable($queue['table'] ?? 'jobs');
-    }
-
-    private function mailReady(): bool
-    {
-        $mailer = config('mail.mailers.'.config('mail.default'), []);
-        if (($mailer['transport'] ?? null) !== 'smtp' || ! filter_var(config('mail.from.address'), FILTER_VALIDATE_EMAIL)) {
-            return false;
-        }
-
-        if (filled($mailer['url'] ?? null)) {
-            $mailer = (new ConfigurationUrlParser)->parseConfiguration($mailer);
-            if (($mailer['driver'] ?? null) !== 'smtp') {
-                return false;
-            }
-        }
-
-        return in_array($mailer['scheme'] ?? null, [null, 'smtp', 'smtps'], true)
-            && filled($mailer['host'] ?? null)
-            && filter_var($mailer['port'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 65535]]) !== false;
     }
 }

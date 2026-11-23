@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class AdminBusinessController extends Controller
@@ -51,12 +52,18 @@ class AdminBusinessController extends Controller
         $filters = $request->validate([
             'status' => ['sometimes', 'required', 'in:pending,active,suspended,rejected'],
             'search' => ['nullable', 'string', 'max:120'],
+            'city' => ['nullable', 'string', 'max:120'],
+            'plan' => ['sometimes', 'required', Rule::in([...array_keys(Business::MEMBERSHIP_PLANS), 'unselected'])],
         ]);
         $businesses = Business::query()
             ->when(isset($filters['status']), fn ($query) => $query->where('status', $filters['status']))
             ->when(isset($filters['search']), fn ($query) => $query->whereLike('name', '%'.$filters['search'].'%'))
+            ->when(isset($filters['city']), fn ($query) => $query->whereLike('city', '%'.$filters['city'].'%'))
+            ->when(isset($filters['plan']), fn ($query) => $query->where('membership_plan', $filters['plan'] === 'unselected' ? null : $filters['plan']))
+            ->select(['id', 'name', 'status', 'city', 'district', 'membership_plan'])
+            ->withCount(['branches', 'branches as active_branches_count' => fn ($query) => $query->where('status', 'active')])
             ->orderBy('name')->orderBy('id')
-            ->paginate(20, ['id', 'name', 'status', 'city', 'district', 'membership_plan'])
+            ->paginate(20)
             ->through($this->clinicWithPlan(...));
 
         return response()->json(['success' => true, 'data' => $businesses])->header('Cache-Control', 'private, no-store');

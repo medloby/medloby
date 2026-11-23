@@ -36,15 +36,42 @@ Mimari karar, platform yönetimini ayrı sayfada açmak ve mevcut yönetim diyal
 | FOCUSED TEST ve INTEGRATION TEST | Kimlik, rol, Türkiye saati sınırı, süre dolumu, veri gizliliği ve boş durumlar test edildi. Klinik, sözleşme, destek ve ilk kurulumla birlikte 124 ilgili test geçti. |
 | FULL REGRESSION ve FRONTEND BUILD | SQLite 1.075, PostgreSQL 17 1.078 test geçti. Üç yedekleme testi PostgreSQL üzerinde çalıştı. Vite ve Blade derlemeleri geçti. Chromium’da masaüstü ve mobil giriş, altı yönetim diyalogu, grafik tablosu ve yetkisiz giriş doğrulandı. [Yönetim testleri](tests/Feature/AdminDashboardTest.php) |
 | RESULT ve REMAINING RISKS | COMPLETE. Canlı ortam kabulü ve genişletilmiş rol yetkileri sonraki aşamada. |
-| COMMIT, PUSH STATUS ve NEXT GROUP | Yerel yönetim merkezi commit’i. GitHub gönderimi onay bekliyor. Sonraki güvenli işler klinik ve hasta yönetimiyle devam ediyor. |
+| COMMIT, PUSH STATUS ve NEXT GROUP | Yerel `4045328`. GitHub gönderimi onay bekliyor. Sonraki güvenli işler klinik ve hasta yönetimiyle devam ediyor. |
 
 ## ADMIN-G2 — Yönetici rolleri
 
 Durum **BLOCKED**. Kritik yetki geçişi onay gerektiriyor. Platform rolleri işletme üyeliği rollerinden bağımsız olacak. Yetkilendirme uçta yapılacak, yeni rollere açık izin dışındaki işlemler kapalı olacak. Mevcut ilk yönetici kurulumu korunacak. Geçiş planı mevcut yöneticilerin eşlenmesini, son üst yöneticiyi koruyan işlem kilidini ve atama/geri alma denetimini içerecek.
+
+## ADMIN-G3 — Klinik ve hasta hesabı yönetimi
+
+**PARTIAL.** Klinik dizinine il ve ücretsiz üyelik planı filtreleri ile kayıtlı şube sayıları eklendi. Yeni hasta hesabı ekranında hesap numarası ve adı, profil durumu, e-posta doğrulaması ve kayıt tarihi görünür. E-posta ile tam eşleşme üzerinden arama yapılabilir. Liste e-posta adresi, telefon ve sağlık alanlarını döndürmez. Hesaba bağlı destek geçmişi mevcut destek ekranında açılır. Klinik ruhsatı ve doğrulama ölçütleri ile işletme bazlı destek ilişkilendirmesi için ürün kararı açık. [Klinik yönetimi](app/Http/Controllers/AdminBusinessController.php) · [Hasta hesabı](app/Http/Controllers/AdminPatientAccountController.php) · [Gizlilik ve erişim testleri](tests/Feature/AdminPatientAccountTest.php)
+
+## ADMIN-G4 — Üyelik planları
+
+**PARTIAL.** Mevcut üç ücretsiz ve isteğe bağlı planın dağılımı ve klinik filtreleri modeldeki plan tanımlarını kullanır. Klinik plan seçimi klinik ve başvuru yönetiminde görülebilir. Planları değiştirme yetkisi ve bundan doğacak değişiklik geçmişi tanımlanmayı bekler. [Plan tanımları](app/Models/Business.php) · [Yönetim özeti testi](tests/Feature/AdminDashboardTest.php)
+
+## ADMIN-G5 — Platform analitiği ve finans
+
+**PARTIAL.** Panelde son 30 günde oluşturulan tekliflerin kayıtlı sonuçları, Türkiye takvimine göre randevular, randevusu bulunan klinik sayısı ve il dağılımı gösterilir. Bir kabul edilmiş teklifin aynı işletme ve hastaya ait birden fazla seansı tek dönüşüm sayılır. Teklif döneminde oluşturulma tarihi, randevu döneminde başlangıç tarihi kullanılır. [Analitik sorguları](app/Services/AdminDashboardMetrics.php) · [Dönüşüm testi](tests/Feature/AdminDashboardTest.php)
+
+Platform finansı **BLOCKED**. İleride finansal hareketler platformun kendi ödeme veya fatura kaynağına bağlanmalı. İşlem kaydı sağlayıcıdan gelen doğrulanabilir bir referans, tarih, tutar, para birimi ve işlem türü taşımalı. Şube gelir defteri klinik kapsamındadır. Uygulama kaynakları fiyatlandırma, faturalama ve hesaplama sözleşmesi onaylandığında bağlanacak. [Klinik defteri](app/Models/BranchLedgerEntry.php)
+
+## ADMIN-G6 — Destek, katalog ve uyum
+
+**PARTIAL.** Mevcut destek kuyruğunda hesap bağlantısı, ilk yanıt ve son kapanışa kadar geçen süre gösterilir. Süreler talep ve mesaj zamanlarından hesaplanır. Panel aktif tedavisi olan pasif kategorileri ve yayımdaki zorunlu klinik sözleşmesinin bitiş tarihini bildirir. İşlemler mevcut katalog ve sözleşme ekranlarında yapılır. Destek kategorileri, öncelikleri, atama ve denetim süreleri açık. Hukuki içerik onayı yayımdan önce yapılacak. [Destek](app/Http/Controllers/SupportTicketController.php) · [Panel uyarıları](app/Services/AdminDashboardMetrics.php)
+
+## ADMIN-G7 — Sistem durumu
+
+**PARTIAL.** Sistem ekranı uygulama erişimini, veritabanı ve şema durumunu, kuyruk ve e-posta yapılandırmasını ve varsa belirtilen yayın sürümünü gösterir. Yayın komutuyla aynı teknik denetimleri kullanır. İşçi, zamanlayıcı, teslimat ve son yedek doğrulaması için canlı ölçüm bulunmadığında **Bilinmiyor** gösterilir. [Sistem ölçümleri](app/Services/ReleaseConfiguration.php) · [Yayın kontrolü](app/Console/Commands/CheckReleaseReadiness.php)
+
+## ADMIN-G8 — Kabul
+
+Yerel kabul sonuçları son test çalıştırmasından sonra kaydedilir. Canlı ortam kabulü ve GitHub gönderimi kullanıcı onayı bekliyor.
 
 ## PRODUCT_DECISIONS_REQUIRED
 
 - Platform rol matrisi, kritik yetki atama ve geri alma, son üst yöneticinin korunması ve geçiş onayı.
 - Abonelik fiyatı ve para birimi, ödeme sağlayıcısı, komisyon, iade, vergi, fatura türü ve zorunlu ücretli plan kararı.
 - Sağlık verisinin işlenmesi, KVKK kabulü, kayıt saklama ve imha süreleri, hesap durdurma, silme ve dışa aktarma yetkisi.
+- İlk klinik ruhsat doğrulamasında aranacak belgeler ve destek talebinin işletmeyle nasıl ilişkilendirileceği.
 - Destek önceliği, atama, SLA süresi, otomatik kapanış ve denetim saklama politikası.

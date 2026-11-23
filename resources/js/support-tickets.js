@@ -1,4 +1,12 @@
 const statusLabels = { open: 'Açık', closed: 'Kapalı' };
+const elapsedNumber = new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 1 });
+
+function elapsed(seconds) {
+    if (seconds >= 3600) {
+        return elapsedNumber.format(seconds / 3600) + ' saat';
+    }
+    return elapsedNumber.format(seconds / 60) + ' dk.';
+}
 
 export function mountSupportTickets(dialog, trigger, { api, timeLabel }) {
     const find = (part, root = dialog) => root.querySelector('[data-support-' + part + ']');
@@ -16,6 +24,7 @@ export function mountSupportTickets(dialog, trigger, { api, timeLabel }) {
     let endpoint;
     let admin;
     let ticket;
+    let requester;
     let listPage = 1;
     let messagePage = 1;
     let request = 0;
@@ -61,7 +70,9 @@ export function mountSupportTickets(dialog, trigger, { api, timeLabel }) {
     }
 
     function ticketSummary(item) {
-        return [statusLabels[item.status], item.requester_name, timeLabel(item.updated_at)].filter(Boolean).join(' · ');
+        const response = Number.isFinite(item.first_response_seconds) ? 'İlk yanıt ' + elapsed(item.first_response_seconds) : '';
+        const resolution = Number.isFinite(item.resolution_seconds) ? 'Son kapanışa kadar ' + elapsed(item.resolution_seconds) : '';
+        return [statusLabels[item.status], item.requester_name, timeLabel(item.updated_at), response, resolution].filter(Boolean).join(' · ');
     }
 
     function ticketRow(item) {
@@ -84,6 +95,9 @@ export function mountSupportTickets(dialog, trigger, { api, timeLabel }) {
         const query = new URLSearchParams({ page });
         if (filter.value) {
             query.set('status', filter.value);
+        }
+        if (requester) {
+            query.set('requester_id', requester.id);
         }
         showView(overview);
         const result = await run('Destek talepleri yükleniyor…', () => api(endpoint + '?' + query));
@@ -135,6 +149,9 @@ export function mountSupportTickets(dialog, trigger, { api, timeLabel }) {
     function reset() {
         request++;
         ticket = undefined;
+        requester = undefined;
+        find('requester').textContent = '';
+        find('requester').hidden = true;
         listPage = 1;
         messagePage = 1;
         workspace.disabled = false;
@@ -150,12 +167,15 @@ export function mountSupportTickets(dialog, trigger, { api, timeLabel }) {
         showView(overview);
     }
 
-    function open(item = null) {
+    function open(item = null, relatedAccount = null) {
         if (!endpoint || dialog.open) {
             return;
         }
 
-        filter.value = admin ? 'open' : '';
+        requester = admin ? relatedAccount : null;
+        find('requester').textContent = requester ? requester.name + ' · Hesap #' + requester.id : '';
+        find('requester').hidden = !requester;
+        filter.value = admin && !requester ? 'open' : '';
         dialog.showModal();
         if (item) {
             renderTicket(item);
@@ -219,6 +239,7 @@ export function mountSupportTickets(dialog, trigger, { api, timeLabel }) {
 
     return {
         open,
+        openForAccount: (account) => open(null, account),
         fetchTicket,
         start(user) {
             admin = user.is_admin;

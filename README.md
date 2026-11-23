@@ -15,6 +15,8 @@ Uygulama mimarisi, tamamlanan işler, eksikler ve geliştirme sırası proje yol
 
 Medloby ve kilitli PHP paketleri için en düşük sürüm PHP 8.4.1’dir. GitHub Actions, PHP 8.4 serisinin güncel sürümü ve Node.js 24 ile derleme ve test yapar.
 
+Platform yöneticileri `/yonetim` üzerinden ayrı giriş yapar. **Sistem durumu** ekranında kurulu sürümü göstermek için dağıtımda `MEDLOBY_RELEASE_VERSION` ayarına Git commit kimliği veya sürüm etiketi girilebilir. [Yönetim envanteri](ADMIN-TAMAMLAMA.md)
+
 ## Medloby yayına çıkmadan önce
 
 - [ ] **Yayın ortamını hazırla.** Alan adını, HTTPS’i, uygulama sunucusunu ve veritabanını belirle. Web sunucusunun kökünü `public` dizinine yönelt. Üretim bağımlılıklarını `composer install --no-dev` ile kur ve arayüzü derle. Yayın ayarlarını ve gizli anahtarları sunucudan yönet. Şema güncellemelerini önce deneme veritabanında uygula ve `medloby:release-check` çıktısını doğrula. [Teknik kontrol](#yayın-öncesi-teknik-kontrol)

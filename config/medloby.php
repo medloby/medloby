@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'release_version' => env('MEDLOBY_RELEASE_VERSION'),
     'privacy_published' => env('MEDLOBY_PRIVACY_PUBLISHED', false),
 
     'operator' => [
