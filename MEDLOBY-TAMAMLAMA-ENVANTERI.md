@@ -364,6 +364,8 @@ Hosted CI kabulü için `main` üzerindeki teslim SHA’sına ait **Medloby CI**
 
 İlk teslimin 96 numaralı çalışması test ortamı hazırlanırken durdu. Temiz kurulumda boş `CACHE_LIMITER` değeri, Laravel’in adı boş bir önbellek deposu aramasına ve Artisan’ın açılmadan durmasına yol açtı. Boş değer uygulamanın varsayılan deposuna yönlendirildi. Bu davranış ayrı bir Artisan süreciyle sınanıyor. [İlk çalışma](https://github.com/medloby/medloby/actions/runs/45276241232) · [Regresyon testi](tests/Feature/ReleaseHardeningTest.php)
 
+Composer ve npm denetimleri ayrı GitHub Actions adımlarında izleniyor. 98 numaralı çalışmada Composer beş Symfony bileşeninde sekiz güvenlik duyurusu buldu. Resmî Packagist paket kayıtları eşleşmeleri doğruladı. `composer.lock` içinde HttpFoundation, HttpKernel, Routing ve Yaml 8.1.11’e, Mime 8.1.10’a güncellendi. [Güvenlik denetimi çalışması](https://github.com/medloby/medloby/actions/runs/45278158307)
+
 | Kapsam | Durum |
 | --- | --- |
 | Üretim kabulü | `PRODUCTION_ACCEPTANCE_PENDING`. Yetkili deneme ortamı, DNS/TLS, gerçek e-posta, üretim yedek geri dönüşü ve işletim onayları bekliyor. |
