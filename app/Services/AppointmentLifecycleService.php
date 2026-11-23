@@ -10,7 +10,6 @@ use App\Models\Doctor;
 use App\Models\Offer;
 use App\Models\User;
 use Carbon\Carbon;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
 
 class AppointmentLifecycleService
@@ -61,28 +60,11 @@ class AppointmentLifecycleService
 
         $doctor = $appointment->doctor;
         $treatment = $appointment->treatment;
-        $duration = $this->availabilityService->getDurationMinutes($doctor, $appointment->branch_id, $treatment);
-        if ($duration === null || $duration <= 0) {
-            return [];
-        }
-
-        $offer = $appointment->offer;
-        $otherSessions = $offer?->package_snapshot !== null
-            ? $this->otherPackageSessions($offer, $appointment)
-                ->where('starts_at', '<', $date->copy()->addDay()->startOfDay())
-                ->where('ends_at', '>', $date->copy()->startOfDay())
-                ->get(['starts_at', 'ends_at'])
-            : collect();
-
         $slots = $this->slotAvailabilityService->getAvailableSlots($doctor, $appointment->branch_id, $treatment, $date,
-            ignoreAppointmentId: $appointment->id);
+            ignoreAppointmentId: $appointment->id, patientProfileId: $appointment->patient_profile_id);
 
         return collect($slots)
-            ->reject(function (Carbon $start) use ($appointment, $otherSessions, $duration): bool {
-                $end = $start->copy()->addMinutes($duration);
-
-                return $start->equalTo($appointment->starts_at) || $otherSessions->contains(fn (Appointment $other): bool => $other->starts_at->lt($end) && $other->ends_at->gt($start));
-            })
+            ->reject(fn (Carbon $start): bool => $start->equalTo($appointment->starts_at))
             ->map(fn (Carbon $start): string => $start->toDateTimeString())->values()->all();
     }
 
@@ -368,8 +350,8 @@ class AppointmentLifecycleService
             $byPatient,
         ) {
             $offer = $appointment->offer_id ? Offer::query()->lockForUpdate()->find($appointment->offer_id) : null;
-            $packageOffer = $offer?->package_snapshot !== null ? $offer : null;
             $doctor = Doctor::query()->lockForUpdate()->find($appointment->doctor_id);
+            $this->availabilityService->lockPatient($appointment->patient_profile_id);
             $appointment = Appointment::query()->lockForUpdate()->findOrFail($appointment->id);
 
             if ($byPatient) {
@@ -429,12 +411,10 @@ class AppointmentLifecycleService
                 ->copy()
                 ->addMinutes($durationMinutes);
 
-            if ($packageOffer && $this->otherPackageSessions($packageOffer, $appointment)
-                ->where('starts_at', '<', $newEndsAt)
-                ->where('ends_at', '>', $newStartsAt)
-                ->exists()) {
-                throw new AppointmentRuleViolation('Paket randevularının saatleri çakışamaz.');
-            }
+            $this->availabilityService->ensurePatientAvailable(
+                $appointment->patient_profile_id, $newStartsAt, $newEndsAt, 'Seçilen yeni tarih ve saat için randevu müsait değil.',
+                ignoreAppointmentId: $appointment->id, packageOfferId: $offer?->package_snapshot !== null ? $offer->id : null,
+            );
 
             $oldStatus = $appointment->status;
 
@@ -505,10 +485,5 @@ class AppointmentLifecycleService
             ->notifyAppointmentRescheduled($newAppointment, $byPatient);
 
         return $newAppointment;
-    }
-
-    private function otherPackageSessions(Offer $offer, Appointment $appointment): HasMany
-    {
-        return $offer->appointments()->where('id', '!=', $appointment->id)->whereIn('status', ['pending', 'confirmed']);
     }
 }

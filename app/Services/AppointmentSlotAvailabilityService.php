@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Appointment;
 use App\Models\BranchAppointmentSetting;
 use App\Models\Doctor;
 use App\Models\Treatment;
@@ -39,7 +40,8 @@ class AppointmentSlotAvailabilityService
         Carbon $date,
         ?int $slotIntervalMinutes = null,
         bool $requireOnlineBookable = true,
-        ?int $ignoreAppointmentId = null
+        ?int $ignoreAppointmentId = null,
+        ?int $patientProfileId = null,
     ): array {
         $settings = BranchAppointmentSetting::query()
             ->where('branch_id', $branchId)
@@ -149,6 +151,39 @@ class AppointmentSlotAvailabilityService
             fn (Carbon $a, Carbon $b) => $a->timestamp <=> $b->timestamp
         );
 
-        return $slots;
+        return $this->excludePatientConflicts($slots, $doctor, $branchId, $treatment, $patientProfileId, $ignoreAppointmentId);
+    }
+
+    /**
+     * @param  list<Carbon>  $slots  Chronological slots returned by getAvailableSlots
+     * @return list<Carbon>
+     */
+    public function excludePatientConflicts(
+        array $slots,
+        Doctor $doctor,
+        int $branchId,
+        Treatment $treatment,
+        ?int $patientProfileId,
+        ?int $ignoreAppointmentId = null,
+    ): array {
+        if ($patientProfileId === null || $slots === []) {
+            return $slots;
+        }
+
+        $duration = $this->availabilityService->getDurationMinutes($doctor, $branchId, $treatment);
+        if ($duration === null || $duration <= 0) {
+            return [];
+        }
+
+        $occupied = Appointment::query()->useWritePdo()->where('patient_profile_id', $patientProfileId)
+            ->scheduledOverlapping($slots[0], $slots[array_key_last($slots)]->copy()->addMinutes($duration), $ignoreAppointmentId)
+            ->get(['starts_at', 'ends_at']);
+
+        return array_values(array_filter($slots, function (Carbon $start) use ($duration, $occupied): bool {
+            $end = $start->copy()->addMinutes($duration);
+
+            return ! $occupied->contains(fn (Appointment $appointment): bool => $appointment->starts_at->lt($end)
+                && $appointment->ends_at->gt($start));
+        }));
     }
 }

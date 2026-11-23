@@ -31,6 +31,8 @@ class AppointmentService
 
             $doctor = Doctor::query()
                 ->lockForUpdate()->find($data['doctor_id'] ?? null);
+            $patientProfileId = isset($data['patient_profile_id']) ? (int) $data['patient_profile_id'] : null;
+            $this->availabilityService->lockPatient($patientProfileId);
 
             $branch = Branch::query()->where('business_id', $data['business_id'])->find($data['branch_id']);
             if (! $branch || $branch->status !== 'active' || ! $branch->business?->allowsCrmAccess()) {
@@ -82,6 +84,9 @@ class AppointmentService
                     'Seçilen tarih ve saat için randevu uygun değil.'
                 );
             }
+            $this->availabilityService->ensurePatientAvailable(
+                $patientProfileId, $startsAt, $endsAt, 'Seçilen tarih ve saat için randevu uygun değil.',
+            );
 
             $status = $data['status'] ?? ($source === 'medloby' && $requireOnlineBookable
                 ? BranchAppointmentSetting::initialStatusForOnlineBooking($branch->id)
@@ -90,7 +95,7 @@ class AppointmentService
             $appointmentData = [
                 'business_id' => $data['business_id'],
                 'branch_id' => $data['branch_id'],
-                'patient_profile_id' => $data['patient_profile_id'] ?? null,
+                'patient_profile_id' => $patientProfileId,
                 'doctor_id' => $data['doctor_id'],
                 'treatment_id' => $data['treatment_id'],
                 'starts_at' => $startsAt,

@@ -131,3 +131,25 @@ test('the waiting list rejects dates outside booking settings and dates with ava
     $this->postJson($booking.'/waiting-list', $selection)->assertUnprocessable()->assertJsonValidationErrors('date');
     $this->assertDatabaseCount('waiting_lists', 0);
 });
+
+test('the waiting list saves its notification until the open time fits the patients schedule', function () {
+    $this->travelTo(Carbon::parse('2026-12-01 00:00:00', 'UTC'));
+    [, $appointment, $booking, $selection] = waitingListBookingFixture();
+    $patient = waitingListPatient();
+    $otherBranch = Branch::factory()->create();
+    $otherAppointment = $patient->patientProfile->appointments()->create([
+        'business_id' => $otherBranch->business_id, 'branch_id' => $otherBranch->id, 'status' => 'pending',
+        'starts_at' => '2026-12-04 09:00:00', 'ends_at' => '2026-12-04 09:30:00',
+    ]);
+    $id = $this->actingAs($patient, 'sanctum')->postJson($booking.'/waiting-list', $selection)->assertCreated()->json('data.id');
+    $appointment->update(['status' => 'cancelled']);
+
+    $this->artisan('medloby:notify-waiting-list')->assertSuccessful();
+    $this->assertDatabaseCount('notifications', 0);
+    $this->assertDatabaseHas('waiting_lists', ['id' => $id, 'status' => 'waiting']);
+
+    $otherAppointment->update(['status' => 'cancelled']);
+    $this->artisan('medloby:notify-waiting-list')->assertSuccessful();
+    $this->assertDatabaseCount('notifications', 1);
+    $this->assertDatabaseHas('waiting_lists', ['id' => $id, 'status' => 'notified']);
+});

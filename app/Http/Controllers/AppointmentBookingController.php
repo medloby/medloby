@@ -299,7 +299,10 @@ class AppointmentBookingController extends Controller
                     'id' => $doctor->id,
                     'name' => trim($doctor->person->first_name.' '.$doctor->person->last_name),
                     'specialty' => $doctor->specialty,
-                    'slots' => collect($availability->getAvailableSlots($doctor, $branchId, $treatment, $date, requireOnlineBookable: ! $clinicBranch))
+                    'slots' => collect($availability->getAvailableSlots(
+                        $doctor, $branchId, $treatment, $date,
+                        requireOnlineBookable: ! $clinicBranch, patientProfileId: $clinicBranch ? null : $offer->patient_profile_id,
+                    ))
                         ->map(fn (Carbon $slot) => $slot->toDateTimeString())
                         ->values()->all(),
                 ])

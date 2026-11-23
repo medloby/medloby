@@ -2,10 +2,12 @@
 
 namespace App\Services;
 
+use App\Exceptions\AppointmentRuleViolation;
 use App\Models\Appointment;
 use App\Models\BranchAppointmentSetting;
 use App\Models\CalendarBlock;
 use App\Models\Doctor;
+use App\Models\PatientProfile;
 use App\Models\Treatment;
 use Carbon\Carbon;
 use Closure;
@@ -29,6 +31,32 @@ class AppointmentAvailabilityService
 
             return $book();
         }, 3);
+    }
+
+    public function lockPatient(?int $patientProfileId): void
+    {
+        // Serialize bookings for the same patient even when they involve different doctors.
+        if ($patientProfileId !== null) {
+            PatientProfile::query()->lockForUpdate()->findOrFail($patientProfileId, ['id']);
+        }
+    }
+
+    public function ensurePatientAvailable(
+        ?int $patientProfileId,
+        Carbon $startsAt,
+        Carbon $endsAt,
+        string $message,
+        ?int $ignoreAppointmentId = null,
+        ?int $packageOfferId = null,
+    ): void {
+        $overlaps = Appointment::query()->useWritePdo()
+            ->scheduledOverlapping($startsAt, $endsAt, $ignoreAppointmentId);
+        if ($packageOfferId !== null && (clone $overlaps)->where('offer_id', $packageOfferId)->exists()) {
+            throw new AppointmentRuleViolation('Paket randevularının saatleri çakışamaz.');
+        }
+        if ($patientProfileId !== null && $overlaps->where('patient_profile_id', $patientProfileId)->exists()) {
+            throw new AppointmentRuleViolation($message);
+        }
     }
 
     /**

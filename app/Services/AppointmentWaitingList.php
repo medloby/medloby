@@ -49,7 +49,7 @@ final class AppointmentWaitingList
     public function join(PatientProfile $patient, Branch $branch, Doctor $doctor, Treatment $treatment, Carbon $date): WaitingList
     {
         return $this->booking->runBookingTransaction(function () use ($patient, $branch, $doctor, $treatment, $date): WaitingList {
-            PatientProfile::query()->lockForUpdate()->findOrFail($patient->id);
+            $this->booking->lockPatient($patient->id);
 
             $existing = $this->pendingRequest($patient, $branch, $doctor, $treatment, $date);
             if ($existing) {
@@ -90,12 +90,17 @@ final class AppointmentWaitingList
                 ]));
 
                 foreach ($groups as $group) {
-                    if (! $this->hasAvailableSlot($group->first())) {
+                    $slots = $this->availableSlots($group->first());
+                    if ($slots === []) {
                         continue;
                     }
 
                     foreach ($group as $request) {
-                        $sent += (int) $this->notifyPatient($request);
+                        if ($this->availability->excludePatientConflicts(
+                            $slots, $request->doctor, $request->branch_id, $request->treatment, $request->patient_profile_id,
+                        ) !== []) {
+                            $sent += (int) $this->notifyPatient($request);
+                        }
                     }
                 }
             });
@@ -103,17 +108,18 @@ final class AppointmentWaitingList
         return $sent;
     }
 
-    private function hasAvailableSlot(WaitingList $request): bool
+    /** @return list<Carbon> */
+    private function availableSlots(WaitingList $request): array
     {
         $doctor = $request->doctor;
         $treatment = $request->treatment;
 
-        return $request->branch !== null
-            && $this->canWait($request->branch, $request->preferred_date)
-            && $doctor?->is_public
-            && $doctor->person?->business_id === $request->business_id
-            && $treatment?->is_active
-            && $this->availability->getAvailableSlots($doctor, $request->branch_id, $treatment, $request->preferred_date) !== [];
+        if ($request->branch === null || ! $this->canWait($request->branch, $request->preferred_date)
+            || ! $doctor?->is_public || $doctor->person?->business_id !== $request->business_id || ! $treatment?->is_active) {
+            return [];
+        }
+
+        return $this->availability->getAvailableSlots($doctor, $request->branch_id, $treatment, $request->preferred_date);
     }
 
     private function notifyPatient(WaitingList $request): bool

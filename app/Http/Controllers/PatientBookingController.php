@@ -64,11 +64,12 @@ class PatientBookingController extends Controller
         $branch = Branch::query()->bookableOnline()->findOrFail($branch);
         [$treatment, $doctor] = $this->selection($branch, (int) $data['treatment_id'], (int) $data['doctor_id']);
         $date = Carbon::parse($data['date']);
-        $slots = $availability->getAvailableSlots($doctor, $branch->id, $treatment, $date);
+        $clinicSlots = $availability->getAvailableSlots($doctor, $branch->id, $treatment, $date);
+        $slots = $availability->excludePatientConflicts($clinicSlots, $doctor, $branch->id, $treatment, $patient->id);
 
         return $this->data([
             'slots' => array_map(fn (Carbon $slot): string => $slot->toDateTimeString(), $slots),
-            'can_wait' => $slots === [] && $waitingList->canWait($branch, $date),
+            'can_wait' => $clinicSlots === [] && $waitingList->canWait($branch, $date),
             'waiting_list_id' => $waitingList->pendingRequest($patient, $branch, $doctor, $treatment, $date)?->id,
         ]);
     }

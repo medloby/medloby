@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -41,6 +42,19 @@ class Appointment extends Model
     ];
 
     protected $hidden = ['reminded_at'];
+
+    #[Scope]
+    protected function scheduledOverlapping(
+        Builder $query,
+        Carbon $startsAt,
+        Carbon $endsAt,
+        ?int $ignoreAppointmentId = null,
+    ): Builder {
+        return $query->whereIn('status', ['pending', 'confirmed'])
+            ->where('starts_at', '<', $endsAt)
+            ->where('ends_at', '>', $startsAt)
+            ->when($ignoreAppointmentId !== null, fn (Builder $query) => $query->whereKeyNot($ignoreAppointmentId));
+    }
 
     protected function casts(): array
     {

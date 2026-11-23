@@ -44,6 +44,7 @@ class AppointmentBookingService
                 $offer = Offer::query()->lockForUpdate()->findOrFail($offer->id);
             }
             $doctor = Doctor::query()->lockForUpdate()->findOrFail($doctor->id);
+            $this->availabilityService->lockPatient($patient->id);
             if ($offer) {
                 if ($offer->package_snapshot !== null) {
                     throw new AppointmentRuleViolation('Paket randevuları birlikte oluşturulmalıdır.');
@@ -119,6 +120,10 @@ class AppointmentBookingService
                 'Seçilen tarih ve saat için randevu müsait değil.'
             );
         }
+        $this->availabilityService->ensurePatientAvailable(
+            $patient->id, $startsAt, $endsAt, 'Seçilen tarih ve saat için randevu müsait değil.',
+            packageOfferId: $offer?->package_snapshot !== null ? $offer->id : null,
+        );
 
         $appointment = Appointment::create([
             'business_id' => $businessId,
@@ -195,11 +200,12 @@ class AppointmentBookingService
             if (! $patient) {
                 throw new AppointmentRuleViolation('Teklife bağlı hasta profili bulunamadı.');
             }
+            $this->availabilityService->lockPatient($patient->id);
 
             $status = $clinicUserId === null ? BranchAppointmentSetting::initialStatusForOnlineBooking($branchId) : 'pending';
             $appointments = [];
             foreach ($sessions as $session) {
-                $appointment = $this->createBooking(
+                $appointments[] = $this->createBooking(
                     $offer->business_id,
                     $branchId,
                     $patient,
@@ -213,15 +219,6 @@ class AppointmentBookingService
                     offer: $offer,
                     changedBy: $clinicUserId,
                 );
-
-                foreach ($appointments as $previous) {
-                    if ($appointment->starts_at->lt($previous->ends_at)
-                        && $appointment->ends_at->gt($previous->starts_at)) {
-                        throw new AppointmentRuleViolation('Paket randevularının saatleri çakışamaz.');
-                    }
-                }
-
-                $appointments[] = $appointment;
             }
 
             return $appointments;

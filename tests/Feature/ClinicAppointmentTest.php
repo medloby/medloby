@@ -344,6 +344,64 @@ test('an appointment status stays pending when its status history cannot be save
     Exceptions::assertReported(QueryException::class);
 });
 
+test('package booking and rescheduling respect a patients other active appointments', function () {
+    $this->travelTo(Carbon::parse('2026-12-01 00:00:00', 'UTC'));
+    [$business, $owner, $branch, , $doctor, $treatment, $calendar] = clinicAppointmentFixture();
+    $doctor->update(['is_public' => true]);
+    $branch->treatments()->updateExistingPivot($treatment->id, ['is_online_bookable' => true]);
+    $branch->appointmentSetting()->update(['online_booking_enabled' => true]);
+    $patientUser = User::factory()->create();
+    $patient = $patientUser->patientProfile()->create(['first_name' => 'Deneme', 'last_name' => 'Hastası']);
+    $conversation = $patient->conversations()->create(['business_id' => $business->id, 'branch_id' => $branch->id]);
+    $offer = $conversation->offers()->create([
+        'business_id' => $business->id, 'branch_id' => $branch->id, 'patient_profile_id' => $patient->id,
+        'created_by' => $owner->id, 'title' => 'İki seanslık paket', 'status' => 'accepted', 'amount' => 100,
+        'package_snapshot' => ['branch_id' => $branch->id, 'treatments' => [['treatment_id' => $treatment->id, 'quantity' => 2]]],
+    ]);
+    $otherClinic = Branch::factory()->create();
+    $otherDoctor = Doctor::factory()->for(Person::factory()->for($otherClinic->business)->for($otherClinic))->create();
+    $patient->appointments()->create([
+        'business_id' => $otherClinic->business_id, 'branch_id' => $otherClinic->id, 'doctor_id' => $otherDoctor->id,
+        'status' => 'confirmed', 'starts_at' => '2026-12-04 10:00:00', 'ends_at' => '2026-12-04 10:30:00',
+        'notes' => 'Özel klinik notu',
+    ]);
+    $session = ['treatment_id' => $treatment->id, 'doctor_id' => $doctor->id, 'starts_at' => '2026-12-04 09:00:00'];
+    $conflicting = [...$session, 'starts_at' => '2026-12-04 10:00:00'];
+    $selections = ['branch_id' => $branch->id, 'treatment_id' => $treatment->id, 'date' => '2026-12-04'];
+    $bookPackage = '/api/offers/'.$offer->id.'/appointments';
+    $bookVisit = '/api/patient/appointments/booking-branches/'.$branch->id;
+
+    $this->actingAs($owner, 'sanctum')->postJson($calendar.'/package-offers/'.$offer->id.'/appointments', [
+        'sessions' => [$session, $conflicting],
+    ])->assertUnprocessable()->assertJsonPath('message', 'Seçilen tarih ve saat için randevu müsait değil.')
+        ->assertDontSee($otherClinic->name)->assertDontSee('Özel klinik notu');
+    $this->assertDatabaseCount('appointments', 1);
+    $this->assertDatabaseCount('appointment_status_histories', 0);
+
+    $this->actingAs($patientUser, 'sanctum');
+    $offerSlots = $this->getJson($bookPackage.'/options?'.http_build_query($selections))->assertOk()->json('data.doctors.0.slots');
+    expect($offerSlots)->toContain('2026-12-04 10:30:00')->not->toContain('2026-12-04 10:00:00');
+    $visitSlots = $this->getJson($bookVisit.'/slots?'.http_build_query($selections + ['doctor_id' => $doctor->id]))
+        ->assertOk()->json('data.slots');
+    expect($visitSlots)->toContain('2026-12-04 10:30:00')->not->toContain('2026-12-04 10:00:00');
+    $this->postJson($bookVisit, $conflicting)->assertUnprocessable();
+
+    $appointments = $this->postJson($bookPackage, [
+        'branch_id' => $branch->id, 'sessions' => [$session, [...$session, 'starts_at' => '2026-12-04 10:30:00']],
+    ])->assertCreated()->assertJsonCount(2, 'data.appointments')->json('data.appointments');
+    $reschedule = '/api/patient/appointments/'.$appointments[0]['id'];
+    $moveSlots = $this->getJson($reschedule.'/reschedule-options?date=2026-12-04')->assertOk()->json('data.slots');
+    expect($moveSlots)->toContain('2026-12-04 09:30:00')->not->toContain('2026-12-04 10:00:00');
+    $this->postJson($reschedule.'/reschedule', ['starts_at' => $conflicting['starts_at']])
+        ->assertUnprocessable();
+    $this->getJson('/api/patient/appointments')->assertOk()->assertJsonCount(3, 'data.appointments');
+
+    $this->actingAs($owner, 'sanctum')->getJson($calendar.'?date=2026-12-04')
+        ->assertOk()->assertJsonCount(2, 'data.appointments');
+    $this->assertDatabaseCount('appointments', 3);
+    $this->assertDatabaseCount('appointment_status_histories', 2);
+});
+
 test('patients can move and cancel their own package session from the offered schedule', function () {
     $this->travelTo(Carbon::parse('2026-12-01 00:00:00', 'UTC'));
     Notification::fake();
