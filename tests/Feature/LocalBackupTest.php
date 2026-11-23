@@ -139,3 +139,52 @@ test('backup refuses linked files that are missing and destinations served by th
         ->expectsOutput('Yedekleme ve geri yükleme için kaynak ve web dizinlerinin dışında bir hedef seçin.')->assertFailed();
     expect(File::exists($publicDisk.'/restored'))->toBeFalse();
 });
+
+test('backup and restore refuse targets exposed through web directory links', function (bool $linkTargetExists) {
+    $web = $this->directory.'/web';
+    $exports = $this->directory.'/exports';
+    $backup = $this->directory.'/backup';
+    $target = $exports.'/archive';
+    File::makeDirectory($web);
+    File::makeDirectory($exports);
+    app()->usePublicPath($web);
+    $this->artisan('medloby:backup', ['destination' => $backup])->assertSuccessful();
+
+    File::link($linkTargetExists ? $exports : '../exports/archive/storage/app/private', $web.'/published');
+
+    $this->artisan('medloby:backup', ['destination' => $target])
+        ->expectsOutput('Yedekleme ve geri yükleme için kaynak ve web dizinlerinin dışında bir hedef seçin.')->assertFailed();
+    $this->artisan('medloby:restore', ['backup' => $backup, 'destination' => $target])
+        ->expectsOutput('Yedekleme ve geri yükleme için kaynak ve web dizinlerinin dışında bir hedef seçin.')->assertFailed();
+    expect(File::exists($target))->toBeFalse();
+})->with(['published parent directory' => true, 'future published child directory' => false])
+    ->skip(PHP_OS_FAMILY === 'Windows', 'Bu senaryo POSIX sembolik bağlantısı gerektirir.');
+
+test('SQLite backup and restore refuse a snapshot with broken record relationships', function (string $operation) {
+    $attachment = createLocalBackupAttachment(User::factory()->create());
+    Storage::disk('private')->put($attachment->path, 'Deneme dosya');
+    $backup = $this->directory.'/backup';
+    $target = $this->directory.'/target';
+    if ($operation === 'restore') {
+        $this->artisan('medloby:backup', ['destination' => $backup])->assertSuccessful();
+    }
+
+    $database = $operation === 'restore' ? $backup.'/database.sqlite' : $this->directory.'/source.sqlite';
+    $sqlite = new PDO('sqlite:'.$database);
+    $sqlite->exec('PRAGMA foreign_keys = OFF');
+    $statement = $sqlite->prepare('UPDATE message_attachments SET message_id = 0 WHERE id = ?');
+    $statement->execute([$attachment->id]);
+    unset($statement, $sqlite);
+
+    $arguments = ['destination' => $target];
+    if ($operation === 'restore') {
+        $manifest = json_decode(File::get($backup.'/manifest.json'), true, flags: JSON_THROW_ON_ERROR);
+        $manifest['sha256']['database.sqlite'] = hash_file('sha256', $database);
+        File::put($backup.'/manifest.json', json_encode($manifest, JSON_THROW_ON_ERROR));
+        $arguments['backup'] = $backup;
+    }
+
+    $this->artisan('medloby:'.$operation, $arguments)
+        ->expectsOutput('SQLite yedeğinde karşılığı olmayan kayıt ilişkileri bulundu.')->assertFailed();
+    expect(File::exists($target))->toBeFalse();
+})->with(['backup', 'restore']);

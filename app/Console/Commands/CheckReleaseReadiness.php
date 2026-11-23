@@ -5,9 +5,9 @@ namespace App\Console\Commands;
 use App\Models\PlatformContract;
 use App\Models\User;
 use App\Services\PrivacyPublication;
+use App\Services\PublicFileExposure;
 use App\Services\PublicWebsite;
 use App\Services\ReleaseConfiguration;
-use FilesystemIterator;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -22,8 +22,13 @@ use Throwable;
 #[Description('Medloby’nin yayın öncesi teknik ayarlarını kontrol et')]
 final class CheckReleaseReadiness extends Command
 {
-    public function handle(PrivacyPublication $privacy, Vite $vite, ReleaseConfiguration $release, PublicWebsite $website): int
-    {
+    public function handle(
+        PrivacyPublication $privacy,
+        Vite $vite,
+        ReleaseConfiguration $release,
+        PublicWebsite $website,
+        PublicFileExposure $publicFiles,
+    ): int {
         $databaseReady = $this->probe($release->databaseReady(...));
         $schemaReady = $databaseReady ? $this->probe(fn (): bool => $release->migrationsReady(app('migrator'))) : null;
         $administratorReady = $schemaReady ? $this->probe(fn (): bool => User::query()->useWritePdo()
@@ -48,7 +53,7 @@ final class CheckReleaseReadiness extends Command
                 'Dağıtım ortamındaki APP_KEY değerini doğrulayın.'],
             ['Derlenmiş arayüz dosyaları', $this->probe(fn (): bool => $this->assetsReady($vite)),
                 'Vite yayın derlemesini oluşturun ve yazı tipi bildirimi dahil public/build dizinini dağıtıma ekleyin.'],
-            ['Özel dosya dizini', $this->probe(fn (): bool => $this->privateStorageReady($databaseReady)),
+            ['Özel dosya dizini', $this->probe(fn (): bool => $this->privateStorageReady($databaseReady, $publicFiles)),
                 'Özel dosya izinlerini, web dizinindeki bağlantıları ve rota önbelleğini doğrulayın. Gizli dosyaları ve yedekleri web kökü dışında saklayın.'],
             ['Veritabanı bağlantısı', $databaseReady, 'Dağıtım ortamındaki veritabanı bağlantısını kontrol edin.'],
             ['Veritabanı şeması', $schemaReady, $databaseReady ? 'Bekleyen migration kayıtlarını kontrol edin.' : 'Veritabanı bağlantısı doğrulanınca kontrol edilir.'],
@@ -172,7 +177,7 @@ final class CheckReleaseReadiness extends Command
             && is_file($path) && is_readable($path);
     }
 
-    private function privateStorageReady(bool $databaseReady): bool
+    private function privateStorageReady(bool $databaseReady, PublicFileExposure $publicFiles): bool
     {
         foreach (['local', 'private'] as $disk) {
             if (Route::has('storage.'.$disk) || Route::has('storage.'.$disk.'.upload')) {
@@ -209,46 +214,7 @@ final class CheckReleaseReadiness extends Command
             }
         }
 
-        return ! $this->publicPathsExposeSensitiveFiles($public, $protectedPaths);
-    }
-
-    /** @param list<string> $protectedPaths */
-    private function publicPathsExposeSensitiveFiles(string $public, array $protectedPaths): bool
-    {
-        $protectedPrefixes = array_map(fn (string $path): string => rtrim(realpath($path) ?: $path, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR, $protectedPaths);
-        $pending = [$public];
-        $visited = [];
-
-        while ($pending !== []) {
-            $path = realpath(array_pop($pending));
-            if ($path === false || isset($visited[$path])) {
-                continue;
-            }
-            $visited[$path] = true;
-
-            $pathPrefix = rtrim($path, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
-            foreach ($protectedPrefixes as $protectedPrefix) {
-                if (str_starts_with($pathPrefix, $protectedPrefix) || str_starts_with($protectedPrefix, $pathPrefix)) {
-                    return true;
-                }
-            }
-
-            if ($this->hasSensitivePublicName(basename($path))) {
-                return true;
-            }
-            if (is_dir($path)) {
-                foreach (new FilesystemIterator($path, FilesystemIterator::SKIP_DOTS) as $entry) {
-                    if ($this->hasSensitivePublicName($entry->getFilename())) {
-                        return true;
-                    }
-                    if ($entry->isLink() || $entry->isDir()) {
-                        $pending[] = $entry->getPathname();
-                    }
-                }
-            }
-        }
-
-        return false;
+        return ! $publicFiles->exposes([$public], $protectedPaths, $this->hasSensitivePublicName(...));
     }
 
     private function hasSensitivePublicName(string $name): bool

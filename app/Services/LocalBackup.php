@@ -23,7 +23,10 @@ final class LocalBackup
 
     private const string POSTGRES_FILE = 'database.dump';
 
-    public function __construct(private readonly Filesystem $files) {}
+    public function __construct(
+        private readonly Filesystem $files,
+        private readonly PublicFileExposure $publicFiles,
+    ) {}
 
     public function create(string $destination): string
     {
@@ -210,13 +213,14 @@ final class LocalBackup
         }
 
         $target = rtrim($parent, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.basename($destination);
-        $roots = [public_path(), (string) config('filesystems.disks.public.root'), $this->privateRoot(), ...$excludedRoots];
-        foreach (array_filter($roots) as $root) {
-            $root = realpath($root) ?: $root;
-            $root = rtrim($root, DIRECTORY_SEPARATOR);
-            if ($target === $root || str_starts_with($target, $root.DIRECTORY_SEPARATOR)) {
-                throw new RuntimeException('Yedekleme ve geri yükleme için kaynak ve web dizinlerinin dışında bir hedef seçin.');
-            }
+        $insideSource = array_any([$this->privateRoot(), ...$excludedRoots], static function (string $root) use ($target): bool {
+            $root = rtrim(realpath($root) ?: $root, DIRECTORY_SEPARATOR);
+
+            return $target === $root || str_starts_with($target, $root.DIRECTORY_SEPARATOR);
+        });
+        $publicRoots = array_filter([public_path(), (string) config('filesystems.disks.public.root')]);
+        if ($insideSource || $this->publicFiles->exposes($publicRoots, [$target])) {
+            throw new RuntimeException('Yedekleme ve geri yükleme için kaynak ve web dizinlerinin dışında bir hedef seçin.');
         }
         if (! $this->files->makeDirectory($target, 0700, force: true)) {
             throw new RuntimeException('Hedef dizin mevcut veya oluşturulamıyor.');
@@ -308,6 +312,9 @@ final class LocalBackup
         ]);
         if ($database->query('PRAGMA integrity_check')->fetchAll(PDO::FETCH_COLUMN) !== ['ok']) {
             throw new RuntimeException('SQLite bütünlük kontrolü başarısız.');
+        }
+        if ($database->query('PRAGMA foreign_key_check')->fetchColumn() !== false) {
+            throw new RuntimeException('SQLite yedeğinde karşılığı olmayan kayıt ilişkileri bulundu.');
         }
 
         $this->validateAttachments($database->query('SELECT disk, path FROM message_attachments', PDO::FETCH_OBJ), $checksums, $disks);

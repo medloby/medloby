@@ -75,7 +75,7 @@ php artisan medloby:backup "$backup_root/backup" --no-interaction
 php artisan medloby:restore "$backup_root/backup" "$backup_root/restored" --no-interaction
 ```
 
-Yedek dizininde `database.sqlite`, `storage/app/private` ve SHA-256 doğrulama toplamlarını taşıyan `manifest.json` bulunur. Geri yükleme sonucu doğrulandığında test uygulamasının `DB_DATABASE` değerini geri yüklenen SQLite dosyasına, `LARAVEL_STORAGE_PATH` değerini geri yüklenen `storage` dizinine yönelt. Uygulama anahtarı ve ortam sırlarını kendi güvenli saklama yerlerinden kullan. Yedekleri erişimi sınırlandırılmış, şifreli bir depoda sakla.
+Yedek dizininde `database.sqlite`, `storage/app/private` ve SHA-256 doğrulama toplamlarını taşıyan `manifest.json` bulunur. SQLite doğrulaması veritabanı bütünlüğünü, kayıt ilişkilerini ve görüşme eklerini kontrol eder. Geri yükleme sonucu doğrulandığında test uygulamasının `DB_DATABASE` değerini geri yüklenen SQLite dosyasına, `LARAVEL_STORAGE_PATH` değerini geri yüklenen `storage` dizinine yönelt. Uygulama anahtarı ve ortam sırlarını kendi güvenli saklama yerlerinden kullan. Yedekleri erişimi sınırlandırılmış, şifreli bir depoda sakla. Her iki veritabanı için de komutlar, web kökünden veya yayınlanan yerel diskten sembolik bağlantıyla erişilebilecek hedeflere yazmayı reddeder.
 
 Otomatik provada geri yüklenen kopyada son migration geri alınıp yeniden uygulanır. Örnek görüşme eki, yetkili hasta hesabıyla açılır.
 
