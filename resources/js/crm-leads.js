@@ -1,6 +1,7 @@
 import { mountCrmLeadAppointments } from './crm-lead-appointments';
 import { crmLeadStatusLabels as statusLabels } from './crm-lead-status';
 import { mountCrmLeadWork } from './crm-lead-work';
+import { mountCrmLeadCare } from './crm-lead-care';
 
 const leadDate = new Intl.DateTimeFormat('tr-TR', { dateStyle: 'medium', timeZone: 'Europe/Istanbul' });
 const historyDate = new Intl.DateTimeFormat('tr-TR', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Istanbul' });
@@ -15,6 +16,7 @@ export function mountCrmLeads(section, { api, onChanged, openAppointment, bookFo
     const next = find('next');
     const status = find('status');
     const editor = find('editor');
+    const care = mountCrmLeadCare(find('care'), api);
     const form = find('form');
     const fields = form.querySelector('fieldset');
     const formStatus = find('form-status');
@@ -128,6 +130,7 @@ export function mountCrmLeads(section, { api, onChanged, openAppointment, bookFo
         activeEditor = null;
         leadWork.setLead(null);
         leadAppointments.setLead(null);
+        care.setLead(null);
         editor.close();
         form.reset();
         assignee.replaceChildren();
@@ -278,6 +281,7 @@ export function mountCrmLeads(section, { api, onChanged, openAppointment, bookFo
             outcome.hidden = finalized;
             leadWork.setLead(detail, { branchCrm, members, followUpId, openWork });
             leadAppointments.setLead(current.base + '/' + current.leadId + '/appointments');
+            care.setLead(current.base + '/' + current.leadId + '/care-steps');
 
             current.original = formValues();
             form.hidden = false;

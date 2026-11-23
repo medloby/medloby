@@ -21,6 +21,8 @@ class BusinessUser extends Model
         'travel.manage' => 'Seyahat planını düzenleme',
         'finance.view' => 'Gelir ve gider kayıtlarını görüntüleme',
         'finance.manage' => 'Gelir ve gider kayıtlarını düzenleme',
+        'inventory.view' => 'Stok kayıtlarını görüntüleme',
+        'inventory.manage' => 'Malzeme ve stok hareketlerini düzenleme',
     ];
 
     protected $table = 'business_user';

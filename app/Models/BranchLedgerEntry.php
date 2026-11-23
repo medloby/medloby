@@ -18,6 +18,7 @@ class BranchLedgerEntry extends Model
     protected $fillable = [
         'request_key', 'entry_date', 'kind', 'amount_minor', 'currency', 'description',
         'created_by_user_id', 'updated_by_user_id', 'appointment_id', 'offer_id',
+        'branch_balance_id', 'expense_category', 'payment_channel',
     ];
 
     protected $attributes = ['revision' => 1];
@@ -71,5 +72,12 @@ class BranchLedgerEntry extends Model
     public static function formatAmount(int $minor): string
     {
         return ($minor < 0 ? '-' : '').intdiv(abs($minor), 100).'.'.str_pad((string) (abs($minor) % 100), 2, '0', STR_PAD_LEFT);
+    }
+
+    public static function parseAmount(string $amount): int
+    {
+        [$whole, $fraction] = array_pad(explode('.', $amount, 2), 2, '');
+
+        return (int) $whole * 100 + (int) str_pad($fraction, 2, '0');
     }
 }

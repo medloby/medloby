@@ -1,6 +1,7 @@
 <details class="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 dark:border-slate-800 dark:bg-slate-900" data-crm-ledger hidden>
     <summary class="cursor-pointer text-lg font-semibold">Finans</summary>
     @include('clinic-finance-reports')
+    @include('clinic-balances')
 
     <h3 class="mt-5 font-semibold">Gelir ve gider kayıtları</h3>
     <p class="mt-3 text-sm text-slate-600 dark:text-slate-300" data-ledger-status role="status" hidden></p>
@@ -17,11 +18,27 @@
                     <option value="voided">İptal edilenler</option>
                 </select>
             </label>
+            <label class="offer-field">Kasa ve banka
+                <select class="offer-control" data-ledger-channel-filter>
+                    <option value="">Tüm hareketler</option><option value="cash">Kasa</option>
+                    <option value="bank">Banka</option><option value="unassigned">Kanalı seçilmemiş</option>
+                </select>
+            </label>
             <button type="button" class="offer-button offer-button-secondary" data-ledger-refresh>Yenile</button>
             <button type="button" class="offer-button" data-ledger-new hidden>Yeni kayıt</button>
         </div>
 
         <ul class="grid gap-2 sm:grid-cols-2" aria-label="Aya ait toplamlar" data-ledger-totals></ul>
+        <div class="grid gap-4 sm:grid-cols-2">
+            <section class="min-w-0">
+                <h4 class="font-semibold">Gider kategorileri</h4>
+                <ul class="divide-y divide-slate-200 dark:divide-slate-700" data-ledger-categories></ul>
+            </section>
+            <section class="min-w-0">
+                <h4 class="font-semibold">Ay sonuna kadar kasa ve banka bakiyesi</h4>
+                <ul class="divide-y divide-slate-200 dark:divide-slate-700" data-ledger-accounts></ul>
+            </section>
+        </div>
         <ul class="grid gap-2" aria-label="Gelir ve gider kayıtları" data-ledger-list></ul>
         <p class="text-sm text-slate-600 dark:text-slate-300" data-ledger-empty hidden>Bu ay için seçilen durumda kayıt yok.</p>
         <nav class="flex flex-wrap items-center justify-between gap-2" aria-label="Kayıt sayfaları" data-ledger-pages hidden>
@@ -32,6 +49,7 @@
 
         <form method="post" class="grid min-w-0 gap-3 rounded-xl border border-slate-200 p-4 dark:border-slate-700" data-ledger-editor hidden>
             <h3 class="font-semibold" data-ledger-editor-title></h3>
+            <p class="text-sm text-slate-600 dark:text-slate-300" data-ledger-balance hidden></p>
             <fieldset class="grid min-w-0 gap-3 sm:grid-cols-2" data-ledger-fields>
                 <label class="offer-field">Tür
                     <select class="offer-control" name="kind">
@@ -47,6 +65,15 @@
                 </label>
                 <label class="offer-field">Para birimi
                     <input class="offer-control" name="currency" pattern="[A-Za-z]{3}" minlength="3" maxlength="3" autocapitalize="characters" required>
+                </label>
+                <label class="offer-field">Ödeme kanalı
+                    <select class="offer-control" name="payment_channel">
+                        <option value="">Kanal seçilmedi</option><option value="cash">Kasa</option><option value="bank">Banka</option>
+                    </select>
+                </label>
+                <label class="offer-field" data-ledger-category hidden>Gider kategorisi
+                    <input class="offer-control" name="expense_category" maxlength="80" list="clinic-expense-categories" disabled>
+                    <datalist id="clinic-expense-categories"><option value="Malzeme"><option value="Personel"><option value="Kira"><option value="Fatura"></datalist>
                 </label>
                 <label class="offer-field sm:col-span-2">Açıklama
                     <input class="offer-control" name="description" maxlength="255" required>

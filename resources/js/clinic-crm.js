@@ -6,6 +6,8 @@ import { mountClinicTreatmentPrices } from './clinic-treatment-prices';
 import { mountClinicBranchManagement } from './clinic-branch-management';
 import { mountClinicSocialLinks } from './clinic-social-links';
 import { mountClinicLedger } from './clinic-ledger';
+import { mountClinicManagement } from './clinic-management';
+import { mountClinicInventory } from './clinic-inventory';
 
 const metricLabels = {
     total_leads: 'Toplam hasta adayı',
@@ -37,7 +39,13 @@ export function mountClinicCrm(section, api, { openConversation, ...appointmentD
     });
     const treatmentPrices = mountClinicTreatmentPrices(find('prices'), api);
     const socialLinks = mountClinicSocialLinks(find('social-links'), api);
-    const ledger = mountClinicLedger(find('ledger'), api);
+    const management = mountClinicManagement(find('management'), api, async (visit) => {
+        if (await selectRecordBranch(visit)) {
+            await calendar.openAppointment(visit, { showCard: true });
+        }
+    });
+    const ledger = mountClinicLedger(find('ledger'), api, management.refresh);
+    const inventory = mountClinicInventory(find('inventory'), api);
     const calendar = mountClinicCalendar(find('calendar'), api, {
         ...appointmentDialogs, openLead: (id) => leads.openLead(id),
     });
@@ -93,6 +101,7 @@ export function mountClinicCrm(section, api, { openConversation, ...appointmentD
         treatmentPrices.setBranch(id, businessId);
         socialLinks.setBranch(null);
         ledger.setBranch(null);
+        inventory.setBranch(null);
         calendar.setBranch(id, canManageOperations);
         profile.setBranch(canManageOperations ? businessId : null, id);
     }
@@ -109,6 +118,7 @@ export function mountClinicCrm(section, api, { openConversation, ...appointmentD
         operations.setBranch(catalogBranch);
         socialLinks.setBranch(catalogBranch);
         ledger.setBranch(dashboard.can_view_finances ? branchId : null, businessId);
+        inventory.setBranch(dashboard.can_view_inventory ? branchId : null);
         metrics.replaceChildren(...Object.entries(metricLabels).map(([key, label]) => {
             const metric = find('metric').content.firstElementChild.cloneNode(true);
             metric.querySelector('dt').textContent = label;
@@ -155,6 +165,7 @@ export function mountClinicCrm(section, api, { openConversation, ...appointmentD
             branchManagement.setBusiness(canManageOperations ? businessId : null);
             find('return').textContent = canManageOperations ? 'Başvurulara dön' : 'Çalışma alanına dön';
             const branches = clinic.branches;
+            management.setBusiness(branches.length ? businessId : null);
             if (!branches.length) {
                 showStatus('Bu klinikte aktif şube bulunmuyor.');
                 return;
@@ -271,6 +282,7 @@ export function mountClinicCrm(section, api, { openConversation, ...appointmentD
             businessId = id;
             section.hidden = !id;
             branchManagement.setBusiness(null);
+            management.setBusiness(null);
 
             if (id) {
                 businessLoad = loadBusiness();

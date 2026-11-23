@@ -7,6 +7,7 @@ use App\Models\Branch;
 use App\Models\BranchLedgerEntry;
 use App\Models\Offer;
 use App\Rules\PriceAmount;
+use App\Services\ClinicBalances;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -24,9 +25,14 @@ class ClinicLedgerController extends Controller
         'description' => ['required', 'string', 'max:255'],
         'appointment_id' => ['sometimes', 'nullable', 'integer', 'min:1', 'prohibits:offer_id'],
         'offer_id' => ['sometimes', 'nullable', 'integer', 'min:1'],
+        'branch_balance_id' => ['sometimes', 'nullable', 'integer', 'min:1'],
+        'expense_category' => ['sometimes', 'nullable', 'string', 'max:80'],
+        'payment_channel' => ['sometimes', 'nullable', 'in:cash,bank'],
     ];
 
     private const array REVISION_RULES = ['revision' => ['required', 'integer', 'min:1']];
+
+    public function __construct(private readonly ClinicBalances $balances) {}
 
     public function index(Request $request, Branch $branch): JsonResponse
     {
@@ -36,6 +42,7 @@ class ClinicLedgerController extends Controller
         $filters = $request->validate([
             'month' => ['sometimes', 'required', 'date_format:Y-m', 'regex:/\A(?!0000)\d{4}-\d{2}\z/'],
             'status' => ['sometimes', 'required', 'in:active,voided'],
+            'channel' => ['sometimes', 'required', 'in:cash,bank,unassigned'],
         ]);
         $today = CarbonImmutable::today('Europe/Istanbul');
         $month = CarbonImmutable::createFromFormat('!Y-m', $filters['month'] ?? $today->format('Y-m'));
@@ -44,13 +51,27 @@ class ClinicLedgerController extends Controller
             ->get()->map(fn (BranchLedgerEntry $summary): array => $summary->amountTotals());
 
         $page = ($filters['status'] ?? 'active') === 'voided' ? $entries->whereNotNull('voided_at') : $entries->whereNull('voided_at');
+        if (isset($filters['channel'])) {
+            $page->where('payment_channel', $filters['channel'] === 'unassigned' ? null : $filters['channel']);
+        }
         $page = $page->latest('entry_date')->latest('id')->paginate(20)->through($this->entry(...));
+        $active = $branch->ledgerEntries()->whereNull('voided_at');
+        $categories = (clone $active)->recordedBetween($month, $month->endOfMonth())->where('kind', 'expense')
+            ->withAmountTotals(['expense_category', 'currency'])->orderBy('expense_category')->orderBy('currency')->get()
+            ->map(fn (BranchLedgerEntry $row): array => [
+                'category' => $row->expense_category, 'currency' => $row->currency, 'amount' => BranchLedgerEntry::formatAmount((int) $row->expense),
+            ]);
+        $accounts = $active->whereNotNull('payment_channel')->where('entry_date', '<=', $month->endOfMonth()->format('Y-m-d H:i:s.u'))
+            ->withAmountTotals(['payment_channel', 'currency'])->orderBy('payment_channel')->orderBy('currency')->get()
+            ->map(fn (BranchLedgerEntry $row): array => $row->amountTotals() + ['channel' => $row->payment_channel]);
 
         return $this->respond([
             'month' => $month->format('Y-m'),
             'today' => $today->toDateString(),
             'can_manage' => in_array('finance.manage', $permissions, true),
             'totals' => $totals->all(),
+            'expense_categories' => $categories->all(),
+            'accounts' => $accounts->all(),
             'entries' => $page->items(),
             'current_page' => $page->currentPage(),
             'last_page' => $page->lastPage(),
@@ -103,11 +124,13 @@ class ClinicLedgerController extends Controller
                 return $this->respond($this->entry($existing));
             }
 
-            $saved = $branch->ledgerEntries()->create($values + [
+            $saved = $branch->ledgerEntries()->make($values + [
                 'request_key' => $fields['request_key'],
                 'created_by_user_id' => $request->user()->id,
                 'updated_by_user_id' => $request->user()->id,
             ]);
+            $this->balances->validateSettlement($branch, $saved);
+            $saved->save();
 
             return $this->respond($this->entry($saved), 201);
         }, attempts: 3);
@@ -127,7 +150,7 @@ class ClinicLedgerController extends Controller
                 $values += $this->incomeReferences($branch, $fields);
             }
             if ($saved->fill($values)->isDirty()) {
-                $this->saveChange($request, $saved, (int) $fields['revision']);
+                $this->saveChange($request, $branch, $saved, (int) $fields['revision']);
             }
 
             return $this->respond($this->entry($saved));
@@ -177,11 +200,12 @@ class ClinicLedgerController extends Controller
         $fields = $request->validate(self::REVISION_RULES + ['status' => ['required', 'in:active,voided']]);
 
         return DB::transaction(function () use ($request, $branch, $entry, $fields): JsonResponse {
-            $saved = $this->findEntry($this->lockBranch($request, $branch), $entry);
+            $branch = $this->lockBranch($request, $branch);
+            $saved = $this->findEntry($branch, $entry);
             $voiding = $fields['status'] === 'voided';
             if ($voiding !== ($saved->voided_at !== null)) {
                 $saved->voided_at = $voiding ? now() : null;
-                $this->saveChange($request, $saved, (int) $fields['revision']);
+                $this->saveChange($request, $branch, $saved, (int) $fields['revision']);
             }
 
             return $this->respond($this->entry($saved));
@@ -211,9 +235,10 @@ class ClinicLedgerController extends Controller
         return $branch->ledgerEntries()->findOrFail($id);
     }
 
-    private function saveChange(Request $request, BranchLedgerEntry $entry, int $revision): void
+    private function saveChange(Request $request, Branch $branch, BranchLedgerEntry $entry, int $revision): void
     {
         abort_unless($entry->revision === $revision, 409, 'Kayıt başka bir oturumda değişti. Kaydı yeniden yükleyin.');
+        $this->balances->validateSettlement($branch, $entry);
         $entry->revision++;
         $entry->updated_by_user_id = $request->user()->id;
         $entry->save();
@@ -221,15 +246,24 @@ class ClinicLedgerController extends Controller
 
     private function entryValues(array $fields): array
     {
-        [$whole, $fraction] = array_pad(explode('.', (string) $fields['amount'], 2), 2, '');
-
-        return [
+        $values = [
             'kind' => $fields['kind'],
             'entry_date' => $fields['entry_date'],
-            'amount_minor' => (int) $whole * 100 + (int) str_pad($fraction, 2, '0'),
+            'amount_minor' => BranchLedgerEntry::parseAmount((string) $fields['amount']),
             'currency' => $fields['currency'],
             'description' => $fields['description'],
         ];
+        if (array_key_exists('branch_balance_id', $fields)) {
+            $values['branch_balance_id'] = isset($fields['branch_balance_id']) ? (int) $fields['branch_balance_id'] : null;
+        }
+        if (array_key_exists('payment_channel', $fields)) {
+            $values['payment_channel'] = $fields['payment_channel'];
+        }
+        if ($fields['kind'] === 'income' || array_key_exists('expense_category', $fields)) {
+            $values['expense_category'] = $fields['kind'] === 'expense' ? ($fields['expense_category'] ?? null) : null;
+        }
+
+        return $values;
     }
 
     private function entry(BranchLedgerEntry $entry): array
@@ -240,6 +274,9 @@ class ClinicLedgerController extends Controller
             'status' => $entry->voided_at === null ? 'active' : 'voided',
             'appointment_id' => $entry->appointment_id,
             'offer_id' => $entry->offer_id,
+            'branch_balance_id' => $entry->branch_balance_id,
+            'expense_category' => $entry->expense_category,
+            'payment_channel' => $entry->payment_channel,
         ];
     }
 

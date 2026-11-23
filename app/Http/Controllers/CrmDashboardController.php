@@ -137,6 +137,7 @@ class CrmDashboardController extends Controller
             'data' => [
                 'can_manage_branch_catalog' => $catalogAccess->canManage($request->user(), $branch->business_id, $branch->id),
                 'can_view_finances' => $request->user()->branchFinancePermissions($branch) !== [],
+                'can_view_inventory' => $request->user()->branchInventoryPermissions($branch) !== [],
                 'summary' => [
                     'total_leads' => $totalLeads,
                     'new_leads' => $newLeads,

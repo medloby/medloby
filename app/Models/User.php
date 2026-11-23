@@ -177,6 +177,11 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->allowedBranchPermissions($branch, ['finance.view', 'finance.manage'], ownerDefault: true);
     }
 
+    public function branchInventoryPermissions(Branch $branch): array
+    {
+        return $this->allowedBranchPermissions($branch, ['inventory.view', 'inventory.manage'], ownerDefault: true);
+    }
+
     private function allowedBranchPermissions(Branch $branch, array $permissions, bool $ownerDefault): array
     {
         $membership = $this->membershipForBranch($branch);

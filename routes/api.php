@@ -38,8 +38,12 @@ use App\Http\Controllers\ClinicBranchOperationsController;
 
 use App\Http\Controllers\ClinicConsentTemplateController;
 
+use App\Http\Controllers\ClinicBalanceController;
 use App\Http\Controllers\ClinicFinanceReportController;
+use App\Http\Controllers\ClinicInventoryController;
 use App\Http\Controllers\ClinicLedgerController;
+use App\Http\Controllers\ClinicManagementController;
+use App\Http\Controllers\CrmLeadCareController;
 
 use App\Http\Controllers\SupportTicketController;
 
@@ -186,6 +190,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/clinic-crm/staff-workspaces', [ClinicCrmWorkspaceController::class, 'staffIndex']);
         Route::get('/businesses/{business}/crm', ClinicCrmWorkspaceController::class);
         Route::get('/businesses/{business}/crm/finance/reports', ClinicFinanceReportController::class);
+        Route::get('/businesses/{business}/crm/management', ClinicManagementController::class);
         Route::get('/businesses/{business}/crm/profile', [ClinicProfileController::class, 'show']);
         Route::put('/businesses/{business}/crm/profile', [ClinicProfileController::class, 'update']);
         Route::get('/businesses/{business}/crm/branches', [ClinicProfileController::class, 'branches']);
@@ -973,6 +978,24 @@ Route::middleware(['auth:sanctum', 'verified', EnsureClinicCrmAccess::class])
         Route::put('/{entry}/status', 'updateStatus')->whereNumber('entry');
     });
 
+Route::middleware(['auth:sanctum', 'verified', EnsureClinicCrmAccess::class])->prefix('branches/{branch}/crm')->group(function () {
+    Route::prefix('balances')->controller(ClinicBalanceController::class)->group(function () {
+        Route::get('/', 'index');
+        Route::get('/patients', 'patients');
+        Route::post('/', 'store');
+        Route::get('/{balance}', 'show')->whereNumber('balance');
+        Route::put('/{balance}', 'update')->whereNumber('balance');
+        Route::put('/{balance}/status', 'updateStatus')->whereNumber('balance');
+    });
+    Route::prefix('inventory')->controller(ClinicInventoryController::class)->group(function () {
+        Route::get('/', 'index');
+        Route::post('/', 'store');
+        Route::put('/{item}', 'update')->whereNumber('item');
+        Route::get('/{item}/movements', 'movements')->whereNumber('item');
+        Route::post('/{item}/movements', 'move')->whereNumber('item');
+    });
+});
+
 Route::middleware(['auth:sanctum', 'verified', EnsureClinicCrmAccess::class])
     ->controller(ClinicBranchOperationsController::class)
     ->prefix('branches/{branch}/operations')->group(function () {
@@ -1059,6 +1082,8 @@ Route::middleware(['auth:sanctum', 'verified', EnsureClinicCrmAccess::class])
             ]);
 
             Route::get('/{crmLead}/appointments', CrmLeadAppointmentController::class);
+            Route::get('/{crmLead}/care-steps', [CrmLeadCareController::class, 'index']);
+            Route::put('/{crmLead}/care-steps/{phase}', [CrmLeadCareController::class, 'update']);
             Route::get('/{crmLead}/patients', [CrmLeadPatientController::class, 'index']);
             Route::post('/{crmLead}/patients', [CrmLeadPatientController::class, 'store']);
 

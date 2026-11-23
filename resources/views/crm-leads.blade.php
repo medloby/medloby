@@ -132,5 +132,6 @@
         </details>
         @include('crm-lead-work')
         @include('crm-lead-appointments')
+        @include('crm-lead-care')
     </dialog>
 </section>

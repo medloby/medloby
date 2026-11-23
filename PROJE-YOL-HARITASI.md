@@ -227,6 +227,20 @@ Kamuya açılış için içeriğin uygunluğu, onaylı sözleşme ve kişisel ve
 8. **6.8 Clinic AI Premium.** Sesli ve yazılı asistan, PDF/XLSX/DOCX raporları ve yetkili özel rapor arşivi ilk sürüm tamamlandıktan sonra ele alınacak. Finansal raporlar için mevcut şube gelir-gider kayıtları ve hesaplama kuralları esas alınacak. [Şube gelir ve gider akışı](app/Http/Controllers/ClinicLedgerController.php)
 9. **6.9 Klinik CRM finans raporları hazır.** Finans ekranı seçilen aktif şube veya yetkili olunan tüm aktif şubeler için aylık, yıllık ve tüm dönemler toplamlarını gösterir. Gelir, gider ve fark para birimine göre hesaplanır. Hekim raporu randevuları ve tamamlanan tedavileri seans tarihine, bağlı tahsilatları gelir kaydının tarihine göre toplar. Paket toplamı tahsilatları ve bağlantısız gelirler şube toplamında yer alır. Seans bazında kaydedilen tahsilat ilgili hekimde görünür. [Finans raporu testleri](tests/Feature/ClinicFinanceReportTest.php)
 
+### 7. Klinik yönetimi genişletmeleri
+
+| Öncelik | Özellik | Klinik CRM’deki karşılığı |
+| --- | --- | --- |
+| P1 | Gelişmiş yönetim özeti | Yetkili aktif şubelerin aylık randevuları, şube görevleri ve yetkiye bağlı gelir-gider toplamları tek ekranda. Randevu kartı özetten açılır. |
+| P1 | Gelişmiş finans yönetimi | Gider kategorileri, borç ve alacak kayıtları, kısmi tahsilatlar, vade ve kalan bakiye. Kasa veya banka seçilen hareketler ayrı listelenir ve bakiyeye girer. |
+| P1 | Randevu performansı | Şube ve hekim bazında çalışma kapasitesi, doluluk, iptal ve gelmeme oranları. Kapasite için kayıtlı çalışma saatlerinden onaylı izinler ve takvim engelleri çıkarılır. |
+| P1 | Hasta dönüşümü | Türkiye saatine göre seçilen ayda açılan adayların sayısı ve aday kaydından sonra bağlantılı teklif veya randevu oluşan adaylar. |
+| P2 | Tahsilat ve ödeme takibi | Şubeyle ilişkisi doğrulanmış hasta için alacak açılır. Kısmi ödemeler mevcut finans defterine kaydolur ve ödeme geçmişi ile kalan bakiye güncellenir. |
+| P2 | Hasta süreci | Aday ayrıntısında konsültasyon, tedavi, kontrol ve takip aşamaları. Planlanan tarih, durum ve aynı hastanın şube randevusu ilişkilendirilebilir. |
+| P2 | Stok ve malzeme | Şube bazında malzeme kodu, birim, stok girişi ve çıkışı, hareket geçmişi ve eşik uyarısı. Görüntüleme ve düzenleme yetkileri ayrı verilir. |
+
+[Yönetim testleri](tests/Feature/ClinicManagementTest.php) · [Finans, hasta süreci ve stok testleri](tests/Feature/ClinicOperationsExpansionTest.php)
+
 ## Uygulama düzeni
 
 Her turda sıradaki açık madde ele alınır. Yeni bir ihtiyaç gelirse önce bağlı olduğu aşama kaydedilir ve sıra bilinçli biçimde güncellenir. Bir madde tamamlandığında hangi akışın çalıştığı, hangi testlerin geçtiği ve GitHub commit’i işlenir. Doğrulanmış bir açık veya yayın engeli çıkarsa sırası ve gerekçesi dokümana yansıtılır.
