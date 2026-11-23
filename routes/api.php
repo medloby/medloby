@@ -1006,6 +1006,7 @@ Route::middleware(['auth:sanctum', 'verified', EnsureClinicCrmAccess::class])
         Route::post('/appointments', [ClinicAppointmentController::class, 'store']);
         Route::get('/appointments/{appointment}', [ClinicCalendarController::class, 'appointment']);
         Route::get('/appointments/{appointment}/contact', [ClinicCalendarController::class, 'contact']);
+        Route::get('/appointments/{appointment}/location', [ClinicCalendarController::class, 'appointmentLocation']);
         Route::post('/appointments/{appointment}/{action}', [AppointmentController::class, 'actFromCalendar'])
             ->whereIn('action', array_keys(Appointment::ACTION_PERMISSIONS));
         Route::get('/package-offers/{offer}/appointments/options', [AppointmentBookingController::class, 'optionsForClinic']);

@@ -924,6 +924,42 @@ test('clinic appointment card includes the saved notes and is available only in 
     $this->actingAs($owner, 'sanctum')->getJson($card)->assertForbidden();
 });
 
+test('a clinic appointment location opens the current visit within the authorized branch', function () {
+    $this->travelTo(now()->setDate(2026, 12, 1)->startOfDay());
+    [$business, $owner, $branch, $other, $doctor, $treatment, $calendar, $otherCalendar] = clinicAppointmentFixture();
+    $patientUser = User::factory()->create();
+    $patient = $patientUser->patientProfile()->create(['first_name' => 'Deneme', 'last_name' => 'Hasta']);
+    $appointment = $patient->appointments()->create([
+        'business_id' => $business->id, 'branch_id' => $branch->id,
+        'doctor_id' => $doctor->id, 'treatment_id' => $treatment->id, 'status' => 'confirmed',
+        'starts_at' => '2026-12-04 09:00:00', 'ends_at' => '2026-12-04 09:30:00',
+        'patient_email' => 'hasta@example.test', 'notes' => 'Özel görüşme notu',
+    ]);
+    $card = $calendar.'/appointments/'.$appointment->id;
+    $location = $card.'/location';
+    $expected = ['id' => $appointment->id, 'business_id' => $business->id, 'branch_id' => $branch->id, 'starts_at' => '2026-12-04 09:00:00'];
+
+    $this->getJson($location)->assertUnauthorized();
+    $this->actingAs($owner, 'sanctum')->getJson($location)->assertOk()->assertHeader('Cache-Control', 'no-store, private')
+        ->assertExactJson(['success' => true, 'data' => $expected]);
+
+    $moved = $this->postJson($card.'/reschedule', ['starts_at' => '2026-12-04 10:30:00'])->assertOk()->json('data.id');
+    $this->getJson($location)->assertOk()->assertExactJson(['success' => true, 'data' => [
+        ...$expected, 'id' => $moved, 'starts_at' => '2026-12-04 10:30:00',
+    ]]);
+    $this->getJson($card)->assertOk()->assertJsonPath('data.id', $appointment->id);
+    $this->getJson($otherCalendar.'/appointments/'.$appointment->id.'/location')->assertNotFound();
+
+    $staff = User::factory()->create();
+    $membership = $business->memberships()->create(['user_id' => $staff->id, 'role' => 'staff', 'is_active' => true]);
+    $membership->branches()->attach($branch->id, ['is_active' => true]);
+    $membership->branches()->attach($other->id, ['is_active' => true]);
+    $this->actingAs($staff, 'sanctum')->getJson($location)->assertOk()->assertJsonPath('data.id', $moved);
+    $membership->branches()->updateExistingPivot($branch->id, ['is_active' => false]);
+    $this->getJson($location)->assertForbidden();
+    $this->actingAs($patientUser, 'sanctum')->getJson($location)->assertForbidden();
+});
+
 test('crm lead appointments show only the linked patient in the authorized branch and booking requires permission', function () {
     $this->travelTo(now()->setDate(2026, 12, 1)->startOfDay());
     [$business, $owner, $branch, $other, $doctor, $treatment, $calendar, $otherCalendar] = clinicAppointmentFixture();

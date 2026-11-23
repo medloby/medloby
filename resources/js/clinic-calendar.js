@@ -375,7 +375,7 @@ export function mountClinicCalendar(panel, api, { openBookingDialog, openAppoint
     }
 
     return {
-        async openAppointment(appointment) {
+        async openAppointment(appointment, { showCard = false } = {}) {
             const current = scope;
             const date = appointment.starts_at.slice(0, 10);
             panel.open = true;
@@ -383,6 +383,9 @@ export function mountClinicCalendar(panel, api, { openBookingDialog, openAppoint
             if (scope === current && current?.loaded && day.value === date) {
                 const heading = find('appointments').querySelector('[data-appointment-id="' + Number(appointment.id) + '"]');
                 (heading ?? day).focus();
+                if (showCard && heading) {
+                    await appointmentCard.open(current.path + '/appointments/' + appointment.id);
+                }
             }
         },
         async bookForPatient(patient) {

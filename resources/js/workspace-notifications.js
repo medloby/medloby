@@ -105,7 +105,7 @@ export function mountWorkspaceNotifications(dialog, button, badge, { api, openTa
                 dialog.close();
                 focusTarget(target);
             } else {
-                showStatus('Bu bildirim genel randevuya ait.');
+                showStatus('Bildirime bağlı kayıt açılamadı.');
             }
         }));
 

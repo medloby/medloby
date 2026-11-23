@@ -238,19 +238,30 @@ export function mountClinicCrm(section, api, appointmentDialogs) {
         }
     });
 
+    async function selectRecordBranch(record) {
+        await businessLoad;
+        const targetBranch = String(record.branch_id);
+        if (String(record.business_id) !== businessId || !Array.from(branch.options).some((option) => option.value === targetBranch)) {
+            return false;
+        }
+        if (branch.value !== targetBranch) {
+            branch.value = targetBranch;
+            branch.dispatchEvent(new Event('change'));
+        }
+
+        return true;
+    }
+
     return {
         async openFollowUp(followUp) {
-            await businessLoad;
-            const targetBranch = String(followUp.branch_id);
-            if (String(followUp.business_id) !== businessId || !Array.from(branch.options).some((option) => option.value === targetBranch)) {
-                return;
+            if (await selectRecordBranch(followUp)) {
+                await leads.openFollowUp(followUp.crm_lead_id, followUp.id);
             }
-            if (branch.value !== targetBranch) {
-                branch.value = targetBranch;
-                branch.dispatchEvent(new Event('change'));
+        },
+        async openAppointment(appointment) {
+            if (await selectRecordBranch(appointment)) {
+                await calendar.openAppointment(appointment, { showCard: true });
             }
-
-            await leads.openFollowUp(followUp.crm_lead_id, followUp.id);
         },
         setBusiness(id) {
             if (businessId === id) {

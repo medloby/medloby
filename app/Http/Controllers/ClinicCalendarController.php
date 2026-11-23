@@ -123,6 +123,23 @@ class ClinicCalendarController extends Controller
         ])->header('Cache-Control', 'private, no-store');
     }
 
+    public function appointmentLocation(Branch $branch, Appointment $appointment): JsonResponse
+    {
+        abort_unless($appointment->branch_id === $branch->id && $appointment->business_id === $branch->business_id, 404);
+
+        $current = $appointment->currentVersion();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'id' => $current->id,
+                'business_id' => $branch->business_id,
+                'branch_id' => $branch->id,
+                'starts_at' => $current->starts_at->toDateTimeString(),
+            ],
+        ])->header('Cache-Control', 'private, no-store');
+    }
+
     /** @return array{name: ?string, phone: ?string, email: ?string} */
     private function appointmentContact(Branch $branch, Appointment $appointment): array
     {

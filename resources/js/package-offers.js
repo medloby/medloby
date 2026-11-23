@@ -479,6 +479,28 @@ export function mountPackageOffers(root) {
                 }
             }
         }
+
+        const appointmentBranchId = Number(data.branch_id);
+        if (hasAppointment && Number.isSafeInteger(appointmentBranchId) && appointmentBranchId > 0) {
+            const clinicAppointment = await api(`/branches/${appointmentBranchId}/clinic-calendar/appointments/${appointmentId}/location`);
+            if (user !== actor) {
+                return null;
+            }
+
+            const businessId = String(clinicAppointment.business_id);
+            if (!canOpenClinicCrm(businessId)) {
+                await loadStaffCrm();
+            }
+            if (user !== actor) {
+                return null;
+            }
+            if (!canOpenClinicCrm(businessId)) {
+                throw new Error('Bu kliniğin çalışma alanına erişim yetkiniz yok.');
+            }
+
+            return { clinicAppointment };
+        }
+
         if (!conversationId && hasAppointment) {
             const appointment = await api('/appointments/' + appointmentId);
             conversationId = appointment.offer?.conversation_id;
@@ -515,6 +537,12 @@ export function mountPackageOffers(root) {
             window.location.hash = 'randevular/' + target.patientAppointment.id;
             syncPage(target.patientAppointment);
             get('page-title').focus();
+            return;
+        }
+        if (target.clinicAppointment) {
+            window.location.hash = 'klinik-crm/' + target.clinicAppointment.business_id;
+            syncPage();
+            clinicCrm.openAppointment(target.clinicAppointment);
             return;
         }
         if (target.followUp) {

@@ -136,6 +136,8 @@ Kabul senaryosu e-posta doğrulama ve klinik onayıyla başlar. Klinik sahibi ya
 
 23. **3.23 Randevu ve uygulama içi bildirimi birlikte kaydediliyor.** Tekil randevu, paket seansları ve randevu durum değişiklikleri geçmiş kayıtları ve uygulama içi bildirimleriyle birlikte tamamlanır. Bildirim kaydı başarısız olursa işlem geri alınır ve yeniden denenebilir. Tarihi değişen randevunun bildirimi güncel kaydı açar. Yeni randevu e-postaları kayıt tamamlandıktan sonra kuyruğa alınır. [Klinik randevu testleri](tests/Feature/ClinicAppointmentTest.php) · [Bildirim testleri](tests/Feature/AppointmentNotificationTest.php)
 
+24. **3.24 Klinik bildiriminden randevu kartı açılıyor.** Tekil randevu veya paket seansı bildirimi, ilgili şubeyi ve günü seçerek randevu kartını gösterir. Tarih değişmişse kayıt zincirindeki güncel randevu açılır. Takvim ve kart mevcut şube erişimini yeniden doğrular. [Klinik randevu testleri](tests/Feature/ClinicAppointmentTest.php)
+
 Kabul senaryosu şubede hekim ve uygunluk hazırlığından başlayıp hastanın birkaç seansı seçmesi ve kliniğin randevuyu yönetmesiyle tamamlanır.
 
 ### 4. Kamuya açık site ve yayın içeriği
