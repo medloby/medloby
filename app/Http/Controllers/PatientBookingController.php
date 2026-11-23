@@ -13,6 +13,7 @@ use App\Services\AppointmentSlotAvailabilityService;
 use App\Services\AppointmentWaitingList;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -88,10 +89,23 @@ class PatientBookingController extends Controller
         return $this->data($entry->only('id'), $entry->wasRecentlyCreated ? 201 : 200);
     }
 
-    public function showWaitingRequest(Request $request, WaitingList $waitingList): JsonResponse
+    public function showWaitingRequest(Request $request, WaitingList $waitingList, AppointmentWaitingList $requests): JsonResponse
     {
         $this->authorizeWaitingRequest($request, $waitingList);
-        abort_unless($waitingList->doctor_id && $waitingList->treatment_id, 404, 'Bu randevu seçimi artık kullanılamıyor.');
+        abort_if($waitingList->status === WaitingList::FULFILLED, 422, 'Bu bekleme isteği için randevu oluşturuldu. Randevularım bölümünü açın.');
+        abort_if($waitingList->status === 'cancelled', 422, 'Bu bekleme isteği iptal edildi.');
+
+        $branch = Branch::query()->bookableOnline()->where('business_id', $waitingList->business_id)->find($waitingList->branch_id);
+        abort_unless($branch && $waitingList->doctor_id && $waitingList->treatment_id && $waitingList->preferred_date,
+            404, 'Bu randevu seçimi artık kullanılamıyor.');
+
+        abort_unless($requests->canWait($branch, $waitingList->preferred_date), 422, 'Seçtiğiniz gün artık çevrimiçi randevuya açık değil.');
+
+        try {
+            $this->selection($branch, $waitingList->treatment_id, $waitingList->doctor_id);
+        } catch (ModelNotFoundException) {
+            abort(404, 'Bu randevu seçimi artık kullanılamıyor.');
+        }
 
         return $this->data([
             'branch_id' => $waitingList->branch_id,

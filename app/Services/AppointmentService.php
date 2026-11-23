@@ -13,7 +13,8 @@ use Carbon\Carbon;
 class AppointmentService
 {
     public function __construct(
-        protected AppointmentAvailabilityService $availabilityService
+        protected AppointmentAvailabilityService $availabilityService,
+        private AppointmentWaitingList $waitingList,
     ) {}
 
     /**
@@ -117,6 +118,8 @@ class AppointmentService
                 'reason' => 'Randevu oluşturuldu.',
                 'changed_at' => now(),
             ]);
+
+            $this->waitingList->completeForAppointment($appointment);
 
             return $appointment->fresh([
                 'business',

@@ -75,6 +75,7 @@ test('the patient can join a full date once and only manage their own request', 
     $this->actingAs($otherPatient, 'sanctum')->getJson($requestUrl)->assertNotFound();
     $this->deleteJson($requestUrl)->assertNotFound();
     $this->actingAs($patient, 'sanctum')->deleteJson($requestUrl)->assertOk();
+    $this->getJson($requestUrl)->assertUnprocessable()->assertJsonPath('message', 'Bu bekleme isteği iptal edildi.');
     $this->getJson($slotsUrl)->assertOk()->assertJsonPath('data.waiting_list_id', null);
     $this->assertDatabaseHas('waiting_lists', ['id' => $id, 'status' => 'cancelled']);
 });
@@ -153,3 +154,77 @@ test('the waiting list saves its notification until the open time fits the patie
     $this->assertDatabaseCount('notifications', 1);
     $this->assertDatabaseHas('waiting_lists', ['id' => $id, 'status' => 'notified']);
 });
+
+test('booking closes the matching waiting request while the other patient can still be notified', function () {
+    $this->travelTo(Carbon::parse('2026-12-01 00:00:00', 'UTC'));
+    [$branch, $appointment, $booking, $selection] = waitingListBookingFixture();
+    $patient = waitingListPatient();
+    $other = waitingListPatient();
+    $ownRequest = $this->actingAs($patient, 'sanctum')->postJson($booking.'/waiting-list', $selection)->assertCreated()->json('data.id');
+    $otherRequest = $this->actingAs($other, 'sanctum')->postJson($booking.'/waiting-list', $selection)->assertCreated()->json('data.id');
+    $legacy = $patient->patientProfile->waitingLists()->create([
+        'branch_id' => $branch->id, 'business_id' => $branch->business_id, 'preferred_date' => $selection['date'],
+        'doctor_id' => $selection['doctor_id'], 'treatment_id' => $selection['treatment_id'], 'source' => 'medloby',
+    ]);
+
+    DoctorWorkingHour::query()->where('branch_id', $branch->id)->update(['end_time' => '10:00']);
+    $appointment->update(['status' => 'cancelled']);
+    $this->actingAs($patient, 'sanctum')->postJson($booking, $selection + ['starts_at' => '2026-12-04 09:00:00'])->assertCreated();
+
+    $this->getJson($booking.'/slots?'.http_build_query($selection))->assertOk()
+        ->assertJsonPath('data.waiting_list_id', null)->assertJsonPath('data.slots.0', '2026-12-04 09:30:00');
+    $this->getJson('/api/patient/appointments/waiting-list/'.$ownRequest)->assertUnprocessable()
+        ->assertJsonPath('message', 'Bu bekleme isteği için randevu oluşturuldu. Randevularım bölümünü açın.');
+    $this->assertDatabaseHas('waiting_lists', ['id' => $ownRequest, 'status' => 'fulfilled', 'notified_at' => null]);
+    $this->assertDatabaseHas('waiting_lists', ['id' => $legacy->id, 'status' => 'waiting']);
+
+    $this->artisan('medloby:notify-waiting-list')->assertSuccessful();
+
+    $this->assertDatabaseHas('waiting_lists', ['id' => $otherRequest, 'status' => 'notified']);
+    expect($other->notifications()->sole()->data['waiting_list_id'])->toBe($otherRequest);
+    expect($patient->notifications()->pluck('data')->pluck('notification_type'))->not->toContain(NotificationType::WAITING_LIST_AVAILABILITY);
+});
+
+test('moving an appointment to the waiting date closes an already notified request', function () {
+    $this->travelTo(Carbon::parse('2026-12-01 00:00:00', 'UTC'));
+    [, $appointment, $booking, $selection] = waitingListBookingFixture();
+    $patient = waitingListPatient();
+    $toMove = $appointment->replicate()->fill([
+        'patient_profile_id' => $patient->patientProfile->id,
+        'starts_at' => '2026-12-05 09:00:00', 'ends_at' => '2026-12-05 09:30:00',
+    ]);
+    $toMove->save();
+    $request = $this->actingAs($patient, 'sanctum')->postJson($booking.'/waiting-list', $selection)->assertCreated()->json('data.id');
+
+    $appointment->update(['status' => 'cancelled']);
+    $this->artisan('medloby:notify-waiting-list')->assertSuccessful();
+    $this->assertDatabaseHas('waiting_lists', ['id' => $request, 'status' => 'notified']);
+
+    $this->postJson('/api/patient/appointments/'.$toMove->id.'/reschedule', ['starts_at' => '2026-12-04 09:00:00'])->assertOk();
+
+    $this->assertDatabaseHas('waiting_lists', ['id' => $request, 'status' => 'fulfilled']);
+    $this->getJson('/api/patient/appointments/waiting-list/'.$request)->assertUnprocessable();
+});
+
+test('old waiting notifications do not open an unavailable booking selection', function (string $change, int $status, string $message) {
+    $this->travelTo(Carbon::parse('2026-12-01 00:00:00', 'UTC'));
+    [$branch, $appointment, $booking, $selection] = waitingListBookingFixture();
+    $patient = waitingListPatient();
+    $id = $this->actingAs($patient, 'sanctum')->postJson($booking.'/waiting-list', $selection)->assertCreated()->json('data.id');
+    $appointment->update(['status' => 'cancelled']);
+    $this->artisan('medloby:notify-waiting-list')->assertSuccessful();
+    $this->assertDatabaseHas('waiting_lists', ['id' => $id, 'status' => 'notified']);
+
+    match ($change) {
+        'date passed' => $this->travel(4)->days(),
+        'clinic suspended' => $branch->business->update(['status' => 'suspended']),
+        'doctor hidden' => $appointment->doctor->update(['is_public' => false]),
+    };
+
+    $this->getJson('/api/patient/appointments/waiting-list/'.$id)->assertStatus($status)
+        ->assertJsonPath('message', $message)->assertJsonMissingPath('data');
+})->with([
+    'date passed' => ['date passed', 422, 'Seçtiğiniz gün artık çevrimiçi randevuya açık değil.'],
+    'clinic suspended' => ['clinic suspended', 404, 'Bu randevu seçimi artık kullanılamıyor.'],
+    'doctor hidden' => ['doctor hidden', 404, 'Bu randevu seçimi artık kullanılamıyor.'],
+]);

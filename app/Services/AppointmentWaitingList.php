@@ -41,9 +41,20 @@ final class AppointmentWaitingList
     public function pendingRequest(PatientProfile $patient, Branch $branch, Doctor $doctor, Treatment $treatment, Carbon $date): ?WaitingList
     {
         return $patient->waitingLists()->onlineBooking()->where('status', 'waiting')
-            ->where('business_id', $branch->business_id)->where('branch_id', $branch->id)
-            ->where('doctor_id', $doctor->id)->where('treatment_id', $treatment->id)
-            ->whereDate('preferred_date', $date->toDateString())->first();
+            ->forSelection($branch->business_id, $branch->id, $doctor->id, $treatment->id, $date->toDateString())->first();
+    }
+
+    public function completeForAppointment(Appointment $appointment): void
+    {
+        if ($appointment->patient_profile_id === null || $appointment->doctor_id === null || $appointment->treatment_id === null
+            || ! in_array($appointment->status, ['pending', 'confirmed'], true)) {
+            return;
+        }
+
+        WaitingList::query()->onlineBooking()->where('patient_profile_id', $appointment->patient_profile_id)
+            ->forSelection($appointment->business_id, $appointment->branch_id, $appointment->doctor_id, $appointment->treatment_id,
+                $appointment->starts_at->toDateString())
+            ->whereIn('status', ['waiting', 'notified'])->update(['status' => WaitingList::FULFILLED]);
     }
 
     public function join(PatientProfile $patient, Branch $branch, Doctor $doctor, Treatment $treatment, Carbon $date): WaitingList

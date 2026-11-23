@@ -11,6 +11,8 @@ class WaitingList extends Model
 {
     public const string ONLINE_BOOKING = 'online_booking';
 
+    public const string FULFILLED = 'fulfilled';
+
     protected $fillable = [
         'business_id',
         'branch_id',
@@ -43,6 +45,14 @@ class WaitingList extends Model
     protected function onlineBooking(Builder $query): Builder
     {
         return $query->where('source', self::ONLINE_BOOKING);
+    }
+
+    #[Scope]
+    protected function forSelection(Builder $query, int $businessId, int $branchId, int $doctorId, int $treatmentId, string $date): Builder
+    {
+        return $query->where('business_id', $businessId)->where('branch_id', $branchId)
+            ->where('doctor_id', $doctorId)->where('treatment_id', $treatmentId)
+            ->whereDate('preferred_date', $date);
     }
 
     public function business(): BelongsTo

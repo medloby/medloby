@@ -17,7 +17,8 @@ class AppointmentBookingService
 {
     public function __construct(
         protected AppointmentAvailabilityService $availabilityService,
-        protected AppointmentNotificationService $notificationService
+        protected AppointmentNotificationService $notificationService,
+        private AppointmentWaitingList $waitingList,
     ) {}
 
     /**
@@ -153,6 +154,7 @@ class AppointmentBookingService
             'changed_at' => now(),
         ]);
 
+        $this->waitingList->completeForAppointment($appointment);
         $this->notificationService->notifyNewAppointment($appointment);
 
         return $appointment->fresh([

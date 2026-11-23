@@ -18,6 +18,7 @@ class AppointmentLifecycleService
         protected AppointmentAvailabilityService $availabilityService,
         protected AppointmentNotificationService $notificationService,
         protected AppointmentSlotAvailabilityService $slotAvailabilityService,
+        private AppointmentWaitingList $waitingList,
     ) {}
 
     private function ensurePermission(
@@ -453,6 +454,7 @@ class AppointmentLifecycleService
                 'changed_at' => now(),
             ]);
 
+            $this->waitingList->completeForAppointment($newAppointment);
             $this->notificationService->notifyAppointmentRescheduled($newAppointment, $byPatient);
 
             return $newAppointment->fresh([
