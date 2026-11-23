@@ -29,6 +29,11 @@ class PrivacyPublication
             && ($this->operator('privacy_kep') === '' || $this->email('privacy_kep') !== null);
     }
 
+    public function policiesArePublished(): bool
+    {
+        return config('medloby.policies_published') === true && $this->isPublished() && $this->contactSettingsReady();
+    }
+
     public function operator(string $field): string
     {
         $operator = $this->isPreviewing() ? 'preview_operator' : 'operator';

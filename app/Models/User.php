@@ -69,6 +69,11 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany(SupportTicket::class, 'requester_id');
     }
 
+    public function isVerifiedPlatformAdmin(): bool
+    {
+        return $this->is_admin && $this->hasVerifiedEmail();
+    }
+
     #[Scope]
     protected function verifiedPlatformAdmin(Builder $users): Builder
     {

@@ -19,7 +19,7 @@ class AdminMiddleware
     ): Response {
         $user = $request->user();
 
-        if (! $user || ! $user->is_admin) {
+        if (! $user?->isVerifiedPlatformAdmin()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Bu işlem için admin yetkisi gereklidir.',

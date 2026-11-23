@@ -7,6 +7,7 @@
             <meta name="robots" content="noindex">
         @endif
         <title>{{ $title }} | Medloby</title>
+        <link rel="canonical" href="{{ app(\App\Services\PublicWebsite::class)->url('policies.show', ['policy' => request()->route('policy')]) }}">
         @fonts
         @vite('resources/css/app.css')
     </head>

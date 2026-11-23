@@ -21,6 +21,8 @@ Yerel geliştirmede `MEDLOBY_POLICY_PREVIEW=true` ile Politika ve KVKK sayfalar�
 
 ## Medloby yayına çıkmadan önce
 
+Güvenlik, performans, SEO ve yayın kabulü denetimleri tek envanterde izlenir. [Güvenlik ve yayın envanteri](GUVENLIK-YAYIN-ENVANTERI.md)
+
 - [ ] **Yayın ortamını hazırla.** Alan adını, HTTPS’i, uygulama sunucusunu ve veritabanını belirle. Web sunucusunun kökünü `public` dizinine yönelt. Üretim bağımlılıklarını `composer install --no-dev` ile kur ve arayüzü derle. Yayın ayarlarını ve gizli anahtarları sunucudan yönet. Şema güncellemelerini önce deneme veritabanında uygula ve `medloby:release-check` çıktısını doğrula. [Teknik kontrol](#yayın-öncesi-teknik-kontrol)
 - [ ] **İşletmeci ve iletişim bilgilerini doğrula.** Resmî unvanı ve yazılı KVKK başvurularının gönderileceği posta adresini `MEDLOBY_OPERATOR_LEGAL_NAME` ve `MEDLOBY_OPERATOR_POSTAL_ADDRESS` ayarlarına gir. Elektronik başvuru için kullanılacak e-posta ve KEP adreslerini `MEDLOBY_PRIVACY_EMAIL` ve `MEDLOBY_PRIVACY_KEP` ayarlarına gir. Destek ve içerik editörü adreslerini `MEDLOBY_SUPPORT_EMAIL` ve `MEDLOBY_EDITOR_EMAIL` ayarlarına gir. Yayın kontrolü girilen elektronik adreslerin biçimini doğrular.
 - [ ] **Veri saklama ve işleme kurallarını onayla.** Kayıt gruplarının kesin saklama sürelerini ve sağlık verilerinin hangi şartlarla işleneceğini belirle. [Veri işleme ve saklama planı](resources/contracts/medloby-veri-isleme-ve-saklama-taslagi.md)

@@ -41,6 +41,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       - name: Set up PHP and Composer
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
@@ -67,8 +68,27 @@ jobs:
       - name: Install JavaScript dependencies
         run: npm ci --ignore-scripts
 
+      - name: Audit locked dependencies
+        run: |
+          composer audit --locked --no-interaction
+          npm audit
+
       - name: Build frontend assets
         run: npm run build
+
+      - name: Check source syntax
+        run: |
+          find app bootstrap config database routes tests -name '*.php' -print0 | xargs -0 -n1 php -l >/dev/null
+          find resources/js -name '*.js' -print0 | xargs -0 -n1 node --check
+
+      - name: Scan Git history and built frontend for secrets
+        run: |
+          archive="$RUNNER_TEMP/gitleaks_8.24.3_linux_x64.tar.gz"
+          curl -fsSL --retry 2 https://github.com/gitleaks/gitleaks/releases/download/v8.24.3/gitleaks_8.24.3_linux_x64.tar.gz -o "$archive"
+          printf '%s  %s\n' '9991e0b2903da4c8f6122b5c3186448b927a5da4deef1fe45271c3793f4ee29c' "$archive" | sha256sum --check --strict
+          tar -xf "$archive" -C "$RUNNER_TEMP" gitleaks
+          "$RUNNER_TEMP/gitleaks" git --log-opts='--all --full-history' --redact=100 --no-banner .
+          "$RUNNER_TEMP/gitleaks" dir --redact=100 --no-banner public/build
 
       - name: Run the SQLite test suite
         run: php artisan test --compact

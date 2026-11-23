@@ -16,8 +16,7 @@ class PolicyPageController extends Controller
             'title' => $title,
             'content' => 'policies.pages.'.$policy,
             'publication' => $publication,
-            'draft' => config('medloby.policies_published') !== true
-                || ! $publication->isPublished() || ! $publication->contactSettingsReady(),
+            'draft' => ! $publication->policiesArePublished(),
         ]);
     }
 }

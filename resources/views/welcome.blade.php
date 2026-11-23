@@ -5,6 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="description" content="Medloby’de klinik arayın, şubeleri ve tedavileri inceleyin, uygun şubeden randevu alın. Tedavi paketlerini ve size gönderilen teklifleri keşfedin.">
         <title>Medloby | Tedavi paketleri ve klinik bilgileri</title>
+        <link rel="canonical" href="{{ app(\App\Services\PublicWebsite::class)->url('home') }}">
         @fonts
         @vite('resources/css/app.css')
     </head>

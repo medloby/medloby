@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\PlatformContract;
 use App\Models\User;
 use App\Services\PrivacyPublication;
+use App\Services\PublicWebsite;
 use App\Services\ReleaseConfiguration;
 use FilesystemIterator;
 use Illuminate\Console\Attributes\Description;
@@ -19,7 +20,7 @@ use Throwable;
 #[Description('Medloby’nin yayın öncesi teknik ayarlarını kontrol et')]
 final class CheckReleaseReadiness extends Command
 {
-    public function handle(PrivacyPublication $privacy, Vite $vite, ReleaseConfiguration $release): int
+    public function handle(PrivacyPublication $privacy, Vite $vite, ReleaseConfiguration $release, PublicWebsite $website): int
     {
         $databaseReady = $this->probe($release->databaseReady(...));
         $schemaReady = $databaseReady ? $this->probe(fn (): bool => $release->migrationsReady(app('migrator'))) : null;
@@ -31,9 +32,14 @@ final class CheckReleaseReadiness extends Command
         $checks = [
             ['Yayın ortamı ve hata ayıklama', config('app.env') === 'production' && config('app.debug') === false,
                 'APP_ENV=production ve APP_DEBUG=false ayarlarını doğrulayın.'],
-            ['Site adresi', $this->httpsUrlReady(), 'APP_URL değerine sitenin HTTPS adresini girin.'],
-            ['Güvenli oturum çerezi', config('session.secure') === true && config('session.http_only') === true,
-                'SESSION_SECURE_COOKIE ve SESSION_HTTP_ONLY ayarlarını true yapın.'],
+            ['Site adresi', $website->hasSecureOrigin(), 'APP_URL değerine sitenin HTTPS kök adresini girin.'],
+            ['Güvenli oturum çerezi', config('session.secure') === true && config('session.http_only') === true
+                && in_array(config('session.same_site'), ['lax', 'strict'], true),
+                'SESSION_SECURE_COOKIE ve SESSION_HTTP_ONLY ayarlarını true yapın. SameSite için lax veya strict kullanın.'],
+            ['Güvenilen vekil sunucular', config('trustedproxy.valid') === true,
+                'MEDLOBY_TRUSTED_PROXIES değeri için yalnızca vekil sunucunun IP adreslerini veya CIDR aralıklarını kullanın.'],
+            ['İstek sınırlandırma deposu', $this->probe($release->limiterReady(...)),
+                'CACHE_LIMITER veya CACHE_STORE için kalıcı bir depo kullanın. Birden fazla sunucuda aynı depoyu ve ön eki kullanın.'],
             ['Uygulama anahtarı', $this->probe(fn (): bool => app(Encrypter::class) instanceof Encrypter),
                 'Dağıtım ortamındaki APP_KEY değerini doğrulayın.'],
             ['Derlenmiş arayüz dosyaları', $this->probe(fn (): bool => $this->assetsReady($vite)),
@@ -78,13 +84,6 @@ final class CheckReleaseReadiness extends Command
         } catch (Throwable) {
             return false;
         }
-    }
-
-    private function httpsUrlReady(): bool
-    {
-        $url = filter_var(config('app.url'), FILTER_VALIDATE_URL);
-
-        return $url !== false && parse_url($url, PHP_URL_SCHEME) === 'https';
     }
 
     private function assetsReady(Vite $vite): bool

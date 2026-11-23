@@ -72,6 +72,20 @@ final class ReleaseConfiguration
             ->hasTable($queue['table'] ?? 'jobs');
     }
 
+    public function limiterReady(): bool
+    {
+        $store = config('cache.limiter') ?: config('cache.default');
+        $driver = config('cache.stores.'.$store.'.driver');
+
+        return match ($driver) {
+            'database' => Schema::connection(config('cache.stores.'.$store.'.connection') ?? config('database.default'))
+                ->hasTable(config('cache.stores.'.$store.'.table', 'cache')),
+            'file' => is_writable(config('cache.stores.'.$store.'.path', '')),
+            'redis', 'memcached', 'dynamodb' => true,
+            default => false,
+        };
+    }
+
     public function mailReady(): bool
     {
         $mailer = config('mail.mailers.'.config('mail.default'), []);

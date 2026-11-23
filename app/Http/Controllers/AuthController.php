@@ -47,7 +47,7 @@ class AuthController extends Controller
                 ]);
             }
 
-            abort_if($adminOnly && (! $user->is_admin || ! $user->hasVerifiedEmail()), 403, 'Doğrulanmış platform yöneticisi hesabıyla giriş yapın.');
+            abort_if($adminOnly && ! $user->isVerifiedPlatformAdmin(), 403, 'Doğrulanmış platform yöneticisi hesabıyla giriş yapın.');
 
             if ($user->temporary_password_expires_at !== null) {
                 if ($user->temporary_password_expires_at->isPast()) {

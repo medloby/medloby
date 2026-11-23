@@ -3,6 +3,8 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="description" content="{{ $clinic->name }} klinik ve şube bilgilerini, tedavileri ve randevu seçeneklerini Medloby’de inceleyin.">
+        <link rel="canonical" href="{{ app(\App\Services\PublicWebsite::class)->url('clinics.show', ['clinic' => $clinic->slug]) }}">
         <title>{{ $clinic->name }} | Medloby</title>
         @fonts
         @vite('resources/css/app.css')

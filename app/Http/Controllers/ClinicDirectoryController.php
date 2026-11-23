@@ -36,7 +36,7 @@ class ClinicDirectoryController extends Controller
         $clinics = null;
 
         if ($request->hasAny(['klinik', 'konum', 'tedavi', 'klinik_sayfa'])) {
-            $clinics = $this->publicClinics()
+            $clinics = Business::query()->publiclyListed()
                 ->whereHas('branches', fn (Builder $branches) => $this->matchingBranches($branches, $name, $location, $treatment))
                 ->with(['branches' => fn (HasMany $branches) => $this->matchingBranches($branches->getQuery(), $name, $location, $treatment)
                     ->when($treatment !== '', fn (Builder $query) => $query->with(['treatments' => fn (BelongsToMany $treatments) => $this->matchingTreatments($treatments->getQuery(), $treatment)
@@ -51,7 +51,7 @@ class ClinicDirectoryController extends Controller
 
     public function show(string $clinic, ClinicContactPublication $publication): View
     {
-        $clinic = $this->publicClinics()->where('slug', $clinic)
+        $clinic = Business::query()->publiclyListed()->where('slug', $clinic)
             ->whereHas('branches', fn (Builder $branches) => $branches->where('status', 'active'))
             ->firstOrFail(['id', 'name', 'slug', 'phone', 'email', 'website', 'public_contact_fields']);
         $today = Appointment::clinicLocalNow()->toDateString();
@@ -146,10 +146,5 @@ class ClinicDirectoryController extends Controller
                 $matches->orWhereRaw("LOWER({$expression}) LIKE ? ESCAPE '!'", [...$bindings, $pattern]);
             }
         });
-    }
-
-    private function publicClinics(): Builder
-    {
-        return Business::query()->where('status', 'active')->where('is_verified', true);
     }
 }

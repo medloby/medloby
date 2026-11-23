@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\AdminMiddleware;
+use App\Http\Middleware\ApplyResponseSecurity;
 use App\Http\Middleware\EnsureMedlobyAccountVerified;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -15,6 +16,12 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->trustHosts(static fn (): array => [
+            '^'.preg_quote((string) parse_url(config('app.url'), PHP_URL_HOST)).'$',
+        ], subdomains: false);
+        $middleware->trustProxies(headers: Request::HEADER_X_FORWARDED_FOR
+            | Request::HEADER_X_FORWARDED_PORT | Request::HEADER_X_FORWARDED_PROTO);
+        $middleware->append(ApplyResponseSecurity::class);
         $middleware->trimStrings(except: ['new_password', 'new_password_confirmation']);
         $middleware->alias([
             'admin' => AdminMiddleware::class,

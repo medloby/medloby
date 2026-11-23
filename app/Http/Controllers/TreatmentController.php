@@ -14,12 +14,13 @@ class TreatmentController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        $activeOnly = $request->boolean('active_only') || ! auth('sanctum')->user()?->isVerifiedPlatformAdmin();
         $query = Treatment::query()
-            ->with('treatmentCategory')
+            ->with(['treatmentCategory' => fn ($category) => $category->when($activeOnly, fn ($query) => $query->where('is_active', true))])
             ->orderBy('sort_order')
             ->orderBy('name');
 
-        if ($request->boolean('active_only')) {
+        if ($activeOnly) {
             $query->where('is_active', true);
         }
 
@@ -159,7 +160,9 @@ class TreatmentController extends Controller
 
     public function show(Treatment $treatment): JsonResponse
     {
-        $treatment->load('treatmentCategory');
+        $publicOnly = ! auth('sanctum')->user()?->isVerifiedPlatformAdmin();
+        abort_if($publicOnly && ! $treatment->is_active, 404);
+        $treatment->load(['treatmentCategory' => fn ($category) => $category->when($publicOnly, fn ($query) => $query->where('is_active', true))]);
         $packages = $treatment->packages()
             ->publishedInCatalog()
             ->orderBy('treatment_packages.name')

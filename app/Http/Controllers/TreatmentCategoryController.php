@@ -12,12 +12,13 @@ class TreatmentCategoryController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        $activeOnly = $request->boolean('active_only') || ! auth('sanctum')->user()?->isVerifiedPlatformAdmin();
         $query = TreatmentCategory::query()
-            ->with('children')
+            ->with(['children' => fn ($children) => $children->when($activeOnly, fn ($query) => $query->where('is_active', true))])
             ->orderBy('sort_order')
             ->orderBy('name');
 
-        if ($request->boolean('active_only')) {
+        if ($activeOnly) {
             $query->where('is_active', true);
         }
 
@@ -115,10 +116,13 @@ class TreatmentCategoryController extends Controller
 
     public function show(TreatmentCategory $treatmentCategory): JsonResponse
     {
+        $publicOnly = ! auth('sanctum')->user()?->isVerifiedPlatformAdmin();
+        abort_if($publicOnly && ! $treatmentCategory->is_active, 404);
+        $visible = fn ($relation) => $relation->when($publicOnly, fn ($query) => $query->where('is_active', true));
         $treatmentCategory->load([
-            'parent',
-            'children',
-            'treatments',
+            'parent' => $visible,
+            'children' => $visible,
+            'treatments' => $visible,
         ]);
 
         return response()->json([

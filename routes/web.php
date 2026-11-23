@@ -4,9 +4,12 @@ use App\Http\Controllers\ClinicDirectoryController;
 use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\PolicyPageController;
 use App\Http\Controllers\PrivacyNoticeController;
+use App\Http\Controllers\SearchIndexController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [ClinicDirectoryController::class, 'index'])->name('home');
+Route::get('/robots.txt', [SearchIndexController::class, 'robots'])->name('search.robots');
+Route::get('/sitemap.xml', [SearchIndexController::class, 'sitemap'])->name('search.sitemap');
 Route::get('/klinikler/{clinic}', [ClinicDirectoryController::class, 'show'])->name('clinics.show');
 Route::view('/paket-teklifleri', 'package-offers')->name('package-offers');
 Route::view('/yonetim', 'platform-admin')->name('platform-admin');

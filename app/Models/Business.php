@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -17,6 +19,12 @@ class Business extends Model
         'standard' => 'Standart',
         'professional' => 'Profesyonel',
     ];
+
+    #[Scope]
+    protected function publiclyListed(Builder $businesses): Builder
+    {
+        return $businesses->where('status', 'active')->where('is_verified', true);
+    }
 
     protected $fillable = [
         'name',

@@ -26,6 +26,23 @@ beforeEach(function () {
     $this->branch->treatments()->attach($this->treatment->id, ['is_active' => true]);
 });
 
+test('public package validity includes both ends of the current calendar day', function () {
+    $this->travelTo(now()->startOfDay()->addHours(12));
+    $today = $this->business->treatmentPackages()->create([
+        'name' => 'Bugünkü paket', 'slug' => 'bugunku-paket',
+        'valid_from' => today(), 'valid_until' => today(),
+    ]);
+    $this->business->treatmentPackages()->create([
+        'name' => 'Yarın başlayacak paket', 'slug' => 'yarinki-paket', 'valid_from' => today()->addDay(),
+    ]);
+    $this->business->treatmentPackages()->create([
+        'name' => 'Dün biten paket', 'slug' => 'dun-biten-paket', 'valid_until' => today()->subDay(),
+    ]);
+
+    $this->getJson('/api/treatment-packages')->assertOk()->assertJsonCount(1, 'data.packages')
+        ->assertJsonPath('data.packages.0.id', $today->id);
+});
+
 test('public package and service reads only show published catalog data', function () {
     $package = $this->business->treatmentPackages()->create([
         'branch_id' => $this->branch->id,

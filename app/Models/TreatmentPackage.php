@@ -48,15 +48,17 @@ class TreatmentPackage extends Model
     #[Scope]
     protected function publishedInCatalog(Builder $query): Builder
     {
-        $today = today()->toDateString();
+        $date = today();
+        $today = $date->toDateString();
+        $tomorrow = $date->addDay()->toDateString();
 
         return $query->where('treatment_packages.is_active', true)
             ->where(fn (Builder $packages) => $packages
-                ->whereNull('valid_from')->orWhereDate('valid_from', '<=', $today))
+                ->whereNull('valid_from')->orWhere('valid_from', '<', $tomorrow))
             ->where(fn (Builder $packages) => $packages
-                ->whereNull('valid_until')->orWhereDate('valid_until', '>=', $today))
+                ->whereNull('valid_until')->orWhere('valid_until', '>=', $today))
             ->whereHas('business', fn (Builder $businesses) => $businesses
-                ->where('status', 'active')->where('is_verified', true))
+                ->publiclyListed())
             ->where(fn (Builder $packages) => $packages->whereNull('treatment_packages.branch_id')
                 ->orWhereHas('branch', fn (Builder $branches) => $branches->where('status', 'active')
                     ->whereColumn('branches.business_id', 'treatment_packages.business_id')));
