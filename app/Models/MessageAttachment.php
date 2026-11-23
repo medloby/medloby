@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class MessageAttachment extends Model
 {
+    public const int MAX_SIZE_MB = 10;
+
     protected $fillable = [
         'message_id',
         'disk',

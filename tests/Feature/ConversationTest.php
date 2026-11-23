@@ -15,6 +15,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Storage;
+use League\Flysystem\UnableToCreateDirectory;
 
 uses(RefreshDatabase::class);
 
@@ -526,6 +527,56 @@ test('a message rollback removes the file written before the attachment record f
     $storage->assertDirectoryEmpty('conversations/'.$conversation->id);
 });
 
+test('unavailable attachment storage returns 503 and the complete message can be retried', function () {
+    $storage = Storage::fake('private');
+    $data = createConversationTestData();
+    $conversation = createConversation($data);
+    $directory = 'conversations/'.$conversation->id;
+    $url = "/api/conversations/{$conversation->id}/messages";
+    $payload = [
+        'body' => 'Belgeyi görüşmeye gönderiyorum.',
+        'attachment' => UploadedFile::fake()->create('belge.pdf', 5, 'application/pdf'),
+    ];
+
+    $storage->put($directory, 'The attachment directory is unavailable.');
+    Exceptions::fake();
+
+    $this->actingAs($data['patientUser'])->post($url, $payload, ['Accept' => 'application/json'])
+        ->assertServiceUnavailable()
+        ->assertJsonPath('message', 'Dosya kaydedilemedi. Lütfen tekrar deneyin.');
+
+    Exceptions::assertReported(UnableToCreateDirectory::class);
+    $this->assertDatabaseCount('messages', 0);
+    $this->assertDatabaseCount('message_attachments', 0);
+    expect($conversation->refresh()->last_message_at)->toBeNull();
+
+    $storage->delete($directory);
+    $this->post($url, $payload, ['Accept' => 'application/json'])->assertCreated()
+        ->assertJsonPath('data.attachments.0.original_name', 'belge.pdf');
+
+    $this->assertDatabaseCount('messages', 1);
+    $storage->assertExists(MessageAttachment::sole()->path);
+});
+
+test('an upload rejected by PHP returns a clear attachment validation error', function () {
+    $storage = Storage::fake('private');
+    $data = createConversationTestData();
+    $conversation = createConversation($data);
+    $file = UploadedFile::fake()->create('belge.pdf', 5, 'application/pdf');
+    $failedUpload = new UploadedFile($file->getPathname(), 'belge.pdf', 'application/pdf', UPLOAD_ERR_INI_SIZE, true);
+
+    $this->actingAs($data['patientUser'])->post(
+        "/api/conversations/{$conversation->id}/messages",
+        ['body' => 'Bu mesajın eki olmalı.', 'attachment' => $failedUpload],
+        ['Accept' => 'application/json'],
+    )->assertUnprocessable()
+        ->assertJsonValidationErrors(['attachment' => 'Dosya yüklenemedi. Daha küçük bir dosyayla tekrar deneyin.']);
+
+    $this->assertDatabaseCount('messages', 0);
+    $this->assertDatabaseCount('message_attachments', 0);
+    $storage->assertDirectoryEmpty('conversations/'.$conversation->id);
+});
+
 test('patient can send jpg attachment to their own conversation', function () {
     Storage::fake('private');
 
@@ -713,7 +764,7 @@ test('user cannot upload attachment larger than 10 mb', function () {
     $response->assertUnprocessable();
 
     $response->assertJsonValidationErrors([
-        'attachment',
+        'attachment' => 'Ek dosya en fazla 10 MB olabilir.',
     ]);
 
     $this->assertDatabaseCount('messages', 0);
@@ -745,7 +796,7 @@ test('message attachment is stored under the conversation directory', function (
     expect($attachment)->not->toBeNull();
     expect($attachment->disk)->toBe('private');
     expect($attachment->path)
-        ->toStartWith('conversations/' . $conversation->id . '/');
+        ->toStartWith('conversations/'.$conversation->id.'/');
 
     Storage::disk('private')->assertExists($attachment->path);
 });

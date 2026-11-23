@@ -12,8 +12,9 @@
             <textarea class="offer-control" name="body" rows="3" maxlength="10000"></textarea>
         </label>
         <label class="offer-field">
-            Dosya (isteğe bağlı)
-            <input class="offer-control" type="file" name="attachment" accept=".jpg,.jpeg,.png,.pdf" aria-describedby="conversation-attachment-help">
+            Dosya (isteğe bağlı, en fazla {{ \App\Models\MessageAttachment::MAX_SIZE_MB }} MB)
+            <input class="offer-control" type="file" name="attachment" accept=".jpg,.jpeg,.png,.pdf" aria-describedby="conversation-attachment-help"
+                data-max-megabytes="{{ \App\Models\MessageAttachment::MAX_SIZE_MB }}">
             <span id="conversation-attachment-help" class="text-sm font-normal text-slate-600 dark:text-slate-300">Görüşme için gereken dosyaları ekleyin. Sağlık raporu veya kimlik belgesi istendiğinde kliniğin bildirdiği güvenli kanalı kullanın.</span>
         </label>
         <button type="submit" class="offer-button justify-self-start">Mesaj gönder</button>

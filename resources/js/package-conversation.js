@@ -1,6 +1,7 @@
 export function mountPackageConversation(thread, { api, downloadAttachment, timeLabel }) {
     const find = (selector) => thread.querySelector(selector);
     const form = find('[data-thread-form]');
+    const maxAttachmentSize = Number(form.elements.attachment.dataset.maxMegabytes);
     const submit = form.querySelector('[type=submit]');
     const status = find('[data-thread-status]');
     const list = find('[data-thread-messages]');
@@ -124,6 +125,11 @@ export function mountPackageConversation(thread, { api, downloadAttachment, time
             return;
         }
 
+        if (file.size > maxAttachmentSize * 1024 * 1024) {
+            showStatus(`Ek dosya en fazla ${maxAttachmentSize} MB olabilir.`);
+            return;
+        }
+
         fields.set('body', body);
         if (!file.name) {
             fields.delete('attachment');
@@ -138,7 +144,7 @@ export function mountPackageConversation(thread, { api, downloadAttachment, time
             }
         } catch (error) {
             if (current?.id === id) {
-                showStatus(error.message);
+                showStatus(error.status === 413 ? 'Dosya sunucunun yükleme sınırını aşıyor. Daha küçük bir dosya seçin.' : error.message);
             }
         } finally {
             submit.disabled = false;

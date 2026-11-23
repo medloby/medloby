@@ -16,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
+use League\Flysystem\FilesystemException;
 
 class ConversationController extends Controller
 {
@@ -207,6 +208,7 @@ class ConversationController extends Controller
             );
         }
 
+        $maxAttachmentSize = MessageAttachment::MAX_SIZE_MB;
         $validated = $request->validate([
             'body' => [
                 'nullable',
@@ -217,9 +219,12 @@ class ConversationController extends Controller
             'attachment' => [
                 'nullable',
                 'file',
-                'max:10240',
+                'max:'.($maxAttachmentSize * 1024),
                 'mimes:jpg,jpeg,png,pdf',
             ],
+        ], [
+            'attachment.max' => "Ek dosya en fazla {$maxAttachmentSize} MB olabilir.",
+            'attachment.uploaded' => 'Dosya yüklenemedi. Daha küçük bir dosyayla tekrar deneyin.',
         ]);
 
         if (
@@ -253,7 +258,14 @@ class ConversationController extends Controller
                 $path = $directory.'/'.$filename;
 
                 DB::afterRollBack(fn () => rescue(fn () => $disk->delete($path)));
-                abort_if($disk->putFileAs($directory, $file, $filename) === false, 503, 'Dosya kaydedilemedi. Lütfen tekrar deneyin.');
+                try {
+                    $storedPath = $disk->putFileAs($directory, $file, $filename);
+                } catch (FilesystemException $exception) {
+                    report($exception);
+                    $storedPath = false;
+                }
+
+                abort_if($storedPath === false, 503, 'Dosya kaydedilemedi. Lütfen tekrar deneyin.');
 
                 MessageAttachment::create([
                     'message_id' => $message->id,
