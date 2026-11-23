@@ -3,14 +3,16 @@ export function mountPackageConversation(thread, { api, downloadAttachment, time
     const form = find('[data-thread-form]');
     const maxAttachmentSize = Number(form.elements.attachment.dataset.maxMegabytes);
     const submit = form.querySelector('[type=submit]');
+    const summary = find('summary');
     const status = find('[data-thread-status]');
     const list = find('[data-thread-messages]');
+    const pages = find('[data-thread-pages]');
     const newer = find('[data-thread-newer]');
     const older = find('[data-thread-older]');
     const template = find('[data-thread-message]');
     let current;
-    let page = 1;
-    let lastPage = 1;
+    let newerCursor;
+    let olderCursor;
     let request = 0;
 
     function showStatus(message) {
@@ -51,23 +53,23 @@ export function mountPackageConversation(thread, { api, downloadAttachment, time
         return row;
     }
 
-    async function load(targetPage) {
+    async function load(cursor = '') {
         const pending = ++request;
         newer.disabled = true;
         older.disabled = true;
         showStatus('Mesajlar yükleniyor…');
 
         try {
-            const { messages, conversation } = await api('/conversations/' + current.id + '?page=' + targetPage);
+            const { messages, conversation } = await api('/conversations/' + current.id + '?message_cursor=' + encodeURIComponent(cursor));
             if (pending !== request) {
                 return;
             }
 
-            page = messages.current_page;
-            lastPage = messages.last_page;
+            newerCursor = messages.prev_cursor;
+            olderCursor = messages.next_cursor;
             list.replaceChildren(...messages.data.slice().reverse().map(messageRow));
             form.hidden = conversation.status !== 'open';
-            find('[data-thread-pages]').hidden = lastPage <= 1;
+            pages.hidden = !newerCursor && !olderCursor;
             showStatus(messages.data.length ? '' : 'Henüz mesaj yok.');
         } catch (error) {
             if (pending === request) {
@@ -75,8 +77,8 @@ export function mountPackageConversation(thread, { api, downloadAttachment, time
             }
         } finally {
             if (pending === request) {
-                newer.disabled = page <= 1;
-                older.disabled = page >= lastPage;
+                newer.disabled = !newerCursor;
+                older.disabled = !olderCursor;
             }
         }
     }
@@ -88,27 +90,41 @@ export function mountPackageConversation(thread, { api, downloadAttachment, time
 
         current = conversation;
         request++;
-        page = 1;
-        lastPage = 1;
+        newerCursor = null;
+        olderCursor = null;
         thread.hidden = !current;
         form.reset();
         form.hidden = true;
         list.replaceChildren();
-        find('[data-thread-pages]').hidden = true;
+        pages.hidden = true;
         showStatus('');
 
         if (current && thread.open) {
-            load(1);
+            load();
         }
+    }
+
+    function openLatest() {
+        if (!current) {
+            return;
+        }
+
+        if (thread.open) {
+            load();
+        } else {
+            thread.open = true;
+        }
+
+        summary.focus();
     }
 
     thread.addEventListener('toggle', () => {
         if (current && thread.open) {
-            load(1);
+            load();
         }
     });
-    newer.addEventListener('click', () => load(page - 1));
-    older.addEventListener('click', () => load(page + 1));
+    newer.addEventListener('click', () => load(newerCursor));
+    older.addEventListener('click', () => load(olderCursor));
 
     form.addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -140,7 +156,7 @@ export function mountPackageConversation(thread, { api, downloadAttachment, time
             await api('/conversations/' + id + '/messages', fields);
             if (current?.id === id) {
                 form.reset();
-                await load(1);
+                await load();
             }
         } catch (error) {
             if (current?.id === id) {
@@ -151,5 +167,5 @@ export function mountPackageConversation(thread, { api, downloadAttachment, time
         }
     });
 
-    return { select };
+    return { select, openLatest };
 }

@@ -532,9 +532,7 @@ export function mountPackageOffers(root) {
             return;
         }
         if (!target.offerId) {
-            const conversationThread = get('package-conversation');
-            conversationThread.open = true;
-            conversationThread.querySelector('summary').focus();
+            thread.openLatest();
             return;
         }
 

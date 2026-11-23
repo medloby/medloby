@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Notifications\NotificationType;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Pagination\Cursor;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Storage;
 use League\Flysystem\UnableToCreateDirectory;
@@ -138,6 +139,63 @@ test('conversation participants receive display names and attachment details wit
         $this->get("/api/attachments/{$attachmentId}/view")->assertOk();
     }
 });
+
+test('participants can browse message history in both directions when a new message arrives', function () {
+    $data = createConversationTestData();
+    $conversation = createConversation($data);
+    $messages = $conversation->messages()->createMany(array_map(fn (int $number) => [
+        'sender_user_id' => $data['patientUser']->id,
+        'body' => "Mesaj {$number}",
+        'message_type' => 'text',
+    ], range(1, 52)));
+    $url = "/api/conversations/{$conversation->id}";
+    $historyUrl = $url.'?message_cursor=';
+
+    $firstPage = $this->actingAs($data['patientUser'])->getJson($historyUrl)->assertOk()
+        ->assertHeader('Cache-Control', 'no-store, private')
+        ->assertJsonPath('data.messages.prev_cursor', null);
+    expect(array_column($firstPage->json('data.messages.data'), 'id'))
+        ->toBe(array_reverse($messages->slice(2)->modelKeys()));
+
+    $newMessageId = $this->actingAs($data['businessUser'])->postJson($url.'/messages', ['body' => 'Yeni mesaj'])
+        ->assertCreated()->json('data.id');
+
+    $older = $this->actingAs($data['patientUser'])
+        ->getJson($historyUrl.$firstPage->json('data.messages.next_cursor'))->assertOk()
+        ->assertJsonPath('data.messages.next_cursor', null);
+    expect(array_column($older->json('data.messages.data'), 'id'))->toBe([$messages[1]->id, $messages[0]->id]);
+
+    $newer = $this->getJson($historyUrl.$older->json('data.messages.prev_cursor'))->assertOk();
+    expect(array_column($newer->json('data.messages.data'), 'id'))
+        ->toBe(array_reverse($messages->slice(2)->modelKeys()));
+
+    $this->getJson($historyUrl.$newer->json('data.messages.prev_cursor'))->assertOk()
+        ->assertJsonCount(1, 'data.messages.data')
+        ->assertJsonPath('data.messages.data.0.id', $newMessageId)
+        ->assertJsonPath('data.messages.prev_cursor', null);
+
+    $this->actingAs($data['businessUser'])->getJson($url.'?page=2')->assertOk()
+        ->assertJsonPath('data.messages.current_page', 2)
+        ->assertJsonCount(3, 'data.messages.data')
+        ->assertJsonPath('data.messages.data.0.id', $messages[2]->id);
+
+    $this->actingAs(User::factory()->create())->getJson($historyUrl.$older->json('data.messages.prev_cursor'))
+        ->assertForbidden();
+});
+
+test('malformed message history cursors return a validation error', function (string $cursor) {
+    $data = createConversationTestData();
+    $conversation = createConversation($data);
+
+    $this->actingAs($data['patientUser'])
+        ->getJson("/api/conversations/{$conversation->id}?message_cursor=".$cursor)
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['message_cursor' => 'Mesaj sayfası bağlantısı geçersiz.']);
+})->with([
+    'unreadable' => ['invalid'],
+    'missing message ID' => [(new Cursor([]))->encode()],
+    'invalid message ID' => [(new Cursor(['id' => 'latest']))->encode()],
+]);
 
 test('patient can create conversation for business without selecting branch', function () {
     $data = createConversationTestData();

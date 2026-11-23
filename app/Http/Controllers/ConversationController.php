@@ -13,6 +13,7 @@ use App\Models\TreatmentPackage;
 use App\Services\PackageConversationNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\Cursor;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
@@ -171,19 +172,37 @@ class ConversationController extends Controller
             $conversation
         );
 
-        $messages = $conversation->messages()
+        $messageQuery = $conversation->messages()
             ->with(self::MESSAGE_RELATIONS)
-            ->latest('id')
-            ->paginate(50)
-            ->through(fn (Message $message) => new ConversationMessageResource($message));
+            ->latest('id');
+        $messages = $request->query->has('message_cursor')
+            ? $messageQuery->cursorPaginate(50, cursorName: 'message_cursor', cursor: $this->messageHistoryCursor($request))
+            : $messageQuery->paginate(50);
 
         return response()->json([
             'success' => true,
             'data' => [
                 'conversation' => new ConversationResource($conversation->load(ConversationResource::DISPLAY_RELATIONS)),
-                'messages' => $messages,
+                'messages' => $messages->through(fn (Message $message) => new ConversationMessageResource($message)),
             ],
         ])->header('Cache-Control', 'private, no-store');
+    }
+
+    private function messageHistoryCursor(Request $request): ?Cursor
+    {
+        $encoded = $request->validate(['message_cursor' => ['nullable', 'string', 'max:128']])['message_cursor'] ?? null;
+        if ($encoded === null) {
+            return null;
+        }
+
+        $cursor = Cursor::fromEncoded($encoded);
+        $parameters = $cursor?->toArray();
+        $messageId = $parameters['id'] ?? null;
+        if (! is_int($messageId) || $messageId < 1 || ! is_bool($parameters['_pointsToNextItems'] ?? null)) {
+            throw ValidationException::withMessages(['message_cursor' => 'Mesaj sayfası bağlantısı geçersiz.']);
+        }
+
+        return $cursor;
     }
 
     public function sendMessage(
