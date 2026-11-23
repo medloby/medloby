@@ -55,6 +55,11 @@ class Offer extends Model
                 ->where('business_id', $this->business_id)->where('status', 'active')->exists());
     }
 
+    public function hasPassedDeadline(): bool
+    {
+        return $this->valid_until?->lt(now()->startOfSecond()) ?? false;
+    }
+
     /** @return list<int> */
     public function requiredBookingBranchIds(): array
     {

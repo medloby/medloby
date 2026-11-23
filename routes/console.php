@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Offer;
 use App\Services\AppointmentReminderService;
 use App\Services\AppointmentWaitingList;
 use App\Services\CrmFollowUpReminderService;
@@ -32,6 +33,16 @@ Artisan::command('medloby:notify-waiting-list', function (AppointmentWaitingList
 })->purpose('Bekleme listesindeki hastalara uygun saatleri bildir');
 
 Schedule::command('medloby:notify-waiting-list')->everyFiveMinutes()->withoutOverlapping(10);
+
+Artisan::command('medloby:expire-offers', function (): int {
+    $expired = Offer::query()->where('status', 'pending')->where('valid_until', '<', now()->startOfSecond())
+        ->update(['status' => 'expired']);
+    $this->info('Süresi dolan teklif sayısı · '.$expired);
+
+    return Command::SUCCESS;
+})->purpose('Süresi geçen ve yanıt bekleyen teklifleri kapat');
+
+Schedule::command('medloby:expire-offers')->everyMinute()->withoutOverlapping(5);
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());

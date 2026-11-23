@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Str;
 
-test('the scheduler delivers due patient and CRM reminders once across consecutive runs', function () {
+test('the scheduler delivers due reminders and expires unanswered offers across consecutive runs', function () {
     $directory = sys_get_temp_dir().'/medloby-reminder-schedule-'.Str::uuid();
     File::makeDirectory($directory, 0700);
 
@@ -53,6 +53,12 @@ test('the scheduler delivers due patient and CRM reminders once across consecuti
             'ends_at' => $startsAt->copy()->addMinutes(30)->toDateTimeString(),
             'status' => 'confirmed',
         ]);
+        $conversation = $patient->conversations()->create(['business_id' => $branch->business_id, 'branch_id' => $branch->id]);
+        $offer = $conversation->offers()->create([
+            'business_id' => $branch->business_id, 'branch_id' => $branch->id, 'patient_profile_id' => $patient->id,
+            'created_by' => $staff->id, 'title' => 'Bekleyen teklif', 'amount' => 500,
+            'valid_until' => now()->subMinute(), 'status' => 'pending',
+        ]);
 
         $scheduler = Process::path(base_path())->timeout(15)->env([
             'APP_ENV' => 'testing',
@@ -74,6 +80,7 @@ test('the scheduler delivers due patient and CRM reminders once across consecuti
         $this->assertDatabaseCount('notifications', 2);
         expect($followUp->fresh()->reminded_at)->not->toBeNull()
             ->and($appointment->fresh()->reminded_at)->not->toBeNull();
+        $this->assertDatabaseHas('offers', ['id' => $offer->id, 'status' => 'expired', 'responded_at' => null]);
 
         $scheduler->run()->throw();
         $this->assertDatabaseCount('notifications', 2);

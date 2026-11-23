@@ -367,6 +367,63 @@ test('patient cannot accept expired offer', function () {
         'id' => $offer->id,
         'status' => 'expired',
     ]);
+
+    $this->postJson("/api/offers/{$offer->id}/accept")->assertUnprocessable()
+        ->assertJsonPath('message', 'Bu teklifin geçerlilik süresi dolmuştur.');
+});
+
+test('an unanswered offer past its deadline appears expired in the offer list and patient journey', function () {
+    $this->freezeSecond();
+    $data = createOfferTestData();
+    $offer = $data['conversation']->offers()->create([
+        'business_id' => $data['business']->id, 'patient_profile_id' => $data['patientProfile']->id,
+        'created_by' => $data['businessUser']->id, 'title' => 'Süresi geçen paket teklifi', 'amount' => 100,
+        'valid_until' => now()->subSecond(), 'status' => 'pending',
+    ]);
+
+    $this->actingAs($data['patientUser'], 'sanctum')->getJson("/api/conversations/{$data['conversation']->id}/offers")
+        ->assertOk()
+        ->assertJsonPath('data.0.id', $offer->id)
+        ->assertJsonPath('data.0.status', 'expired')
+        ->assertJsonPath('data.0.deadline_passed', true);
+    $this->getJson('/api/patient/journey?category=offer')->assertOk()
+        ->assertJsonPath('data.events.0.kind', 'offer_received')
+        ->assertJsonPath('data.events.0.status', 'expired');
+    $this->assertDatabaseHas('offers', ['id' => $offer->id, 'status' => 'pending', 'responded_at' => null]);
+});
+
+test('offer expiration records only unanswered offers past their deadline', function () {
+    $this->freezeSecond();
+    $data = createOfferTestData();
+    $received = collect([
+        'overdue' => ['status' => 'pending', 'valid_until' => now()->subSecond()],
+        'on deadline' => ['status' => 'pending', 'valid_until' => now()],
+        'future deadline' => ['status' => 'pending', 'valid_until' => now()->addSecond()],
+        'no deadline' => ['status' => 'pending', 'valid_until' => null],
+        'accepted' => ['status' => 'accepted', 'valid_until' => now()->subSecond(), 'responded_at' => now()->subMinute()],
+        'rejected' => ['status' => 'rejected', 'valid_until' => now()->subSecond(), 'responded_at' => now()->subMinute()],
+    ])->map(fn (array $fields, string $title) => $data['conversation']->offers()->create($fields + [
+        'business_id' => $data['business']->id, 'patient_profile_id' => $data['patientProfile']->id,
+        'created_by' => $data['businessUser']->id, 'title' => $title, 'amount' => 100,
+    ]));
+
+    $this->artisan('medloby:expire-offers')->expectsOutput('Süresi dolan teklif sayısı · 1')->assertSuccessful();
+    $this->artisan('medloby:expire-offers')->expectsOutput('Süresi dolan teklif sayısı · 0')->assertSuccessful();
+
+    foreach ($received as $title => $offer) {
+        $this->assertDatabaseHas('offers', [
+            'id' => $offer->id, 'status' => $title === 'overdue' ? 'expired' : $offer->status,
+            'responded_at' => $offer->responded_at?->toDateTimeString(),
+        ]);
+    }
+    $this->assertDatabaseCount('notifications', 0);
+
+    $listed = $this->actingAs($data['patientUser'], 'sanctum')->getJson("/api/conversations/{$data['conversation']->id}/offers")
+        ->assertOk()->json('data');
+    $states = collect($listed)->keyBy('title');
+    expect($states['on deadline']['deadline_passed'])->toBeFalse()
+        ->and($states['accepted']['status'])->toBe('accepted')
+        ->and($states['accepted']['deadline_passed'])->toBeTrue();
 });
 
 test('patient cannot accept already accepted offer', function () {

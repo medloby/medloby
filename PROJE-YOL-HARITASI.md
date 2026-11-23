@@ -9,7 +9,7 @@
 Envanter, Git'in izlediği 529 dosyayı kapsadı. Depoda 173 uygulama dosyası, 74 migration, 53 model, 17 servis ve 90 Feature test dosyası bulunuyor. Laravel rota listesinde 257 API ucu ve 13 web veya sistem rotası var. [API rotaları](routes/api.php)
 
 - 419 PHP dosyasının sözdizimi, Blade önbelleği ve Vite derlemesi doğrulandı.
-- SQLite üzerinde **985 test**, PostgreSQL 17.12 üzerinde **988 test** geçti. PostgreSQL’e özel üç yedekleme senaryosu PostgreSQL aşamasında çalıştı.
+- SQLite üzerinde **987 test**, PostgreSQL 17.12 üzerinde **990 test** geçti. PostgreSQL’e özel üç yedekleme senaryosu PostgreSQL aşamasında çalıştı.
 - Klinik üyeliği için `0.2-draft` hazırlandı. Başvuru formu, geçerli ve yayımlanmış zorunlu sözleşme olduğunda açılır.
 - Kilit dosyalarının önceki npm taramasında ve 133 PHP paket sürümü için GitHub Advisory Database taramasında eşleşen bildirim bulunmadı.
 
@@ -181,6 +181,7 @@ Kamuya açılış için içeriğin uygunluğu, onaylı sözleşme ve kişisel ve
 32. **5.32 Yeni klinik başvurusunun ret kararı e-postaya bağlandı.** Başvuru sahibi sonucu başvuruda verdiği e-posta adresinden öğrenir. E-postada karar ve varsa başvuru sahibine özel açıklama yer alır. Kuyruk işçisi gönderim öncesinde son kararı, kayıtlı adresi ve başvuru sahibinin üyeliğini kontrol eder. [Klinik başvuru testleri](tests/Feature/ClinicAccountOnboardingTest.php)
 33. **5.33 Klinik sahibi ve personel doğru CRM’e yönlendiriliyor.** Birden fazla onaylı kliniği olan sahibin giriş koduna bağlı klinik önceliklidir. Kliniğin açtığı personel hesabı girişten sonra kendi kliniğinin CRM’ini açar ve yetkili olduğu aktif şubeleri görür. Yetkili bir CRM bağlantısından girişte seçilen klinik açılır. Klinik onayından geçici şifreyle girişe ve şubeye atanmış personelin girişine kadar olan akış mobil Chromium’da doğrulandı. [Klinik hesapları testleri](tests/Feature/ClinicAccountOnboardingTest.php)
 34. **5.34 Kurulum için asgari PHP sürümü doğrulandı.** Composer tanımı ve kurulum belgesi, kilitli üretim paketlerinin gerektirdiği PHP 8.4.1 alt sınırını gösterir. [Kurulum gereksinimleri](README.md#kurulum-gereksinimleri)
+35. **5.35 Süresi geçen teklifler zamanlayıcıyla kapanıyor.** Yanıt bekleyen teklifler son süreyi geçince `medloby:expire-offers` ile kapanır. Teklif kartı, hasta geçmişi ve seans planlama kararları sunucu saatini kullanır. Zamanlayıcının art arda çalışması ve kabul ile ret geçmişinin korunması test edildi. Mobil Chromium’da cihaz saati ilerideyken teklif kartının sunucu saatini kullandığı doğrulandı. [Teklif testleri](tests/Feature/OfferTest.php) · [Zamanlayıcı provası](tests/Feature/ReminderScheduleTest.php)
 
 ### 6. Yeni modüller
 

@@ -226,6 +226,10 @@ class OfferController extends Controller
 
             abort_unless($lockedOffer->hasActiveClinic(), 422, 'Bu sağlık merkezi şu anda teklif işlemlerine açık değil.');
 
+            if ($lockedOffer->status === 'expired') {
+                return;
+            }
+
             if ($lockedOffer->status !== 'pending') {
                 abort(
                     422,
@@ -233,10 +237,7 @@ class OfferController extends Controller
                 );
             }
 
-            if (
-                $lockedOffer->valid_until &&
-                $lockedOffer->valid_until->isPast()
-            ) {
+            if ($lockedOffer->hasPassedDeadline()) {
                 $lockedOffer->update([
                     'status' => 'expired',
                 ]);
@@ -248,7 +249,7 @@ class OfferController extends Controller
                 'status' => 'accepted',
                 'responded_at' => now(),
             ]);
-        });
+        }, attempts: 3);
 
         $freshOffer = $offer->fresh();
 
@@ -324,6 +325,10 @@ class OfferController extends Controller
 
             abort_unless($lockedOffer->hasActiveClinic(), 422, 'Bu sağlık merkezi şu anda teklif işlemlerine açık değil.');
 
+            if ($lockedOffer->status === 'expired') {
+                return;
+            }
+
             if ($lockedOffer->status !== 'pending') {
                 abort(
                     422,
@@ -331,10 +336,7 @@ class OfferController extends Controller
                 );
             }
 
-            if (
-                $lockedOffer->valid_until &&
-                $lockedOffer->valid_until->isPast()
-            ) {
+            if ($lockedOffer->hasPassedDeadline()) {
                 $lockedOffer->update([
                     'status' => 'expired',
                 ]);
@@ -347,7 +349,7 @@ class OfferController extends Controller
                 'responded_at' => now(),
                 'rejection_reason' => $validated['rejection_reason'] ?? null,
             ]);
-        });
+        }, attempts: 3);
 
         $freshOffer = $offer->fresh();
 

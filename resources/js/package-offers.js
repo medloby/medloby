@@ -711,11 +711,10 @@ export function mountPackageOffers(root) {
         card.querySelector('[data-title]').textContent = offer.title;
         card.querySelector('[data-price]').textContent = priceLabel(offer.amount, offer.currency);
         const deadline = offer.valid_until ? new Date(offer.valid_until) : null;
-        const pastDeadline = deadline && deadline.getTime() < Date.now();
         showStatus(card.querySelector('[data-valid-until]'), deadline ? 'Geçerlilik sonu: ' + offerDeadline.format(deadline) : '');
         card.querySelector('[data-offer-status]').textContent = booked
             ? 'Randevular oluşturuldu'
-            : statusLabels[pastDeadline && offer.status === 'pending' ? 'expired' : offer.status] ?? offer.status;
+            : statusLabels[offer.status] ?? offer.status;
         showStatus(card.querySelector('[data-description]'), offer.description ?? '');
         const travelInclusions = card.querySelector('[data-travel-inclusions]');
         travelInclusions.textContent = inclusionList.join(' · ');
@@ -742,7 +741,7 @@ export function mountPackageOffers(root) {
         }
 
         const actions = card.querySelector('[data-actions]');
-        if (isPatient(item) && offer.status === 'pending' && !pastDeadline) {
+        if (isPatient(item) && offer.status === 'pending') {
             const accept = element('button', 'Teklifi kabul et', 'offer-button');
             accept.type = 'button';
             accept.addEventListener('click', async () => {
@@ -770,7 +769,7 @@ export function mountPackageOffers(root) {
                 rejectDialog.showModal();
             });
             actions.append(accept, reject);
-        } else if (isPatient(item) && offer.status === 'accepted' && !booked && !pastDeadline) {
+        } else if (isPatient(item) && offer.status === 'accepted' && !booked && !offer.deadline_passed) {
             const plan = element('button', 'Seansları planla', 'offer-button');
             plan.type = 'button';
             plan.addEventListener('click', () => openBookingDialog(offer));

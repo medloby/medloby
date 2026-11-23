@@ -1,12 +1,12 @@
 <?php
 
-use App\Notifications\NotificationType;
 use App\Models\Business;
 use App\Models\BusinessUser;
 use App\Models\Conversation;
 use App\Models\Offer;
 use App\Models\PatientProfile;
 use App\Models\User;
+use App\Notifications\NotificationType;
 use App\Notifications\OfferRejectedNotification;
 use App\Services\BusinessNotificationPreferenceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -277,6 +277,9 @@ test('patient cannot reject expired offer', function () {
         'id' => $data['offer']->id,
         'status' => 'expired',
     ]);
+
+    $this->postJson("/api/offers/{$data['offer']->id}/reject", rejectionPayload())->assertUnprocessable()
+        ->assertJsonPath('message', 'Bu teklifin geçerlilik süresi dolmuştur.');
 });
 
 test('patient cannot reject already accepted offer', function () {

@@ -245,10 +245,7 @@ class AppointmentBookingService
             throw new AppointmentRuleViolation('Bu sağlık merkezi şu anda randevuya açık değil.');
         }
 
-        if (
-            $offer->valid_until &&
-            $offer->valid_until->isPast()
-        ) {
+        if ($offer->hasPassedDeadline()) {
             throw new AppointmentRuleViolation(
                 'Bu teklifin geçerlilik süresi dolmuştur.'
             );

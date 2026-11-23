@@ -339,10 +339,7 @@ class AppointmentBookingController extends Controller
             );
         }
 
-        if (
-            $offer->valid_until &&
-            $offer->valid_until->isPast()
-        ) {
+        if ($offer->hasPassedDeadline()) {
             abort(
                 422,
                 'Bu teklifin geçerlilik süresi dolmuştur.'

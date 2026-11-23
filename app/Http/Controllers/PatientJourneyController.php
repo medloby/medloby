@@ -72,9 +72,11 @@ class PatientJourneyController extends Controller
             ->whereIn('offers.status', ['pending', 'accepted', 'rejected', 'expired']);
         $received = (clone $offers)->selectRaw(
             "'offer_received' AS kind, 2 AS event_order, offers.id AS event_id, offers.business_id,
-            offers.created_at AS occurred_at, offers.title, offers.status,
+            offers.created_at AS occurred_at, offers.title,
+            CASE WHEN offers.status = 'pending' AND offers.valid_until < ? THEN 'expired' ELSE offers.status END AS status,
             CASE WHEN offers.package_snapshot IS NOT NULL THEN offers.id END AS target_id,
-            offers.conversation_id, CAST(NULL AS TIMESTAMP) AS starts_at"
+            offers.conversation_id, CAST(NULL AS TIMESTAMP) AS starts_at",
+            [now()->startOfSecond()]
         );
         $responded = $offers->whereNotNull('offers.responded_at')->whereIn('offers.status', ['accepted', 'rejected'])
             ->selectRaw(

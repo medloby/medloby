@@ -19,13 +19,17 @@ class OfferResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $deadlinePassed = $this->resource->hasPassedDeadline();
+
         return [
             ...Arr::only($this->resource->attributesToArray(), [
                 'id', 'conversation_id', 'business_id', 'branch_id', 'patient_profile_id', 'treatment_id',
                 'treatment_package_id', 'package_snapshot', 'created_by', 'title', 'description', 'amount',
-                'currency', 'valid_until', 'status', 'responded_at', 'rejection_reason', 'created_at', 'updated_at',
+                'currency', 'valid_until', 'responded_at', 'rejection_reason', 'created_at', 'updated_at',
                 'appointments_exists',
             ]),
+            'status' => $deadlinePassed && $this->status === 'pending' ? 'expired' : $this->status,
+            'deadline_passed' => $deadlinePassed,
             'business' => $this->whenLoaded('business', fn ($business) => $business->only('id', 'name')),
             'branch' => $this->whenLoaded('branch', fn ($branch) => $branch->only('id', 'name')),
             'patient_profile' => $this->whenLoaded('patientProfile', fn ($patient) => $patient->only('id', 'first_name', 'last_name')),
