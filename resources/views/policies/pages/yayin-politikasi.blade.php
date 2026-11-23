@@ -9,7 +9,9 @@
 <section>
     <h2>Düzeltme bildirme</h2>
     <p>Yanlış veya güncelliğini yitirmiş bilgiyi sayfanın adresi ve düzeltilmesini istediğiniz bilgiyle iletebilirsiniz.
-        @if ($editor = $publication->email('editor_email'))
+        @if ($publication->isPreviewing())
+            <span class="break-words">Örnek editör e-postası {{ $publication->email('editor_email') }}.</span>
+        @elseif ($editor = $publication->email('editor_email'))
             <a href="mailto:{{ $editor }}">İçerik editörüne yazın.</a>
         @else
             <a href="{{ route('package-offers') }}#gorusmeler">Destek alanını açın.</a>

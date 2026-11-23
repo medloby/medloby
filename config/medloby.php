@@ -4,6 +4,7 @@ return [
     'release_version' => env('MEDLOBY_RELEASE_VERSION'),
     'privacy_published' => env('MEDLOBY_PRIVACY_PUBLISHED', false),
     'policies_published' => env('MEDLOBY_POLICIES_PUBLISHED', false),
+    'policy_preview' => env('MEDLOBY_POLICY_PREVIEW', false),
 
     'policy_pages' => [
         'hizmet-sartlari' => 'Hizmet Şartları',
@@ -26,5 +27,14 @@ return [
         'privacy_kep' => env('MEDLOBY_PRIVACY_KEP'),
         'editor_email' => env('MEDLOBY_EDITOR_EMAIL'),
         'support_email' => env('MEDLOBY_SUPPORT_EMAIL'),
+    ],
+
+    'preview_operator' => [
+        'legal_name' => 'Medloby Demo İşletmesi (kurgu)',
+        'postal_address' => 'Örnek Mahallesi, Prova Sokak No: 12, Demo İlçe (kurgu adres)',
+        'privacy_email' => 'kvkk@medloby-demo.invalid',
+        'privacy_kep' => 'basvuru@kep.medloby-demo.invalid',
+        'editor_email' => 'editor@medloby-demo.invalid',
+        'support_email' => 'destek@medloby-demo.invalid',
     ],
 ];

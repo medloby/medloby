@@ -19,7 +19,9 @@
         </header>
         <main class="mx-auto grid w-full max-w-3xl gap-6 px-5 py-8 sm:py-12" aria-labelledby="policy-title">
             <h1 id="policy-title" class="text-3xl font-semibold tracking-tight sm:text-4xl">{{ $title }}</h1>
-            @if ($draft)
+            @if ($publication->isPreviewing())
+                <p class="rounded-lg border border-[#d6e0d5] bg-[#edf1e8] px-4 py-3 text-sm dark:border-slate-800 dark:bg-slate-900">Demo önizlemesi. İşletmeci ve başvuru bilgileri kurgudur.</p>
+            @elseif ($draft)
                 <p class="rounded-lg border border-[#d6e0d5] bg-[#edf1e8] px-4 py-3 text-sm dark:border-slate-800 dark:bg-slate-900">Yayın öncesi taslak. Metin, işletmeci bilgileri ve geçerli koşullar doğrulandıktan sonra yürürlüğe alınır.</p>
             @endif
             <article class="grid gap-6 leading-relaxed [&_a]:break-words [&_a]:underline [&_a]:underline-offset-4 [&_h2]:mb-2 [&_h2]:text-xl [&_h2]:font-semibold [&_li]:mt-1 [&_ul]:list-disc [&_ul]:pl-5">

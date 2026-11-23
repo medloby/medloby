@@ -2,7 +2,7 @@
     <h2>Kişisel verilerin korunması</h2>
     <p>Hasta ve klinik hesaplarının kullandığı bilgiler farklı olduğu için Medloby her hesap türü için ayrı aydınlatma metni sunar. Sağlık verisi içeren kayıtların işleme şartları amaç ve sorumluluk kapsamına göre değerlendirilir. Klinikteki tedavi ve hasta kayıtlarına ilişkin aydınlatmayı ilgili sağlık kuruluşundan isteyebilirsiniz.</p>
 </section>
-@if ($publication->isPublished())
+@if ($publication->isVisible())
     <section>
         <h2>Aydınlatma metinleri</h2>
         <ul>

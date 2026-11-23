@@ -13,8 +13,11 @@
 <section>
     <h2>Destek ve haklar</h2>
     <p>Hesap, bildirim veya platform işlemleriyle ilgili sorunları <a href="{{ route('package-offers') }}#gorusmeler">hesabınızdaki destek alanından</a> iletebilirsiniz. Sağlık hizmeti ve tedaviye ilişkin başvurular ilgili sağlık kuruluşuna yapılabilir. Kanundan doğan başvuru, şikâyet ve tüketici hakları saklıdır.</p>
-    @if ($publication->isPublished())
+    @if ($publication->isVisible())
         <p class="mt-2">Platform işletmecisi {{ $publication->operator('legal_name') }}.</p>
         <p class="whitespace-pre-line">{{ $publication->operator('postal_address') }}</p>
+    @endif
+    @if ($publication->isPreviewing())
+        <p class="mt-2 break-words">Örnek destek e-postası {{ $publication->email('support_email') }}.</p>
     @endif
 </section>

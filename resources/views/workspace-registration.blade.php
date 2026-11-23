@@ -8,7 +8,7 @@
     <p class="mt-3 text-sm text-slate-600 dark:text-slate-300" data-registration-status role="status" hidden></p>
 
     <form method="post" class="mt-5 grid gap-4" data-registration-patient hidden>
-        @if ($registrationPrivacy->isPublished())
+        @if ($registrationPrivacy->isVisible())
             <p class="text-sm"><a class="font-semibold underline underline-offset-4" href="{{ route('privacy.notice', 'hasta') }}" target="_blank" rel="noopener">Hasta hesabı KVKK aydınlatma metni</a></p>
         @endif
         <div class="grid gap-4 sm:grid-cols-2">
@@ -39,7 +39,7 @@
     </form>
 
     <form method="post" class="mt-5 grid gap-4" data-registration-business hidden>
-        @if ($registrationPrivacy->isPublished())
+        @if ($registrationPrivacy->isVisible())
             <p class="text-sm"><a class="font-semibold underline underline-offset-4" href="{{ route('privacy.notice', 'klinik') }}" target="_blank" rel="noopener">Klinik başvurusu KVKK aydınlatma metni</a></p>
         @endif
         <div class="grid gap-4 sm:grid-cols-2">

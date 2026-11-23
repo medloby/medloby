@@ -3,6 +3,9 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
+        @if ($publication->isPreviewing())
+            <meta name="robots" content="noindex">
+        @endif
         <title>{{ $title }} | Medloby</title>
         @fonts
         @vite('resources/css/app.css')
@@ -16,6 +19,9 @@
         </header>
         <main class="mx-auto grid max-w-3xl gap-7 px-5 py-8 sm:py-12 [&_h2]:mb-3 [&_h2]:text-xl [&_h2]:font-semibold [&_p]:leading-relaxed">
             <h1 class="text-3xl font-semibold tracking-tight sm:text-4xl">{{ $title }}</h1>
+            @if ($publication->isPreviewing())
+                <p class="rounded-lg border border-slate-200 px-4 py-3 text-sm dark:border-slate-800">Demo önizlemesi. İşletmeci ve başvuru bilgileri kurgudur.</p>
+            @endif
             <section>
                 <h2>Veri sorumlusu</h2>
                 <p>{{ $publication->operator('legal_name') }}</p>

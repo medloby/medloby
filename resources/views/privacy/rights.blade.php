@@ -15,10 +15,13 @@
 <section>
     <h2>Nasıl başvurabilirsiniz?</h2>
     <p>İmzalı yazılı başvurunuzu veri sorumlusunun yukarıdaki posta adresine iletebilirsiniz.</p>
-    @if ($kep = $publication->email('privacy_kep'))
+    @if ($publication->isPreviewing())
+        <p class="mt-2 break-words">Örnek KEP adresi {{ $publication->email('privacy_kep') }}.</p>
+        <p class="mt-2 break-words">Örnek KVKK e-postası {{ $publication->email('privacy_email') }}.</p>
+    @elseif ($kep = $publication->email('privacy_kep'))
         <p class="mt-2">KEP hesabınızdan <span class="break-all font-medium">{{ $kep }}</span> adresine başvurabilirsiniz.</p>
     @endif
-    @if ($email = $publication->email('privacy_email'))
+    @if (! $publication->isPreviewing() && ($email = $publication->email('privacy_email')))
         <p class="mt-2">Daha önce Medloby’ye bildirdiğiniz ve sistemde kayıtlı e-posta adresinizden <a class="break-all underline underline-offset-4" href="mailto:{{ $email }}">{{ $email }}</a> adresine başvurabilirsiniz.</p>
     @endif
     <p class="mt-3">Başvurunuzda ad ve soyadınız, tebligata esas adresiniz ve talebiniz yer almalıdır. Türkiye Cumhuriyeti vatandaşları T.C. kimlik numarasını, yabancılar uyruğunu ve pasaport numarasını veya varsa kimlik numarasını belirtir. Varsa bildirim için kullanılan e-posta, telefon ve faks numarasını ekleyin. Yazılı başvuruyu imzalayın ve talebin değerlendirilmesi için gerekli belgeleri ekleyin.</p>

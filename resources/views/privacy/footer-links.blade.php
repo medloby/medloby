@@ -1,9 +1,9 @@
 @inject('privacyFooter', 'App\Services\PrivacyPublication')
 
 @php
-    $showPrivacy = $privacyFooter->isPublished();
-    $editorEmail = $privacyFooter->email('editor_email');
-    $supportEmail = $privacyFooter->email('support_email');
+    $showPrivacy = $privacyFooter->isVisible();
+    $editorEmail = $privacyFooter->isPreviewing() ? null : $privacyFooter->email('editor_email');
+    $supportEmail = $privacyFooter->isPreviewing() ? null : $privacyFooter->email('support_email');
 @endphp
 
 @if ($showPrivacy || $editorEmail || $supportEmail)

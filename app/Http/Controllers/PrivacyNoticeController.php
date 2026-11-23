@@ -9,7 +9,7 @@ class PrivacyNoticeController extends Controller
 {
     public function __invoke(string $audience, PrivacyPublication $publication): View
     {
-        abort_unless($publication->isPublished(), 404);
+        abort_unless($publication->isVisible(), 404);
 
         $clinic = $audience === 'klinik';
 

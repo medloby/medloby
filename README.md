@@ -17,6 +17,8 @@ Medloby ve kilitli PHP paketleri için en düşük sürüm PHP 8.4.1’dir. GitH
 
 Platform yöneticileri `/yonetim` üzerinden ayrı giriş yapar. **Sistem durumu** ekranında kurulu sürümü göstermek için dağıtımda `MEDLOBY_RELEASE_VERSION` ayarına Git commit kimliği veya sürüm etiketi girilebilir. [Yönetim envanteri](ADMIN-TAMAMLAMA.md)
 
+Yerel geliştirmede `MEDLOBY_POLICY_PREVIEW=true` ile Politika ve KVKK sayfalarını kurgu işletmeci ve iletişim bilgileriyle inceleyebilirsin. Demo modu `APP_ENV=local` ortamında çalışır. Sayfalar demo etiketi taşır ve gerçek yayın kontrolünde ayrı değerlendirilir.
+
 ## Medloby yayına çıkmadan önce
 
 - [ ] **Yayın ortamını hazırla.** Alan adını, HTTPS’i, uygulama sunucusunu ve veritabanını belirle. Web sunucusunun kökünü `public` dizinine yönelt. Üretim bağımlılıklarını `composer install --no-dev` ile kur ve arayüzü derle. Yayın ayarlarını ve gizli anahtarları sunucudan yönet. Şema güncellemelerini önce deneme veritabanında uygula ve `medloby:release-check` çıktısını doğrula. [Teknik kontrol](#yayın-öncesi-teknik-kontrol)

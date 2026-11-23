@@ -1,5 +1,6 @@
 <?php
 
+use App\Services\PrivacyPublication;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -58,4 +59,42 @@ test('the cookie policy reflects the configured web session settings', function 
 
     $this->get('/politikalar/cerez-politikasi')->assertOk()->assertSeeText('test_web_oturumu')
         ->assertSeeText('42 dakikadır')->assertSeeText('XSRF-TOKEN')->assertSeeText('medloby-pending-package');
+});
+
+test('local policy preview shows fictional operator details and keeps publication pending', function () {
+    $this->app->detectEnvironment(fn (): string => 'local');
+    config([
+        'medloby.policy_preview' => true,
+        'medloby.privacy_published' => true,
+        'medloby.policies_published' => true,
+    ]);
+
+    $this->get('/')->assertOk()->assertSee(route('privacy.notice', 'hasta'))
+        ->assertDontSee('mailto:destek@medloby-demo.invalid');
+    $this->get('/politikalar/kvkk')->assertOk()->assertSeeText('Demo önizlemesi')
+        ->assertSee('content="noindex"', false)->assertSeeText('Medloby Demo İşletmesi (kurgu)')
+        ->assertSeeText('Örnek Mahallesi')->assertSeeText('kvkk@medloby-demo.invalid')
+        ->assertSeeText('basvuru@kep.medloby-demo.invalid')->assertDontSee('mailto:kvkk@medloby-demo.invalid');
+    $this->get(route('privacy.notice', 'hasta'))->assertOk()->assertSeeText('Demo önizlemesi')->assertSee('content="noindex"', false);
+    $this->get(route('privacy.notice', 'klinik'))->assertOk()->assertSeeText('Demo önizlemesi');
+    $this->get('/politikalar/hizmet-sartlari')->assertOk()->assertSeeText('destek@medloby-demo.invalid');
+    $this->get('/politikalar/yayin-politikasi')->assertOk()->assertSeeText('editor@medloby-demo.invalid');
+
+    $publication = app(PrivacyPublication::class);
+    expect($publication->isPublished())->toBeFalse()->and($publication->contactSettingsReady())->toBeFalse();
+});
+
+test('production policies exclude demo data even with the preview setting enabled', function () {
+    $this->app->detectEnvironment(fn (): string => 'production');
+    config([
+        'medloby.policy_preview' => true,
+        'medloby.privacy_published' => true,
+        'medloby.policies_published' => true,
+        'medloby.operator.legal_name' => null,
+        'medloby.operator.postal_address' => null,
+    ]);
+
+    $this->get('/politikalar/kvkk')->assertOk()->assertSeeText('Yayın öncesi taslak')
+        ->assertDontSeeText('Medloby Demo İşletmesi')->assertDontSee('medloby-demo.invalid');
+    $this->get(route('privacy.notice', 'hasta'))->assertNotFound();
 });
