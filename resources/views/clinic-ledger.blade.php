@@ -81,7 +81,7 @@
                 <div class="grid gap-3 sm:col-span-2" data-ledger-income-reference>
                     <label class="offer-field">Gelir bağlantısı
                         <select class="offer-control" data-ledger-reference-type>
-                            <option value="">Genel şube geliri</option>
+                            <option value="">Randevu veya paket bağlantısı yok</option>
                             <option value="appointment">Randevu veya paket seansı</option>
                             <option value="package">Paket toplamı</option>
                         </select>

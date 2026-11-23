@@ -1,4 +1,4 @@
-import { clinicAction, clinicPager, clinicRecordRow, clinicRequestKey, clinicStatus, formatClinicAmount } from './clinic-records';
+import { clinicAction, clinicIncomeReference, clinicPager, clinicRecordRow, clinicRequestKey, clinicStatus, formatClinicAmount } from './clinic-records';
 
 const channels = { cash: 'Kasa', bank: 'Banka' };
 
@@ -96,7 +96,7 @@ export function mountClinicBalances(panel, api, settle, onChanged) {
             find('history-title').textContent = record.description + ' · Ödeme hareketleri';
             find('history-list').replaceChildren(...(data.movements.data.length ? data.movements.data.map((entry) => clinicRecordRow([
                 entry.entry_date, entry.description, formatClinicAmount(entry.amount, data.currency),
-                channels[entry.channel], entry.voided ? 'İptal' : '',
+                channels[entry.channel], clinicIncomeReference(entry), entry.voided ? 'İptal' : '',
             ].filter(Boolean).join(' · '))) : [clinicRecordRow('Henüz hareket yok.')]));
             clinicPager(find('history-pages'), data.movements, (next) => history(record, next));
             find('history').hidden = false;

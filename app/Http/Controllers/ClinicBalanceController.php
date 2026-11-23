@@ -60,6 +60,8 @@ class ClinicBalanceController extends Controller
                 'description' => $entry->description,
                 'amount' => BranchLedgerEntry::formatAmount($entry->amount_minor),
                 'channel' => $entry->payment_channel,
+                'appointment_id' => $entry->appointment_id,
+                'offer_id' => $entry->offer_id,
                 'voided' => $entry->voided_at !== null,
             ]);
 

@@ -3,6 +3,12 @@
 use App\Models\Branch;
 use App\Models\BranchLedgerEntry;
 use App\Models\CrmLead;
+use App\Models\Doctor;
+use App\Models\Offer;
+use App\Models\PatientProfile;
+use App\Models\Person;
+use App\Models\Treatment;
+use App\Models\TreatmentCategory;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -46,6 +52,8 @@ test('patient payments and branch payables post once to the ledger and outstandi
         'direction' => 'payable', 'counterparty' => 'Test tedarikçisi', 'description' => 'Malzeme borcu',
         'amount' => '25.00', 'currency' => 'TRY', 'request_key' => str_repeat('d', 32),
     ])->assertCreated()->json('data.id');
+    $this->getJson($url.'/ledger/references?type=appointment&branch_balance_id='.$payable)
+        ->assertOk()->assertJsonCount(0, 'data');
     $this->postJson($url.'/ledger', array_replace($receipt, ['kind' => 'expense', 'description' => 'Malzeme ödemesi',
         'expense_category' => 'Malzeme', 'amount' => '20.25', 'payment_channel' => 'cash',
         'branch_balance_id' => $payable, 'request_key' => str_repeat('e', 32)]))->assertCreated();
@@ -59,6 +67,73 @@ test('patient payments and branch payables post once to the ledger and outstandi
     $staff = User::factory()->create();
     $branch->business->memberships()->create(['user_id' => $staff->id, 'role' => 'staff', 'is_active' => true])->branches()->attach($branch);
     $this->actingAs($staff, 'sanctum')->getJson($url.'/balances')->assertForbidden();
+});
+
+test('a patient balance offers only matching references and carries collected payments into finance reports', function () {
+    [$branch, $owner, $url] = expandedOperationsClinic();
+    $otherBranch = Branch::factory()->for($branch->business)->create();
+    $doctor = Doctor::factory()->for(Person::factory()->for($branch->business)->for($branch))->create();
+    $treatment = Treatment::create([
+        'treatment_category_id' => TreatmentCategory::factory()->create()->id,
+        'name' => 'Kontrol Muayenesi', 'slug' => 'kontrol-muayenesi',
+    ]);
+    $patient = User::factory()->create()->patientProfile()->create(['first_name' => 'Örnek', 'last_name' => 'Hasta']);
+    $otherPatient = User::factory()->create()->patientProfile()->create(['first_name' => 'Başka', 'last_name' => 'Hasta']);
+    $visitFields = [
+        'business_id' => $branch->business_id, 'doctor_id' => $doctor->id, 'treatment_id' => $treatment->id,
+        'starts_at' => '2026-12-10 10:00:00', 'ends_at' => '2026-12-10 10:30:00', 'status' => 'completed',
+    ];
+    $visit = $branch->appointments()->create($visitFields + ['patient_profile_id' => $patient->id]);
+    $otherVisit = $branch->appointments()->create($visitFields + ['patient_profile_id' => $otherPatient->id]);
+    $otherBranch->appointments()->create($visitFields + ['patient_profile_id' => $patient->id]);
+    $patient->conversations()->create(['business_id' => $branch->business_id, 'branch_id' => $otherBranch->id]);
+    $package = function (PatientProfile $profile) use ($branch, $owner): Offer {
+        return $profile->conversations()->create(['business_id' => $branch->business_id, 'branch_id' => $branch->id])
+            ->offers()->create([
+                'business_id' => $branch->business_id, 'branch_id' => $branch->id, 'created_by' => $owner->id,
+                'patient_profile_id' => $profile->id, 'title' => 'Özel paket', 'status' => 'accepted',
+                'amount' => '70.00', 'package_snapshot' => ['branch_id' => $branch->id],
+            ]);
+    };
+    $offer = $package($patient);
+    $package($otherPatient);
+    $balance = [
+        'direction' => 'receivable', 'patient_profile_id' => $patient->id,
+        'description' => 'Tedavi alacağı', 'amount' => '100.50', 'currency' => 'TRY', 'request_key' => str_repeat('a', 32),
+    ];
+    $id = $this->actingAs($owner, 'sanctum')->postJson($url.'/balances', $balance)->assertCreated()->json('data.id');
+    $otherId = $this->postJson('/api/branches/'.$otherBranch->id.'/crm/balances', $balance)->assertCreated()->json('data.id');
+    $references = $url.'/ledger/references?branch_balance_id='.$id;
+
+    $this->getJson($url.'/ledger/references?type=appointment')->assertOk()->assertJsonCount(2, 'data');
+    $this->getJson($references.'&type=appointment')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $visit->id);
+    $this->getJson($references.'&type=appointment&id='.$otherVisit->id)->assertOk()->assertJsonCount(0, 'data');
+    $this->getJson($references.'&type=package')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $offer->id);
+    $this->getJson($url.'/ledger/references?type=appointment&branch_balance_id='.$otherId)->assertNotFound();
+
+    $receipt = [
+        'kind' => 'income', 'entry_date' => '2026-12-10', 'description' => 'Kısmi tahsilat', 'amount' => '40.25',
+        'currency' => 'TRY', 'branch_balance_id' => $id, 'request_key' => str_repeat('b', 32),
+    ];
+    $this->postJson($url.'/ledger', $receipt + ['appointment_id' => $otherVisit->id])
+        ->assertUnprocessable()->assertJsonValidationErrors('branch_balance_id');
+    $this->postJson($url.'/ledger', $receipt + ['appointment_id' => $visit->id])->assertCreated();
+    $this->postJson($url.'/ledger', [
+        'offer_id' => $offer->id, 'amount' => '15.00', 'request_key' => str_repeat('c', 32),
+    ] + $receipt)->assertCreated();
+    $this->getJson($url.'/balances/'.$id)->assertOk()->assertJsonPath('data.remaining', '45.25')
+        ->assertJsonPath('data.movements.data.0.offer_id', $offer->id)
+        ->assertJsonPath('data.movements.data.1.appointment_id', $visit->id);
+    $this->getJson('/api/businesses/'.$branch->business_id.'/crm/finance/reports?month=2026-12')
+        ->assertOk()->assertJsonPath('data.totals.0.income', '55.25')
+        ->assertJsonPath('data.treatment_income.0.treatments.0.income', '40.25')
+        ->assertJsonPath('data.treatment_income.0.unallocated', '15.00')
+        ->assertJsonPath('data.doctors.0.income.0.amount', '40.25');
+
+    $staff = User::factory()->create();
+    $branch->business->memberships()->create(['user_id' => $staff->id, 'role' => 'staff', 'is_active' => true])
+        ->branches()->attach($branch, ['permission_names' => ['finance.view']]);
+    $this->actingAs($staff, 'sanctum')->getJson($references.'&type=appointment')->assertForbidden();
 });
 
 test('inventory stock changes atomically, detects retries and warns at the configured threshold', function () {

@@ -235,7 +235,7 @@ Kamuya açılış için içeriğin uygunluğu, onaylı sözleşme ve kişisel ve
 | P1 | Gelişmiş finans yönetimi | Gider kategorileri, borç ve alacak kayıtları, kısmi tahsilatlar, vade ve kalan bakiye. Kasa veya banka seçilen hareketler ayrı listelenir ve bakiyeye girer. |
 | P1 | Randevu performansı | Şube ve hekim bazında çalışma kapasitesi, doluluk, iptal ve gelmeme oranları. Kapasite için kayıtlı çalışma saatlerinden onaylı izinler ve takvim engelleri çıkarılır. |
 | P1 | Hasta dönüşümü | Türkiye saatine göre seçilen ayda açılan adayların sayısı ve aday kaydından sonra bağlantılı teklif veya randevu oluşan adaylar. |
-| P2 | Tahsilat ve ödeme takibi | Şubeyle ilişkisi doğrulanmış hasta için alacak açılır. Kısmi ödemeler mevcut finans defterine kaydolur ve ödeme geçmişi ile kalan bakiye güncellenir. |
+| P2 | Tahsilat ve ödeme takibi | Şubeyle ilişkisi doğrulanmış hasta için alacak açılır. Kısmi ödemeler finans defterine kaydolur ve kalan bakiye güncellenir. Alacaktan tahsilat girerken ilgili hastanın randevuları ve kabul edilmiş paketleri seçilebilir. Ödeme geçmişi bağlantıyı gösterir ve randevuya bağlı tahsilat hekim ve tedavi raporlarına girer. |
 | P2 | Hasta süreci | Aday ayrıntısında konsültasyon, tedavi, kontrol ve takip aşamaları. Planlanan tarih, durum ve aynı hastanın şube randevusu ilişkilendirilebilir. |
 | P2 | Stok ve malzeme | Şube bazında malzeme kodu, birim, stok girişi ve çıkışı, hareket geçmişi ve eşik uyarısı. Görüntüleme ve düzenleme yetkileri ayrı verilir. |
 

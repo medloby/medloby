@@ -1,6 +1,6 @@
 import { mountClinicFinanceReports } from './clinic-finance-reports';
 import { mountClinicBalances } from './clinic-balances';
-import { clinicRecordRow, clinicRequestKey as requestKey, clinicStatus, formatClinicAmount as amount } from './clinic-records';
+import { clinicIncomeReference, clinicRecordRow, clinicRequestKey as requestKey, clinicStatus, formatClinicAmount as amount } from './clinic-records';
 
 const kindLabels = { income: 'Gelir', expense: 'Gider' };
 const channelLabels = { cash: 'Kasa', bank: 'Banka' };
@@ -86,6 +86,10 @@ export function mountClinicLedger(panel, api, onChanged) {
         }
 
         const query = new URLSearchParams({ type });
+        const balanceId = scope.balanceId;
+        if (balanceId) {
+            query.set('branch_balance_id', balanceId);
+        }
         if (id) {
             query.set('id', id);
         }
@@ -95,7 +99,8 @@ export function mountClinicLedger(panel, api, onChanged) {
             if (current === lookup) {
                 referenceChoice.append(...options.map(({ label, id: optionId }) => new Option(label, optionId)));
                 referenceChoice.value = selected || (id && options.length === 1 ? String(options[0].id) : '');
-                showReferenceStatus(options.length ? '' : 'Bu şubede eşleşen kayıt bulunamadı.');
+                const emptyMessage = balanceId ? 'Bu alacağa uygun kayıt bulunamadı.' : 'Bu şubede eşleşen kayıt bulunamadı.';
+                showReferenceStatus(options.length ? '' : emptyMessage);
             }
         } catch (error) {
             if (current === lookup) {
@@ -186,9 +191,8 @@ export function mountClinicLedger(panel, api, onChanged) {
             const row = find('entry').content.firstElementChild.cloneNode(true);
             const stamp = date.format(new Date(entry.entry_date + 'T00:00:00Z'));
             find('description', row).textContent = entry.description;
-            const reference = entry.appointment_id ? 'Randevu #' + entry.appointment_id : entry.offer_id ? 'Paket teklifi #' + entry.offer_id : '';
             find('meta', row).textContent = [stamp, kindLabels[entry.kind], amount(entry.amount, entry.currency), channelLabels[entry.payment_channel],
-                entry.expense_category, reference, entry.branch_balance_id ? 'Borç/alacak #' + entry.branch_balance_id : ''].filter(Boolean).join(' · ');
+                entry.expense_category, clinicIncomeReference(entry), entry.branch_balance_id ? 'Borç/alacak #' + entry.branch_balance_id : ''].filter(Boolean).join(' · ');
             const open = find('open', row);
             open.hidden = !data.can_manage;
             open.setAttribute('aria-label', 'Kaydı aç · ' + entry.description);

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Appointment;
 use App\Models\Branch;
+use App\Models\BranchBalance;
 use App\Models\BranchLedgerEntry;
 use App\Models\Offer;
 use App\Rules\PriceAmount;
@@ -84,11 +85,20 @@ class ClinicLedgerController extends Controller
         $filters = $request->validate([
             'type' => ['required', 'in:appointment,package'],
             'id' => ['sometimes', 'required', 'integer', 'min:1'],
+            'branch_balance_id' => ['sometimes', 'required', 'integer', 'min:1'],
         ]);
         $id = $filters['id'] ?? null;
+        $balance = isset($filters['branch_balance_id'])
+            ? BranchBalance::query()->where('branch_id', $branch->id)->findOrFail($filters['branch_balance_id'])
+            : null;
+        if ($balance?->direction === 'payable') {
+            return $this->respond([]);
+        }
+        $patientId = $balance?->patient_profile_id;
 
         if ($filters['type'] === 'appointment') {
             $references = $this->branchAppointments($branch)
+                ->when($patientId !== null, fn (Builder $appointments) => $appointments->where('patient_profile_id', $patientId))
                 ->when($id === null, fn (Builder $appointments) => $appointments->where('status', '!=', 'rescheduled'))
                 ->when($id !== null, fn (Builder $appointments) => $appointments->whereKey($id))
                 ->latest('starts_at')->latest('id')->limit(25)->get(['id', 'starts_at', 'treatment_id'])
@@ -97,7 +107,9 @@ class ClinicLedgerController extends Controller
                     'label' => trim('Randevu #'.$visit->id.' · '.$visit->starts_at->format('d.m.Y H:i').($visit->treatment ? ' · '.$visit->treatment->name : '')),
                 ]);
         } else {
-            $references = $this->branchPackages($branch)->when($id !== null, fn (Builder $offers) => $offers->whereKey($id))
+            $references = $this->branchPackages($branch)
+                ->when($patientId !== null, fn (Builder $offers) => $offers->where('offers.patient_profile_id', $patientId))
+                ->when($id !== null, fn (Builder $offers) => $offers->whereKey($id))
                 ->latest('id')->limit(25)->get(['id', 'created_at'])
                 ->map(fn (Offer $offer): array => [
                     'id' => $offer->id,

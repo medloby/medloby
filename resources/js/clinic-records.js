@@ -5,6 +5,13 @@ export function formatClinicAmount(value, currency) {
     return (value.startsWith('-') ? '−' : '') + integer.format(BigInt(whole)) + ',' + fraction + ' ' + currency;
 }
 
+export function clinicIncomeReference(entry) {
+    if (entry.appointment_id) {
+        return 'Randevu #' + entry.appointment_id;
+    }
+    return entry.offer_id ? 'Paket teklifi #' + entry.offer_id : '';
+}
+
 export function clinicRequestKey() {
     return Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
