@@ -65,7 +65,7 @@
                 <p class="text-sm text-slate-600 dark:text-slate-300" data-support-summary></p>
             </div>
             <form method="post" class="flex flex-wrap items-end gap-2" data-support-assignment-form hidden>
-                <label class="offer-field min-w-0 flex-1">Sorumlu yönetici
+                <label class="offer-field min-w-0 flex-1">Sorumlu
                     <select class="offer-control" name="assigned_to_user_id"></select>
                 </label>
                 <button type="submit" class="offer-button offer-button-secondary">Sorumluyu kaydet</button>

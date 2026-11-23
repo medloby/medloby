@@ -13,9 +13,11 @@ use Illuminate\Validation\Rule;
 
 final class AdminDashboardController extends Controller
 {
-    public function workspace(): Response
+    public function workspace(Request $request): Response
     {
-        return response()->view('platform-admin-workspace')->header('Cache-Control', 'private, no-store');
+        $view = $request->user()->isVerifiedPlatformAdmin() ? 'platform-admin-workspace' : 'platform-support-workspace';
+
+        return response()->view($view)->header('Cache-Control', 'private, no-store');
     }
 
     public function show(AdminDashboardMetrics $metrics): JsonResponse

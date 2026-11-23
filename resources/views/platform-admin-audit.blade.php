@@ -8,6 +8,7 @@
                 <option value="clinic_status">Klinik durum değişiklikleri</option>
                 <option value="contract">Sözleşme yayımlama</option>
                 <option value="support">Destek yanıtları</option>
+                <option value="platform_role">Platform yetki değişiklikleri</option>
             </select>
         </label>
         <button type="button" class="offer-button offer-button-secondary" data-report-refresh>Yenile</button>

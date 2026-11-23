@@ -43,6 +43,23 @@
                 <button type="button" class="offer-button offer-button-secondary" data-admin-refresh>Yenile</button>
             </div>
             <p role="status" class="text-sm text-slate-700 dark:text-slate-200" data-admin-dashboard-status hidden></p>
+            <details class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                <summary class="cursor-pointer font-semibold">Destek görevlisi yetkisi</summary>
+                <form class="mt-4 flex flex-wrap items-end gap-3" data-admin-support-role>
+                    <label class="offer-field">Hesap numarası
+                        <input class="offer-control" type="number" name="user_id" min="1" required>
+                    </label>
+                    <label class="offer-field">İşlem
+                        <select class="offer-control" name="active" required>
+                            <option value="">İşlem seçin</option>
+                            <option value="1">Yetki ver</option>
+                            <option value="0">Yetkiyi kaldır</option>
+                        </select>
+                    </label>
+                    <button type="submit" class="offer-button">Kaydet</button>
+                </form>
+                <p role="status" class="mt-2 text-sm" data-admin-support-role-status hidden></p>
+            </details>
             <div class="grid min-w-0 gap-6" data-admin-dashboard-results hidden>
                 <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Platform sayımları">
                     @foreach ([

@@ -20,7 +20,7 @@ class SupportTicketController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $admin = $this->isAdminInbox($request);
+        $admin = $this->isPlatformInbox($request);
         $statuses = $admin ? ['open', 'closed', 'awaiting_reply'] : ['open', 'closed'];
         $filters = $request->validate(['status' => ['sometimes', 'required', Rule::in($statuses)]]
             + ($admin ? [
@@ -54,7 +54,7 @@ class SupportTicketController extends Controller
         match ($filters['assignment'] ?? null) {
             'mine' => $tickets->whereHas('assignment', fn (Builder $assignment) => $assignment
                 ->where('assigned_to_user_id', $request->user()->id)),
-            'unassigned' => $tickets->whereDoesntHave('assignment.assignee', fn (Builder $assignee) => $assignee->verifiedPlatformAdmin()),
+            'unassigned' => $tickets->whereDoesntHave('assignment.assignee', fn (Builder $assignee) => $assignee->verifiedSupportOperator()),
             default => null,
         };
 
@@ -84,19 +84,25 @@ class SupportTicketController extends Controller
     {
         $record = $this->tickets($request)->findOrFail($this->validId($ticket));
 
-        return $this->respond($this->details($record, $this->isAdminInbox($request)));
+        return $this->respond($this->details($record, $this->isPlatformInbox($request), $request->user()->isVerifiedPlatformAdmin()));
     }
 
     public function reply(Request $request, string $ticket): JsonResponse
     {
-        $admin = $this->isAdminInbox($request);
+        $admin = $this->isPlatformInbox($request);
+        $actor = $request->user();
 
-        $record = DB::transaction(function () use ($request, $ticket, $admin): SupportTicket {
+        $record = DB::transaction(function () use ($request, $ticket, $admin, $actor): SupportTicket {
             $record = $this->tickets($request)->lockForUpdate()->findOrFail($this->validId($ticket));
+            if ($admin && ! $actor->isVerifiedPlatformAdmin()) {
+                $operator = User::query()->lockForUpdate()->findOrFail($actor->id);
+                abort_unless($operator->isVerifiedPlatformSupport()
+                    && (int) $record->assignment()->value('assigned_to_user_id') === $actor->id, 404);
+            }
             abort_if($record->closed_at !== null, 409, 'Bu destek talebi kapalı. Güncel durumu görmek için talebi yenileyin.');
 
             $fields = $request->validate(self::MESSAGE_RULES);
-            $this->writeMessage($record, $request->user(), $fields['body'], $admin);
+            $this->writeMessage($record, $actor, $fields['body'], $admin);
             $record->touch();
 
             if ($admin) {
@@ -104,12 +110,17 @@ class SupportTicketController extends Controller
                     'Destek talebinize yanıt geldi', 'Yanıtı destek talebinizden okuyabilirsiniz.'));
             } else {
                 $this->notifyAdministrators($record, 'Destek talebine yeni mesaj', 'Açık bir destek talebine yeni mesaj geldi.');
+                $assignee = $record->assignment?->assignee;
+                if ($assignee?->isVerifiedPlatformSupport() && ! $assignee->isVerifiedPlatformAdmin()) {
+                    $assignee->notify(new SupportTicketNotification($record->id,
+                        'Destek talebine yeni mesaj', 'Size atanan bir destek talebine yeni mesaj geldi.'));
+                }
             }
 
             return $record;
         }, attempts: 3);
 
-        return $this->respond($this->details($record, $admin), 201);
+        return $this->respond($this->details($record, $admin, $actor->isVerifiedPlatformAdmin()), 201);
     }
 
     public function updateStatus(Request $request, string $ticket): JsonResponse
@@ -125,7 +136,7 @@ class SupportTicketController extends Controller
             return $record;
         }, attempts: 3);
 
-        return $this->respond($this->details($record, true));
+        return $this->respond($this->details($record, true, true));
     }
 
     public function updateAssignment(Request $request, string $ticket): JsonResponse
@@ -148,9 +159,9 @@ class SupportTicketController extends Controller
 
             abort_unless($current?->id === $expected, 409, 'Sorumlu başka bir oturumda değişti. Talebi yenileyin.');
             abort_if($record->closed_at !== null, 409, 'Sorumluyu değiştirmek için önce talebi yeniden açın.');
-            $assignee = $assigneeId === null ? null : User::query()->verifiedPlatformAdmin()->lockForUpdate()->find($assigneeId);
+            $assignee = $assigneeId === null ? null : User::query()->verifiedSupportOperator()->lockForUpdate()->find($assigneeId);
             if ($assigneeId !== null && $assignee === null) {
-                throw ValidationException::withMessages(['assigned_to_user_id' => 'Doğrulanmış bir platform yöneticisi seçin.']);
+                throw ValidationException::withMessages(['assigned_to_user_id' => 'Doğrulanmış bir platform yöneticisi veya destek görevlisi seçin.']);
             }
             $assignment = $record->assignments()->create([
                 'assigned_to_user_id' => $assigneeId, 'assigned_by_user_id' => $actor->id, 'action' => $action,
@@ -164,20 +175,25 @@ class SupportTicketController extends Controller
             return $record;
         }, attempts: 3);
 
-        return $this->respond($this->details($record, true));
+        return $this->respond($this->details($record, true, true));
     }
 
-    private function isAdminInbox(Request $request): bool
+    private function isPlatformInbox(Request $request): bool
     {
-        return $request->routeIs('admin.support-tickets.*') && $request->user()->is_admin;
+        return $request->routeIs('admin.support-tickets.*');
     }
 
     /** @return Builder<SupportTicket> */
     private function tickets(Request $request): Builder
     {
-        return $this->isAdminInbox($request)
-            ? SupportTicket::query()->with(['requester:id,name', 'assignment.assignee:id,name,is_admin,email_verified_at'])
-            : SupportTicket::query()->whereBelongsTo($request->user(), 'requester');
+        $user = $request->user();
+        if (! $this->isPlatformInbox($request)) {
+            return SupportTicket::query()->whereBelongsTo($user, 'requester');
+        }
+
+        return SupportTicket::query()->with(['requester:id,name', 'assignment.assignee:id,name,is_admin,email_verified_at,platform_role'])
+            ->when(! $user->isVerifiedPlatformAdmin(), fn (Builder $query) => $query->whereHas('assignment',
+                fn (Builder $assignment) => $assignment->where('assigned_to_user_id', $user->id)));
     }
 
     private function validId(string $ticket): int
@@ -213,7 +229,7 @@ class SupportTicketController extends Controller
             $assignment = $ticket->assignment;
             $assignee = $assignment?->assignee;
             $data['assignment_id'] = $assignment?->id;
-            $data['assignee'] = $assignee?->is_admin && $assignee->hasVerifiedEmail() ? $assignee->only(['id', 'name']) : null;
+            $data['assignee'] = $assignee?->canUsePlatformSupport() ? $assignee->only(['id', 'name']) : null;
             $data['assignment_needs_attention'] = $assignment?->action === 'assigned' && $data['assignee'] === null;
             if (array_key_exists('last_message_from_support', $ticket->getAttributes())) {
                 $data['awaiting_reply'] = $ticket->closed_at === null && $ticket->last_message_from_support === false;
@@ -230,14 +246,14 @@ class SupportTicketController extends Controller
         return $data;
     }
 
-    private function details(SupportTicket $ticket, bool $admin): array
+    private function details(SupportTicket $ticket, bool $admin, bool $canAssign = false): array
     {
         $data = $this->summary($ticket, $admin) + [
             'messages' => $ticket->messages()->latest('id')
                 ->paginate(20, ['id', 'body', 'from_support', 'created_at'], 'message_page')->toArray(),
         ];
-        if ($admin) {
-            $data['assignment_candidates'] = User::query()->verifiedPlatformAdmin()->orderBy('name')->orderBy('id')->get(['id', 'name']);
+        if ($admin && $canAssign) {
+            $data['assignment_candidates'] = User::query()->verifiedSupportOperator()->orderBy('name')->orderBy('id')->get(['id', 'name']);
         }
 
         return $data;

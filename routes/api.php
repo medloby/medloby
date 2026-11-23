@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\AdminBusinessController;
 
+use App\Http\Controllers\AdminPlatformSupportRoleController;
+
 use App\Http\Controllers\AdminBusinessMemberPermissionController;
 
 use App\Http\Controllers\AdminBusinessMemberRoleController;
@@ -143,9 +145,11 @@ Route::middleware(['auth:sanctum', \Illuminate\Auth\Middleware\EnsureEmailIsVeri
         Route::get('/analytics', [AdminDashboardController::class, 'analytics']);
         Route::get('/operations', [AdminDashboardController::class, 'operations']);
         Route::get('/audit', [AdminDashboardController::class, 'audit']);
-        Route::get('/workspace', [AdminDashboardController::class, 'workspace']);
+        Route::put('/support-agents/{user}', AdminPlatformSupportRoleController::class)->whereNumber('user');
         Route::get('/patient-accounts', AdminPatientAccountController::class);
     });
+Route::get('/admin/workspace', [AdminDashboardController::class, 'workspace'])
+    ->middleware(['auth:sanctum', 'admin:support']);
 
 Route::post('/register/patient', [
 
@@ -231,13 +235,13 @@ Route::middleware('auth:sanctum')->group(function () {
         });
 
         Route::prefix('admin/support-tickets')->name('admin.support-tickets.')
-            ->middleware(['admin', \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class])
+            ->middleware('admin:support')
             ->controller(SupportTicketController::class)->group(function () {
                 Route::get('/', 'index')->name('index');
                 Route::get('/{ticket}', 'show')->whereNumber('ticket')->name('show');
                 Route::post('/{ticket}/messages', 'reply')->whereNumber('ticket')->name('reply');
-                Route::put('/{ticket}/status', 'updateStatus')->whereNumber('ticket')->name('status');
-                Route::put('/{ticket}/assignment', 'updateAssignment')->whereNumber('ticket')->name('assignment');
+                Route::put('/{ticket}/status', 'updateStatus')->middleware('admin')->whereNumber('ticket')->name('status');
+                Route::put('/{ticket}/assignment', 'updateAssignment')->middleware('admin')->whereNumber('ticket')->name('assignment');
             });
 
         /*

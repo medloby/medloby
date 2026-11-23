@@ -18,7 +18,7 @@
                 <section class="grid gap-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 dark:border-slate-800 dark:bg-slate-900" aria-labelledby="admin-login-title">
                     <h1 id="admin-login-title" class="text-2xl font-semibold tracking-tight">Platform yönetimi</h1>
                     <form method="post" class="grid gap-4" data-admin-login>
-                        <label class="offer-field">Yönetici e-postası
+                        <label class="offer-field">Platform hesabı e-postası
                             <input class="offer-control" type="email" name="email" autocomplete="username" maxlength="255" required>
                         </label>
                         <label class="offer-field">Şifre

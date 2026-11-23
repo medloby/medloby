@@ -19,3 +19,9 @@ Ayrıntılı mevcut sözleşmeler ve eski doğrulama kanıtları ilgili bölümd
 | MC-D02 · Yüksek · Ertelenmiş klinik taslakları | Arayüzden çıkarılmış klinik onam taslaklarının API’si onaylı klinik sahibine açık kalmıştı. Önizleme kapalı senaryosu `200` dönüyordu. | Açık yerel önizleme ayarı gerekir. Üretim ortamında taslak uçları `404` döner. Önizlemede sahiplik, şube/klinik ayrımı, revizyon ve kayıt bütünlüğü regresyonu geçer. `COMPLETE`. [Denetleyici](app/Http/Controllers/ClinicConsentTemplateController.php) · [Test](tests/Feature/ClinicConsentTemplateTest.php) |
 
 Katalog erişimi ve ertelenmiş taslak grubunda 48 hedefli test ve 355 doğrulama geçti.
+
+## 3. Eksik özellikler
+
+| ID, modül ve öncelik | Gereksinim ve uygulama | Kanıt, durum ve bağımlılık |
+| --- | --- | --- |
+| MC-F01 · Platform desteği · Yüksek | Mevcut atama ve destek kuyruğuna doğrulanmış destek görevlisi rolü eklendi. Aynı yönetim paneli ve aynı talep kayıtları kullanılır. Tam yönetici yetki verir ve geri alır. İşlem, oturum iptali ve denetim kaydıyla tek transaction içinde tamamlanır. | 35 hedefli API testi ve 432 doğrulama. Chromium’da masaüstü tam yöneticiyle yetki verme ve atama, mobil görevliyle listede doğru talebi bulma ve yanıt gönderme çalıştı. `COMPLETE` yerel kabul. Canlı atamaların sorumlusu ve geçişi yayın kararına bağlı. [Yetki testi](tests/Feature/PlatformSupportAccessTest.php) · [Yönetim envanteri](ADMIN-TAMAMLAMA.md#admin-g2--yönetici-rolleri) |

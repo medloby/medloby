@@ -140,8 +140,9 @@ const auditActions = {
     published: 'Sözleşme yayımlandı', deactivated: 'Sözleşme yayından kaldırıldı',
     replied: 'Destek talebine yanıt verildi',
     assigned: 'Destek talebine sorumlu atandı', unassigned: 'Destek talebinin sorumlusu kaldırıldı',
+    support_granted: 'Destek görevlisi yetkisi verildi', support_revoked: 'Destek görevlisi yetkisi kaldırıldı',
 };
-const auditTargets = { clinic_application: 'Klinik', clinic_status: 'Klinik', contract: 'Sözleşme', support: 'Talep' };
+const auditTargets = { clinic_application: 'Klinik', clinic_status: 'Klinik', contract: 'Sözleşme', support: 'Talep', platform_role: 'Hesap' };
 
 function mountAudit(panel, link, api, endSession) {
     const source = panel.querySelector('[data-audit-source]');
@@ -174,6 +175,48 @@ function mountAudit(panel, link, api, endSession) {
         clinicPager(pages, null);
         load();
     });
+}
+
+function bindWorkspaceLogout(button, message, api, endSession) {
+    button.addEventListener('click', async () => {
+        button.disabled = true;
+        try {
+            await api('/logout', {});
+            endSession();
+        } catch (error) {
+            if (button.isConnected) {
+                button.disabled = false;
+                status(message, error.message);
+            }
+        }
+    });
+}
+
+function mountAssignedSupport(root, api, account, endSession) {
+    const find = (part) => root.querySelector('[data-admin-' + part + ']');
+    const timeLabel = (value) => time.format(new Date(value));
+    const support = mountSupportTickets(root.querySelector('#support-tickets-dialog'), find('support'), { api, timeLabel });
+    const supportTarget = (data) => {
+        const target = platformNotificationTarget(data);
+        return target?.section === 'destek' ? target : null;
+    };
+    const notifications = mountWorkspaceNotifications(root.querySelector('#notifications-dialog'), find('notifications'), find('notification-count'), {
+        api, timeLabel, openTarget: supportTarget, canOpenTarget: supportTarget,
+        focusTarget: ({ id }) => support.openTicket(id),
+    });
+    find('account').textContent = account.name;
+    bindWorkspaceLogout(find('logout'), find('dashboard-status'), api, endSession);
+    support.start({ assignedOnly: true });
+    notifications.start([]);
+    const target = /^#destek\/([1-9]\d*)$/.exec(window.location.hash);
+    if (target && Number.isSafeInteger(Number(target[1]))) {
+        support.openTicket(Number(target[1]));
+    }
+
+    return () => {
+        support.stop();
+        notifications.stop();
+    };
 }
 
 function mountDashboard(root, api, account, endSession) {
@@ -302,17 +345,25 @@ function mountDashboard(root, api, account, endSession) {
         dialog.addEventListener('close', load);
     }
     find('account').textContent = account.name;
-    find('logout').addEventListener('click', async () => {
-        const logout = find('logout');
-        logout.disabled = true;
+    bindWorkspaceLogout(find('logout'), find('dashboard-status'), api, endSession);
+    const roleForm = find('support-role');
+    roleForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const fields = new FormData(roleForm);
+        const id = Number(fields.get('user_id'));
+        const submitRole = roleForm.querySelector('button[type=submit]');
+        if (!Number.isSafeInteger(id) || id < 1 || submitRole.disabled) {
+            return;
+        }
+        submitRole.disabled = true;
         try {
-            await api('/logout', {});
-            endSession();
+            const result = await api('/admin/support-agents/' + id, { active: fields.get('active') === '1' }, 'PUT');
+            status(find('support-role-status'), result.active ? 'Destek görevlisi yetkisi verildi.' : 'Destek görevlisi yetkisi kaldırıldı.');
+            roleForm.reset();
         } catch (error) {
-            if (main.isConnected) {
-                logout.disabled = false;
-                status(find('dashboard-status'), error.message);
-            }
+            status(find('support-role-status'), error.message);
+        } finally {
+            submitRole.disabled = false;
         }
     });
     main.focus();
@@ -385,7 +436,8 @@ export function mountPlatformAdmin(root) {
             workspace.hidden = false;
             signIn.hidden = true;
             form.reset();
-            stop = mountDashboard(workspace, api, result.user, endSession);
+            const mount = workspace.querySelector('[data-platform-support-workspace]') ? mountAssignedSupport : mountDashboard;
+            stop = mount(workspace, api, result.user, endSession);
         } catch (error) {
             if (error.name === 'AbortError') {
                 return;

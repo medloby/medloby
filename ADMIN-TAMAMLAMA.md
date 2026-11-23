@@ -42,7 +42,7 @@ Platform yönetimi tek ekran olarak `/yonetim` adresinde açılır. Üyelik söz
 
 ## ADMIN-G2 — Yönetici rolleri
 
-Kritik yetki geçişi onay bekliyor. İlk yayın için destek görevlisinin kendisine atanan talepleri görmesi ve yanıtlaması kararlaştırıldı. Atama, kapatma ve yeniden açma platform yöneticisinde kalır. Klinik hesabı ve sözleşme işlemleri yönetim yetkisine bağlıdır. Destek görevlisinin erişimi API düzeyinde ve klinik üyeliği rollerinden bağımsız uygulanacak. Geçiş planı mevcut yöneticileri eşler, son tam yöneticiyi korur ve yetki değişikliklerini işlem geçmişine kaydeder. [İlk yayın politikaları](PROJE-YOL-HARITASI.md#medloby-ilk-yayın-politikaları)
+Doğrulanmış platform yöneticisi, aynı `/yonetim` ekranından doğrulanmış hesap numarasına destek görevlisi yetkisi verebilir veya geri alabilir. İşlem mevcut erişim anahtarlarını iptal eder ve **İşlem geçmişi** bölümüne kaydedilir. Görevli aynı giriş ekranından kendisine atanan talepleri görür ve açık talepleri yanıtlar. Atama, kapatma ve yeniden açma uçları tam yöneticiye ayrılmıştır. Mevcut tam yöneticilerin ve son yöneticinin `is_admin` yetkisi bu işlemden değiştirilemez. Diğer platform rollerinin kapsamı ve canlı geçiş onayı bekliyor. [Rol testleri](tests/Feature/PlatformSupportAccessTest.php)
 
 **İşlem geçmişi** başvuru kararlarını, klinik durum değişikliklerini, sözleşme yayımlama ve yayından kaldırma işlemlerini, destek yanıtlarını ve atamaları tek listede gösterir. Sözleşmeyi yayımlayan ve yayından kaldıran yöneticiler ilgili işlem anında mevcut sözleşme kaydına yazılır. Eski yayımlama kayıtlarında tarih korunur ve işlemi yapan hesap kayıtlı değilse ekranda bu bilgi gösterilir. Ayrıntılı notlar ve mesajlar kendi yetkili ekranlarında kalır. Rol ve izin değişikliklerinin ortak denetimi yetki geçişiyle planlanır. [İşlem geçmişi sorgusu](app/Services/PlatformAdminAudit.php)
 
@@ -97,7 +97,7 @@ Sözleşme işlem geçmişi ve iletişim kontrollerinden sonra SQLite’ta **1.0
 
 ## PRODUCT_DECISIONS_REQUIRED
 
-- Platform rol matrisi, kritik yetki atama ve geri alma, son üst yöneticinin korunması ve geçiş onayı.
+- Operasyon, finans, uyum ve teknik işletim rollerinin kesin yetki matrisi, tam yönetici modelinin devamı ve canlı geçiş onayı.
 - İlk yayın için seçilebilen üç klinik planı ücretsizdir. Ücretli abonelik kararı alındığında fiyat, para birimi, ödeme sağlayıcısı, komisyon, iade, vergi ve fatura türü ayrıca belirlenecek.
 - Sağlık verisinin işlenmesi, KVKK kabulü, kayıt saklama ve imha süreleri, hesap durdurma, silme ve dışa aktarma yetkisi.
 - İlk klinik ruhsat doğrulamasında aranacak belgeler ve destek talebinin işletmeyle nasıl ilişkilendirileceği.

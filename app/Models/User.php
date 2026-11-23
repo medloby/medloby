@@ -18,9 +18,11 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
 #[Fillable(['name', 'email', 'password'])]
-#[Hidden(['password', 'remember_token'])]
+#[Hidden(['password', 'remember_token', 'platform_role'])]
 class User extends Authenticatable implements MustVerifyEmail
 {
+    public const string PLATFORM_SUPPORT_ROLE = 'support';
+
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
 
@@ -72,6 +74,23 @@ class User extends Authenticatable implements MustVerifyEmail
     public function isVerifiedPlatformAdmin(): bool
     {
         return $this->is_admin && $this->hasVerifiedEmail();
+    }
+
+    public function isVerifiedPlatformSupport(): bool
+    {
+        return $this->platform_role === self::PLATFORM_SUPPORT_ROLE && $this->hasVerifiedEmail();
+    }
+
+    public function canUsePlatformSupport(): bool
+    {
+        return $this->isVerifiedPlatformAdmin() || $this->isVerifiedPlatformSupport();
+    }
+
+    #[Scope]
+    protected function verifiedSupportOperator(Builder $users): Builder
+    {
+        return $users->whereNotNull('email_verified_at')->where(fn (Builder $roles) => $roles
+            ->where('is_admin', true)->orWhere('platform_role', self::PLATFORM_SUPPORT_ROLE));
     }
 
     #[Scope]

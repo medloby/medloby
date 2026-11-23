@@ -10,7 +10,7 @@ use stdClass;
 
 final class PlatformAdminAudit
 {
-    public const array SOURCES = ['clinic_application', 'clinic_status', 'contract', 'support'];
+    public const array SOURCES = ['clinic_application', 'clinic_status', 'contract', 'support', 'platform_role'];
 
     public function recent(?string $source): LengthAwarePaginator
     {
@@ -19,9 +19,10 @@ final class PlatformAdminAudit
             'clinic_status' => $this->clinicStatuses(),
             'contract' => $this->publications()->unionAll($this->deactivations()),
             'support' => $this->supportReplies()->unionAll($this->supportAssignments()),
+            'platform_role' => $this->roleChanges(),
             default => $this->clinicApplications()->unionAll($this->clinicStatuses())
                 ->unionAll($this->publications())->unionAll($this->deactivations())
-                ->unionAll($this->supportReplies())->unionAll($this->supportAssignments()),
+                ->unionAll($this->supportReplies())->unionAll($this->supportAssignments())->unionAll($this->roleChanges()),
         };
 
         return DB::query()->fromSub($events, 'audit_events')
@@ -83,5 +84,13 @@ final class PlatformAdminAudit
         return DB::table('support_ticket_assignments as entry')->leftJoin('users as actor', 'actor.id', '=', 'entry.assigned_by_user_id')
             ->selectRaw("'support' AS source, entry.id AS event_id, entry.support_ticket_id AS target_id,
                 NULL AS target_name, actor.name AS actor_name, entry.action AS event_action, entry.created_at AS occurred_at");
+    }
+
+    private function roleChanges(): Builder
+    {
+        return DB::table('platform_role_changes as entry')->join('users as target', 'target.id', '=', 'entry.user_id')
+            ->leftJoin('users as actor', 'actor.id', '=', 'entry.actor_user_id')
+            ->selectRaw("'platform_role' AS source, entry.id AS event_id, entry.user_id AS target_id,
+                target.name AS target_name, actor.name AS actor_name, entry.action AS event_action, entry.created_at AS occurred_at");
     }
 }

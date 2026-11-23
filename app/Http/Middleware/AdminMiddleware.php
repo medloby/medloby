@@ -15,11 +15,12 @@ class AdminMiddleware
      */
     public function handle(
         Request $request,
-        Closure $next
+        Closure $next,
+        ?string $scope = null,
     ): Response {
         $user = $request->user();
 
-        if (! $user?->isVerifiedPlatformAdmin()) {
+        if (! ($scope === 'support' ? $user?->canUsePlatformSupport() : $user?->isVerifiedPlatformAdmin())) {
             return response()->json([
                 'success' => false,
                 'message' => 'Bu işlem için admin yetkisi gereklidir.',

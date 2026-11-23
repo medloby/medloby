@@ -28,6 +28,7 @@ export function mountSupportTickets(dialog, trigger, { api, timeLabel }) {
     const changeStatus = find('set-status');
     let endpoint;
     let admin;
+    let canManage;
     let ticket;
     let requester;
     let search = '';
@@ -142,14 +143,14 @@ export function mountSupportTickets(dialog, trigger, { api, timeLabel }) {
         messages.replaceChildren(...item.messages.data.toReversed().map(messageRow));
         setPages('thread', item.messages);
         reply.hidden = item.status === 'closed';
-        assignmentForm.hidden = !admin || item.status === 'closed';
+        assignmentForm.hidden = !canManage || item.status === 'closed';
         if (!assignmentForm.hidden) {
             assignee.replaceChildren(new Option('Sorumlusuz', ''), ...item.assignment_candidates.map(
                 (candidate) => new Option(candidate.name + ' · #' + candidate.id, candidate.id),
             ));
             assignee.value = item.assignee?.id ?? '';
         }
-        changeStatus.hidden = !admin;
+        changeStatus.hidden = !canManage;
         changeStatus.textContent = item.status === 'closed' ? 'Yeniden aç' : 'Talebi kapat';
         showView(thread);
         showStatus(message);
@@ -293,14 +294,15 @@ export function mountSupportTickets(dialog, trigger, { api, timeLabel }) {
         openTicket: (ticketId) => open(null, { ticketId }),
         openAwaitingReply: () => open(null, { status: 'awaiting_reply' }),
         fetchTicket,
-        start({ administrator = false } = {}) {
-            admin = administrator;
+        start({ administrator = false, assignedOnly = false } = {}) {
+            admin = administrator || assignedOnly;
+            canManage = administrator;
             endpoint = admin ? '/admin/support-tickets' : '/support-tickets';
-            trigger.textContent = admin ? 'Destek talepleri' : 'Destek taleplerim';
+            trigger.textContent = assignedOnly ? 'Bana atanan talepler' : admin ? 'Destek talepleri' : 'Destek taleplerim';
             find('heading').textContent = trigger.textContent;
             find('create').hidden = admin;
             searchForm.hidden = !admin;
-            find('assignment-filter-field').hidden = !admin;
+            find('assignment-filter-field').hidden = !canManage;
             awaitingOption.hidden = !admin;
             awaitingOption.disabled = !admin;
             trigger.hidden = false;
