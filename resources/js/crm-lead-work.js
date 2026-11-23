@@ -1,6 +1,12 @@
 const kindSettings = {
-    tasks: { types: ['other', 'call', 'whatsapp', 'email', 'meeting', 'follow_up'], date: 'due_at', label: 'Son tarih', text: 'description' },
-    'follow-ups': { types: ['call', 'whatsapp', 'email', 'meeting', 'other'], date: 'scheduled_at', label: 'Planlanan tarih ve saat', text: 'notes' },
+    tasks: {
+        types: ['other', 'call', 'whatsapp', 'email', 'meeting', 'follow_up'], date: 'due_at', label: 'Son tarih', text: 'description',
+        assignment: { label: 'Görev kime atansın?', unassigned: 'Atanmamış' },
+    },
+    'follow-ups': {
+        types: ['call', 'whatsapp', 'email', 'meeting', 'other'], date: 'scheduled_at', label: 'Planlanan tarih ve saat', text: 'notes',
+        assignment: { label: 'Hatırlatma kime gitsin?', unassigned: 'Klinik sahibi' },
+    },
     activities: { types: ['note', 'call', 'whatsapp', 'email', 'meeting', 'follow_up', 'other'], date: 'occurred_at', label: 'Gerçekleşme tarihi', text: 'description' },
 };
 
@@ -38,30 +44,31 @@ export function mountCrmLeadWork(panel, { api, onChanged }) {
         status.hidden = !text;
     }
 
-    function syncFields() {
+    function syncFields(assignedId = '') {
         const kind = input('kind').value;
-        const settings = kindSettings[kind];
-        input('type').replaceChildren(...settings.types.map((type) => new Option(typeLabels[type], type)));
+        const { types, label, assignment } = kindSettings[kind];
+        input('type').replaceChildren(...types.map((type) => new Option(typeLabels[type], type)));
         input('when').required = kind === 'follow-ups' || (kind === 'activities' && editing !== null);
-        assignee.disabled = kind !== 'follow-ups';
-        find('assignee').hidden = assignee.disabled;
-        find('time-label').textContent = settings.label + (input('when').required ? '' : ' (isteğe bağlı)');
-    }
-
-    function fillAssignees(id = '') {
-        const options = (lead?.members ?? []).map((member) => new Option(member.name, member.id));
-        assignee.replaceChildren(new Option('Klinik sahibine', ''), ...options);
-        if (id && !Array.from(assignee.options).some((option) => option.value === id)) {
-            assignee.add(new Option('Önceki atama', id));
+        find('time-label').textContent = label + (input('when').required ? '' : ' (isteğe bağlı)');
+        assignee.disabled = !assignment;
+        find('assignee').hidden = !assignment;
+        if (!assignment) {
+            return;
         }
-        assignee.value = id;
+
+        find('assignee-label').textContent = assignment.label;
+        const options = (lead?.members ?? []).map((member) => new Option(member.name, member.id));
+        assignee.replaceChildren(new Option(assignment.unassigned, ''), ...options);
+        if (assignedId && !options.some((option) => option.value === assignedId)) {
+            assignee.add(new Option('Önceki atama', assignedId));
+        }
+        assignee.value = assignedId;
     }
 
     function resetForm() {
         editing = null;
         form.reset();
         input('kind').disabled = false;
-        fillAssignees();
         find('edit-title').textContent = 'Yeni kayıt';
         find('save').textContent = 'Kaydı ekle';
         find('discard').hidden = true;
@@ -76,7 +83,7 @@ export function mountCrmLeadWork(panel, { api, onChanged }) {
             [settings.text]: input('description').value.trim() || null,
             [settings.date]: input('when').value ? new Date(input('when').value).toISOString() : null,
         };
-        if (input('kind').value === 'follow-ups') {
+        if (!assignee.disabled) {
             data.assigned_business_user_id = assignee.value ? Number(assignee.value) : null;
         }
 
@@ -88,14 +95,11 @@ export function mountCrmLeadWork(panel, { api, onChanged }) {
         const settings = kindSettings[kind];
         input('kind').value = kind;
         input('kind').disabled = true;
-        syncFields();
+        syncFields(String(record.assigned_business_user_id ?? ''));
         input('type').value = record.type;
         input('title').value = record.title;
         input('description').value = record[settings.text] ?? '';
         input('when').value = localDateInput(record[settings.date]);
-        if (kind === 'follow-ups') {
-            fillAssignees(String(record.assigned_business_user_id ?? ''));
-        }
         editing.original = payload();
         find('edit-title').textContent = 'Kaydı düzenle';
         find('save').textContent = 'Kaydı güncelle';
@@ -120,9 +124,11 @@ export function mountCrmLeadWork(panel, { api, onChanged }) {
             const title = find('row-title', row);
             title.textContent = record.title;
             const date = record[settings.date] ? workDate.format(new Date(record[settings.date])) : '';
-            const assigneeName = kind === 'follow-ups'
-                ? current.members.find((member) => String(member.id) === String(record.assigned_business_user_id))?.name ?? 'Klinik sahibi'
-                : null;
+            let assigneeName = settings.assignment?.unassigned;
+            if (settings.assignment && record.assigned_business_user_id) {
+                assigneeName = current.members.find((member) => String(member.id) === String(record.assigned_business_user_id))?.name
+                    ?? 'Önceki atama';
+            }
             find('row-meta', row).textContent = [typeLabels[record.type], statusLabels[record.status], date, assigneeName].filter(Boolean).join(' · ');
             if (kind === 'follow-ups') {
                 title.dataset.followUpId = record.id;
@@ -237,7 +243,7 @@ export function mountCrmLeadWork(panel, { api, onChanged }) {
             load(lead);
         }
     });
-    input('kind').addEventListener('change', syncFields);
+    input('kind').addEventListener('change', () => syncFields(assignee.value));
     find('discard').addEventListener('click', resetForm);
 
     form.addEventListener('submit', (event) => {

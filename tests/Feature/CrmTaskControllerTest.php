@@ -240,6 +240,32 @@ test('can assign crm task to business user', function () {
         );
 });
 
+test('can assign a task to the clinic owner without a branch membership', function () {
+    $owner = $this->business->memberships()->create([
+        'user_id' => User::factory()->create()->id,
+        'role' => 'business_owner',
+        'is_active' => true,
+    ]);
+    $base = "/api/branches/{$this->branch->id}/crm";
+
+    $this->getJson("{$base}/leads/assignees")
+        ->assertOk()
+        ->assertJsonFragment(['id' => $owner->id]);
+
+    $task = $this->postJson("{$base}/tasks", [
+        'title' => 'Adayı arayın',
+        'assigned_business_user_id' => $owner->id,
+    ])->assertCreated()->assertJsonPath('data.assigned_business_user_id', $owner->id);
+
+    $path = "{$base}/tasks/{$task->json('data.id')}";
+
+    foreach ([$this->businessUser->id, $owner->id, null] as $assigneeId) {
+        $this->putJson($path, ['assigned_business_user_id' => $assigneeId])
+            ->assertOk()
+            ->assertJsonPath('data.assigned_business_user_id', $assigneeId);
+    }
+});
+
 test('cannot create task assigning business user from another business', function () {
     $otherBusiness = Business::create([
         'name' => 'Other Klinik',

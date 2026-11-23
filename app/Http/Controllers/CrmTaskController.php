@@ -162,15 +162,9 @@ class CrmTaskController extends Controller
 
         $assignedBusinessUser = null;
 
-        if (
-            isset($validated['assigned_business_user_id'])
-            && $validated['assigned_business_user_id'] !== null
-        ) {
-            $assignedBusinessUser = $this->resolveBusinessUserForBranch(
-                $validated['assigned_business_user_id'],
-                $branch->business_id,
-                $branch->id
-            );
+        if (isset($validated['assigned_business_user_id'])) {
+            $assignedBusinessUser = BusinessUser::query()->activeForBranch($branch)
+                ->find($validated['assigned_business_user_id']);
 
             if (! $assignedBusinessUser) {
                 return response()->json([
@@ -350,25 +344,12 @@ class CrmTaskController extends Controller
             }
         }
 
-        if (
-            array_key_exists(
-                'assigned_business_user_id',
-                $validated
-            )
-            && $validated['assigned_business_user_id'] !== null
-        ) {
-            $assignedBusinessUser = $this->resolveBusinessUserForBranch(
-                $validated['assigned_business_user_id'],
-                $branch->business_id,
-                $branch->id
-            );
-
-            if (! $assignedBusinessUser) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Seçilen personel bu işletmeye ait değil, aktif değil veya bu şubeye erişimi yok.',
-                ], 422);
-            }
+        if (isset($validated['assigned_business_user_id']) && ! BusinessUser::query()->activeForBranch($branch)
+            ->whereKey($validated['assigned_business_user_id'])->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Seçilen personel bu işletmeye ait değil, aktif değil veya bu şubeye erişimi yok.',
+            ], 422);
         }
 
         if (
@@ -477,25 +458,5 @@ class CrmTaskController extends Controller
                 'createdByBusinessUser',
             ]),
         ]);
-    }
-
-    private function resolveBusinessUserForBranch(
-        int $businessUserId,
-        int $businessId,
-        int $branchId
-    ): ?BusinessUser {
-        return BusinessUser::query()
-            ->where('id', $businessUserId)
-            ->where('business_id', $businessId)
-            ->where('is_active', true)
-            ->whereHas('branches', function ($query) use ($branchId) {
-                $query
-                    ->where('branches.id', $branchId)
-                    ->where(
-                        'business_user_branch.is_active',
-                        true
-                    );
-            })
-            ->first();
     }
 }

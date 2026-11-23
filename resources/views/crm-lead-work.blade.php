@@ -28,7 +28,7 @@
                     <input class="offer-control" name="when" type="datetime-local">
                 </label>
                 <label class="offer-field" data-work-assignee hidden>
-                    Hatırlatma kime gitsin?
+                    <span data-work-assignee-label></span>
                     <select class="offer-control" name="assigned_business_user_id" disabled></select>
                 </label>
                 <label class="offer-field">
