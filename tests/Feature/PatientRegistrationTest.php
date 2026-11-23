@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\URL;
 use Laravel\Sanctum\PersonalAccessToken;
 use Symfony\Component\Mailer\Exception\TransportException;
 
@@ -134,6 +135,25 @@ test('a registered patient can verify their account after the queue retries a fa
     expect(preg_match('~href="([^"]*/email/verify/[^"]+)"~', $mail->getHtmlBody(), $match))->toBe(1);
     $this->getJson(html_entity_decode($match[1]))->assertOk();
     expect(User::findOrFail($userId)->hasVerifiedEmail())->toBeTrue();
+});
+
+test('an https verification link works through the configured proxy', function () {
+    expect(config('trustedproxy'))->toHaveKey('proxies');
+    config(['trustedproxy.proxies' => '192.0.2.8']);
+    $user = User::factory()->unverified()->create();
+    URL::useOrigin('https://medloby.example.test');
+    URL::forceScheme('https');
+    $link = URL::temporarySignedRoute('verification.verify', now()->addMinutes(10), [
+        'id' => $user->id,
+        'hash' => sha1($user->email),
+    ]);
+    $upstreamUrl = 'http://'.substr($link, strlen('https://'));
+    $headers = ['X-Forwarded-Proto' => 'https'];
+
+    $this->withServerVariables(['REMOTE_ADDR' => '192.0.2.9'])->getJson($upstreamUrl, $headers)->assertForbidden();
+    expect($user->refresh()->hasVerifiedEmail())->toBeFalse();
+    $this->withServerVariables(['REMOTE_ADDR' => '192.0.2.8'])->getJson($upstreamUrl, $headers)->assertOk();
+    expect($user->refresh()->hasVerifiedEmail())->toBeTrue();
 });
 
 test('registration succeeds during a synchronous mail outage and resend reports that it can be retried', function () {

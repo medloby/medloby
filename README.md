@@ -44,6 +44,8 @@ Komut mevcut ayarları, veritabanı bağlantısını ve migration kayıtlarını
 
 Canlı HTTPS erişimini, SMTP teslimatını, kuyruk işçisini, zamanlayıcıyı ve yedekten geri yüklemeyi yukarıdaki adımlarla prova et. [Teknik kontrol testleri](tests/Feature/ReleaseReadinessTest.php)
 
+HTTPS bağlantısını bir vekil sunucu karşılıyorsa `MEDLOBY_TRUSTED_PROXIES` ayarına bu sunucunun uygulamanın gördüğü IP adresini gir. Birden fazla adresi virgülle ayır. Vekil sunucuda sitenin alan adını koru ve istemciden gelen yönlendirme başlıklarını vekil sunucunun kendi değerleriyle değiştir. Ayarı değiştirdikten sonra yapılandırma önbelleğini yeniden oluştur. Yayın provasında CSS ve JavaScript dosyalarının HTTPS üzerinden yüklendiğini ve e-posta doğrulama bağlantısının açıldığını dene.
+
 ### İlk platform yöneticisi
 
 Uygulamanın veritabanı şemasını kurduktan sonra sunucudaki etkileşimli terminalde çalıştır.
