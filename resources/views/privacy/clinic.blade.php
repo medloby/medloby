@@ -1,7 +1,7 @@
 <section>
     <h2>Hangi bilgiler nasıl alınır?</h2>
     <ul class="list-disc space-y-2 pl-5 leading-relaxed">
-        <li>Klinik başvuru formundan temsilcinin adı, e-postası ve parolası ile klinik ve şube bilgileri alınır. Parola özetlenerek saklanır. Başvuruda verilen işletme iletişim bilgileri, adres, şehir ve diğer isteğe bağlı alanlar başvuru kaydına işlenir.</li>
+        <li>Klinik başvuru formundan klinik adı, telefon, başvuruyu yapan kişinin e-posta adresi ve seçilmişse ücretsiz üyelik planı alınır. Başvuru onaylandığında klinik hesabının giriş bilgileri oluşturulur. Hesap parolaları özetlenerek saklanır. Klinik yetkilisinin daha sonra girdiği işletme, adres ve şube bilgileri ilgili kayıtlara işlenir.</li>
         <li>Sözleşmenin sürümü, kabul zamanı, kabul yöntemi, IP adresi ve tarayıcı bilgileri elektronik kabul sırasında kaydedilir. Başvurunun inceleme sonucu ve hesap işlem kayıtları süreç içinde oluşur.</li>
         <li>Klinik yetkilisi personelin erişimini düzenlediğinde personel hesabının kimlik ve iletişim bilgileri, rolü, üyeliği ve şube erişimi kullanılır. Klinik görüşme, CRM veya randevu kaydı girerse hasta ve işlem bilgileri kliniğin girişiyle de sisteme ulaşabilir.</li>
     </ul>

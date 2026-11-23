@@ -65,10 +65,22 @@
         </main>
 
         <footer class="border-t border-[#dbe3dc] dark:border-slate-800">
-            <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-5 py-6 text-sm text-[#42594f] sm:px-8 lg:px-12 dark:text-slate-300">
-                <p class="font-semibold">Medloby</p>
-                @include('privacy.footer-links')
-                <p>Son içerik güncellemesi <time datetime="2026-11-22">22 Kasım 2026</time></p>
+            <div class="mx-auto grid max-w-7xl gap-6 px-5 py-8 text-sm text-[#42594f] sm:px-8 lg:px-12 dark:text-slate-300">
+                <nav id="politikalar" aria-labelledby="policies-title">
+                    <h2 id="policies-title" class="mb-3 text-lg font-semibold text-[#172b26] dark:text-slate-100">Politikalar</h2>
+                    <ul class="grid gap-x-8 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
+                        @foreach (config('medloby.policy_pages') as $policy => $title)
+                            <li>
+                                <a class="inline-block rounded-sm py-1.5 underline decoration-current/40 underline-offset-4 hover:decoration-current focus-visible:outline-2 focus-visible:outline-offset-2" href="{{ route('policies.show', $policy) }}">{{ $title }}</a>
+                            </li>
+                        @endforeach
+                    </ul>
+                </nav>
+                <div class="flex flex-wrap items-center justify-between gap-3 border-t border-[#dbe3dc] pt-4 dark:border-slate-800">
+                    <p class="font-semibold">Medloby</p>
+                    @include('privacy.footer-links')
+                    <p>Son içerik güncellemesi <time datetime="2026-11-23">23 Kasım 2026</time></p>
+                </div>
             </div>
         </footer>
     </body>

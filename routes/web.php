@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ClinicDirectoryController;
 use App\Http\Controllers\PasswordResetController;
+use App\Http\Controllers\PolicyPageController;
 use App\Http\Controllers\PrivacyNoticeController;
 use Illuminate\Support\Facades\Route;
 
@@ -11,6 +12,8 @@ Route::view('/paket-teklifleri', 'package-offers')->name('package-offers');
 Route::view('/yonetim', 'platform-admin')->name('platform-admin');
 Route::get('/kvkk/{audience}', PrivacyNoticeController::class)
     ->whereIn('audience', ['hasta', 'klinik'])->name('privacy.notice');
+Route::get('/politikalar/{policy}', PolicyPageController::class)
+    ->where('policy', '[a-z0-9-]+')->name('policies.show');
 
 Route::controller(PasswordResetController::class)->group(function () {
     Route::get('/sifremi-unuttum', 'requestForm')->name('password.request');
