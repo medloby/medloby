@@ -6,6 +6,7 @@ use App\Models\Business;
 use App\Models\BusinessReview;
 use App\Models\User;
 use App\Notifications\ClinicApplicationNotification;
+use App\Notifications\ClinicApplicationRejectedNotification;
 use App\Notifications\ClinicOwnerCredentialsNotification;
 use App\Notifications\NotificationType;
 use Illuminate\Http\JsonResponse;
@@ -222,7 +223,7 @@ class AdminBusinessController extends Controller
                 'new_status' => 'rejected',
             ]);
 
-            $this->notifyOwners($business, NotificationType::CLINIC_APPLICATION_REJECTED);
+            $this->notifyOwners($business, NotificationType::CLINIC_APPLICATION_REJECTED, $review);
 
             return [
                 'business' => $business->fresh([
@@ -240,7 +241,7 @@ class AdminBusinessController extends Controller
         ]);
     }
 
-    private function notifyOwners(Business $application, string $type): void
+    private function notifyOwners(Business $application, string $type, ?BusinessReview $rejection = null): void
     {
         $owners = User::query()->whereHas('businessMemberships', fn ($query) => $query
             ->where('business_id', $application->id)
@@ -248,6 +249,21 @@ class AdminBusinessController extends Controller
             ->where('is_active', true))->get();
 
         Notification::send($owners, new ClinicApplicationNotification($application, $type));
+
+        if ($rejection === null) {
+            return;
+        }
+
+        $applicants = $owners->filter(fn (User $owner): bool => $owner->clinic_onboarding_pending
+            && filled($owner->email) && $owner->email === $application->email);
+
+        if ($applicants->isNotEmpty()) {
+            Notification::send($applicants, (new ClinicApplicationRejectedNotification(
+                $application->id,
+                $rejection->id,
+                $rejection->applicant_rejection_reason,
+            ))->withApplicationTransaction());
+        }
     }
 
     private function provisionPendingOwner(Business $business): void

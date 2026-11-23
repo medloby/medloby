@@ -185,7 +185,7 @@ export function mountPackageOffers(root) {
     const registration = mountWorkspaceRegistration(get('registration-dialog'), {
         api,
         onApplicationSubmitted() {
-            showStatus(notice, 'Klinik başvurunuz alındı. Onaydan sonra giriş bilgileriniz e-posta ile gönderilecek.');
+            showStatus(notice, 'Klinik başvurunuz alındı. Başvuru sonucu e-postayla bildirilecek. Onaylanırsa giriş bilgileriniz de e-postayla gönderilecek.');
         },
         async onRegistered(sessionToken) {
             try {

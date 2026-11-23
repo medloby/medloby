@@ -4,6 +4,7 @@ use App\Models\Branch;
 use App\Models\Business;
 use App\Models\PlatformContract;
 use App\Models\User;
+use App\Notifications\ClinicApplicationRejectedNotification;
 use App\Notifications\ClinicOwnerCredentialsNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Mail\Events\MessageSending;
@@ -183,6 +184,103 @@ test('a queued clinic credential message checks the owners current access before
     'the ownership was deactivated' => [[], ['is_active' => false]],
     'the owner became staff' => [[], ['role' => 'staff']],
 ]);
+
+test('a rejected clinic applicant receives only the decision and any applicant-facing explanation', function (?string $applicantExplanation) {
+    config(['mail.default' => 'array', 'queue.default' => 'database']);
+    $owner = submitClinicAccountApplication($this, 'basvuru-sonucu@example.test');
+    $business = $owner->businessMemberships()->sole()->business;
+    $legacyOwner = User::factory()->create();
+    $business->memberships()->create(['user_id' => $legacyOwner->id, 'role' => 'business_owner', 'is_active' => true]);
+    $admin = User::factory()->create(['is_admin' => true]);
+    $internalReason = 'Yalnızca yöneticiye açık ret nedeni.';
+    $internalNotes = 'Yalnızca yöneticiye açık inceleme notu.';
+
+    $url = "/api/admin/businesses/{$business->id}/reject";
+    $this->actingAs($admin, 'sanctum')->postJson($url, [
+        'rejection_reason' => $internalReason,
+        'notes' => $internalNotes,
+        'applicant_rejection_reason' => $applicantExplanation,
+    ])->assertOk()->assertJsonPath('data.business.status', 'rejected');
+    $this->postJson($url, ['rejection_reason' => $internalReason])->assertUnprocessable();
+    $this->assertDatabaseCount('business_reviews', 1);
+    expect($legacyOwner->notifications()->count())->toBe(1);
+    expect($owner->fresh()->clinic_onboarding_pending)->toBeTrue();
+    expect($owner->fresh()->login_code)->toBeNull();
+    expect($owner->tokens()->count())->toBe(0);
+
+    $job = json_decode(DB::table('jobs')->sole()->payload, true, flags: JSON_THROW_ON_ERROR);
+    expect(decrypt($job['data']['command']))
+        ->toContain(ClinicApplicationRejectedNotification::class)
+        ->not->toContain($internalReason, $internalNotes);
+    $this->artisan('queue:work', ['--once' => true])->assertSuccessful();
+    $this->assertDatabaseCount('jobs', 0);
+
+    $mail = Mail::mailer('array')->getSymfonyTransport()->messages()->sole()->getOriginalMessage();
+    expect($mail->getTo()[0]->getAddress())->toBe($owner->email);
+    expect($mail->getTextBody())->toContain('Medloby klinik başvurunuz değerlendirme sonucunda reddedildi.')
+        ->not->toContain($internalReason, $internalNotes);
+    expect($mail->getHtmlBody())->not->toContain($internalReason, $internalNotes);
+    if ($applicantExplanation !== null) {
+        expect($mail->getTextBody())->toContain($applicantExplanation);
+        expect($mail->getHtmlBody())->toContain($applicantExplanation);
+    }
+})->with([
+    'with an explicit explanation' => ['Güncel klinik iletişim bilgilerinizi hazırlayın.'],
+    'without a public explanation' => [null],
+]);
+
+test('a queued rejection is skipped when its recipient or decision is no longer current', function (string $change) {
+    config(['mail.default' => 'array', 'queue.default' => 'database']);
+    $owner = submitClinicAccountApplication($this, 'degisen-basvuru@example.test');
+    $membership = $owner->businessMemberships()->sole();
+    $business = $membership->business;
+    $admin = User::factory()->create(['is_admin' => true]);
+    $this->actingAs($admin, 'sanctum')->postJson("/api/admin/businesses/{$business->id}/reject", [
+        'rejection_reason' => 'Test incelemesinde saklanan ret nedeni.',
+    ])->assertOk();
+    $this->assertDatabaseCount('jobs', 1);
+
+    match ($change) {
+        'email' => $owner->update(['email' => 'farkli-adres@example.test']),
+        'membership' => $membership->update(['is_active' => false]),
+        'status' => $business->refresh()->update(['status' => 'pending']),
+        'review' => $business->reviews()->create([
+            'reviewed_by_user_id' => $admin->id, 'decision' => 'rejected', 'reviewed_at' => now()->addSecond(),
+        ]),
+    };
+
+    $this->artisan('queue:work', ['--once' => true])->assertSuccessful();
+    $this->assertDatabaseCount('jobs', 0);
+    expect(Mail::mailer('array')->getSymfonyTransport()->messages())->toBeEmpty();
+})->with(['email', 'membership', 'status', 'review']);
+
+test('a clinic rejection can be retried when the database cannot enqueue the applicants email', function () {
+    config(['mail.default' => 'array', 'queue.default' => 'database']);
+    $owner = submitClinicAccountApplication($this, 'bekleyen-ret@example.test');
+    $business = $owner->businessMemberships()->sole()->business;
+    $admin = User::factory()->create(['is_admin' => true]);
+    Exceptions::fake();
+    $queueAvailable = false;
+    Event::listen(JobQueueing::class, function () use (&$queueAvailable): void {
+        if (! $queueAvailable) {
+            throw new RuntimeException('Test database queue unavailable');
+        }
+    });
+    $url = "/api/admin/businesses/{$business->id}/reject";
+    $payload = ['rejection_reason' => 'Test incelemesinde saklanan ret nedeni.'];
+
+    $this->actingAs($admin, 'sanctum')->postJson($url, $payload)->assertServerError();
+    expect($business->fresh()->status)->toBe('pending');
+    expect($business->branches()->sole()->status)->toBe('pending');
+    $this->assertDatabaseCount('business_reviews', 0);
+    $this->assertDatabaseCount('notifications', 0);
+    $this->assertDatabaseCount('jobs', 0);
+
+    $queueAvailable = true;
+    $this->postJson($url, $payload)->assertOk()->assertJsonPath('data.business.status', 'rejected');
+    $this->assertDatabaseCount('business_reviews', 1);
+    $this->assertDatabaseCount('jobs', 1);
+});
 
 test('a clinic owner creates and manages a branch-scoped staff login without an email address', function () {
     $branch = Branch::factory()->create();

@@ -202,7 +202,7 @@ class BusinessRegistrationController extends Controller
         if ($pendingCredentials) {
             return response()->json([
                 'success' => true,
-                'message' => 'Klinik başvurunuz alındı. Onaydan sonra giriş bilgileri e-posta adresinize gönderilecek.',
+                'message' => 'Klinik başvurunuz alındı. Başvuru sonucu e-postayla bildirilecek. Onaylanırsa giriş bilgileriniz de e-postayla gönderilecek.',
                 'data' => ['approval_status' => 'pending'],
             ], 201);
         }

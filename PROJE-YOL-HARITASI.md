@@ -9,7 +9,7 @@
 Envanter, Git'in izlediği 529 dosyayı kapsadı. Depoda 173 uygulama dosyası, 74 migration, 53 model, 17 servis ve 90 Feature test dosyası bulunuyor. Laravel rota listesinde 257 API ucu ve 13 web veya sistem rotası var. [API rotaları](routes/api.php)
 
 - 419 PHP dosyasının sözdizimi, Blade önbelleği ve Vite derlemesi doğrulandı.
-- SQLite üzerinde **973 test**, PostgreSQL 17.12 üzerinde **976 test** geçti. PostgreSQL’e özel üç yedekleme senaryosu PostgreSQL aşamasında çalıştı.
+- SQLite üzerinde **980 test**, PostgreSQL 17.12 üzerinde **983 test** geçti. PostgreSQL’e özel üç yedekleme senaryosu PostgreSQL aşamasında çalıştı.
 - Klinik üyeliği için `0.2-draft` hazırlandı. Başvuru formu, geçerli ve yayımlanmış zorunlu sözleşme olduğunda açılır.
 - Kilit dosyalarının önceki npm taramasında ve 133 PHP paket sürümü için GitHub Advisory Database taramasında eşleşen bildirim bulunmadı.
 
@@ -51,7 +51,7 @@ flowchart LR
 | Modül | Depoda çalışan bölüm | Tamamlanacak bölüm |
 | --- | --- | --- |
 | Hesaplar | Hasta kaydı, e-posta veya kullanıcı koduyla giriş, e-posta doğrulaması ve şifre sıfırlama. Klinik sahibinde ilk girişte şifre belirleme. Klinik tarafından açılan personel hesaplarında şifreyi klinik sahibi yönetir. | Yayın sırasında gerçek gelen kutusu ve hesap kurtarma testi |
-| Klinik başvurusu | İletişim bilgileri ve sözleşme kabulüyle başvuru, yönetici inceleme/onay/ret, uygulama içi bildirim ve onay sonrasında giriş bilgilerini e-postaya gönderme | İşletmeci ve ruhsat doğrulama sürecini netleştirme |
+| Klinik başvurusu | İletişim bilgileri ve sözleşme kabulüyle başvuru, yönetici incelemesi ve karar bildirimi. Onayda giriş bilgileri, rette karar ve varsa başvuru sahibine özel açıklama e-postayla gönderilir. | İşletmeci ve ruhsat doğrulama sürecini netleştirme |
 | Sözleşmeler ve platform yönetimi | Sözleşme sürümleri, taslak düzenleme denetimi, yürürlük ve bitiş tarihleri, yayımlama, yayından kaldırma ve kabul geçmişi. Klinik arama, askıya alma ve açma geçmişi, üye rolleri, üyelik durumu ve izinler | Onaylanan sözleşmeyi canlı ortamda yayımlama |
 | CRM hasta adayları | Şube seçimi ve özet, aday listeleme, durum filtresi, sayfalama, iletişim bilgilerini düzenleme ve personele atama. Takip aşaması ekleme, aşama geçmişi ve aday sonuçlandırma. Bağlı hastanın şubedeki randevularını görme ve yetkiyle yeni randevu planlama | Yayın ortamında ilk klinik için uçtan uca prova |
 | CRM görevleri ve takip | Adaya bağlı görev, planlı takip, aktivite kayıtları, süreye ve atamaya göre takip hatırlatması. Görev ve takiplerin tamamlanması ve iptali. Yetkili şube görüşmesini ve hastayı adaya bağlama | Üretim zamanlayıcısıyla takip bildirimi provası |
@@ -174,6 +174,7 @@ Kamuya açılış için içeriğin uygunluğu, onaylı sözleşme ve kişisel ve
 29. **5.29 Güncel PostgreSQL yedeği prova edildi.** 74 migration uygulanmış geçici veritabanı ve örnek özel dosya ayrı bir kopyaya geri yüklendi. Yedek sağlama toplamları, gelir ve gider tutarı, destek yazışması, seyahat planı tablosu ve özel dosyanın içeriği doğrulandı. [Yedekleme ve geri yükleme provası](README.md#postgresql-ve-özel-dosya-yedekleme-provası)
 30. **5.30 Yayın ayarları için teknik kontrol eklendi.** `medloby:release-check` komutu veritabanı şemasını, derlenmiş arayüzü, özel depolamayı, ilk yönetici hesabını, yürürlükteki klinik üyelik sözleşmesini ve yayın ayarlarını salt okunur biçimde kontrol eder. Kuyruk ve SMTP yapılandırması da komutun çıktısında yer alır. [Teknik kontrol](README.md#yayın-öncesi-teknik-kontrol) · [Otomatik testler](tests/Feature/ReleaseReadinessTest.php)
 31. **5.31 PostgreSQL yedekleme komuta bağlandı.** `medloby:backup`, PostgreSQL veritabanını ve özel dosyaları birlikte yedekler ve görüşmelere bağlı dosyaları doğrular. `medloby:restore`, SHA-256 toplamlarını ve yedek dosyasının okunabilirliğini kontrol edip dosyaları yeni dizine çıkarır. Ayrı bir PostgreSQL test veritabanına içe aktarma, son migration’ı yeniden uygulama ve hasta eki erişim kuralları otomatik provada doğrulandı. Üretim yedek takvimi ve saklama süresi yayın listesinde. [PostgreSQL yedekleme provası](README.md#postgresql-ve-özel-dosya-yedekleme-provası) · [Otomatik testler](tests/Feature/PostgresBackupTest.php)
+32. **5.32 Yeni klinik başvurusunun ret kararı e-postaya bağlandı.** Başvuru sahibi sonucu başvuruda verdiği e-posta adresinden öğrenir. E-postada karar ve varsa başvuru sahibine özel açıklama yer alır. Kuyruk işçisi gönderim öncesinde son kararı, kayıtlı adresi ve başvuru sahibinin üyeliğini kontrol eder. [Klinik başvuru testleri](tests/Feature/ClinicAccountOnboardingTest.php)
 
 ### 6. Yeni modüller
 

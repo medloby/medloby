@@ -57,7 +57,7 @@
                     </article>
                     <article class="grid content-start gap-3 rounded-2xl border border-[#d6e0d5] bg-white p-5 sm:p-6 dark:border-slate-700 dark:bg-slate-950">
                         <h3 class="text-xl font-semibold tracking-tight">Klinik üyeliği</h3>
-                        <p class="text-sm leading-relaxed text-[#42594f] dark:text-slate-300">Başvurunuzu oluşturun ve durumunu hesabınızdan takip edin. Başvurunuz onaylandığında kliniğinizin çalışma alanına geçebilirsiniz.</p>
+                        <p class="text-sm leading-relaxed text-[#42594f] dark:text-slate-300">Başvurunuzun sonucunu e-postayla öğrenin. Başvurunuz onaylandığında e-postada gelen giriş bilgileriyle kliniğinizin çalışma alanına geçebilirsiniz.</p>
                         <a href="{{ route('package-offers') }}#clinic-registration" class="offer-button offer-button-secondary mt-2 justify-self-start">Klinik başvurusu yap</a>
                     </article>
                 </div>
