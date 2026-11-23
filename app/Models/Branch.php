@@ -43,6 +43,18 @@ class Branch extends Model
         ];
     }
 
+    public static function lockForOperationsWrite(int $branchId): self
+    {
+        $query = static::query();
+        $connection = $query->getModel()->getConnection();
+        if ($connection->getDriverName() === 'sqlite') {
+            // SQLite ignores row locks. Acquire its write lock before reading the branch state.
+            $connection->affectingStatement('UPDATE branches SET id = id WHERE 1 = 0');
+        }
+
+        return $query->lockForUpdate()->findOrFail($branchId);
+    }
+
     #[Scope]
     protected function bookableOnline(Builder $query): Builder
     {

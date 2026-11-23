@@ -188,7 +188,7 @@ class ClinicBalanceController extends Controller
 
     private function lockBranch(Request $request, Branch $branch): Branch
     {
-        $branch = Branch::query()->lockForUpdate()->findOrFail($branch->id);
+        $branch = Branch::lockForOperationsWrite($branch->id);
         abort_unless($branch->status === 'active' && $branch->business?->allowsCrmAccess(), 403);
         $this->authorizeWrite($request, $branch);
 

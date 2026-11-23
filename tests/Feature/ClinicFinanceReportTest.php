@@ -8,6 +8,7 @@ use App\Models\Person;
 use App\Models\Treatment;
 use App\Models\TreatmentCategory;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -33,6 +34,23 @@ function financeReportVisit(Branch $branch, array $attributes = []): Appointment
         ...$attributes,
     ]);
 }
+
+test('finance default dates and doctor visits follow the Istanbul calendar at the UTC year boundary', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-12-31 21:30:00', 'UTC'));
+    [$branch, $owner, $path] = financeReportClinic();
+    $doctor = Doctor::factory()->for(Person::factory()->for($branch->business)->for($branch))->create();
+    financeReportVisit($branch, ['doctor_id' => $doctor->id, 'starts_at' => '2026-12-31 23:30:00', 'ends_at' => '2026-12-31 23:59:00']);
+    financeReportVisit($branch, ['doctor_id' => $doctor->id, 'starts_at' => '2027-01-01 00:00:00', 'ends_at' => '2027-01-01 00:30:00']);
+    BranchLedgerEntry::factory()->for($branch)->create(['entry_date' => '2026-12-31', 'amount_minor' => 6000]);
+    BranchLedgerEntry::factory()->for($branch)->create(['entry_date' => '2027-01-01', 'amount_minor' => 3500]);
+
+    $this->actingAs($owner, 'sanctum')->getJson($path)->assertOk()
+        ->assertJsonPath('data.today', '2027-01-01')->assertJsonPath('data.starts_on', '2027-01-01')
+        ->assertJsonPath('data.doctors.0.total', 1)->assertJsonPath('data.totals.0.income', '35.00')
+        ->assertJsonPath('data.comparison.totals.0.previous.income', '60.00');
+    $this->getJson($path.'?period=year')->assertOk()->assertJsonPath('data.starts_on', '2027-01-01')
+        ->assertJsonPath('data.ends_on', '2027-12-31')->assertJsonPath('data.doctors.0.total', 1);
+});
 
 test('finance reports reconcile actual receipts by branch, currency and period and count each rescheduled visit once', function () {
     [$branch, $owner, $path] = financeReportClinic();
