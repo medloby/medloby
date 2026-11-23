@@ -101,6 +101,35 @@ test('user can only see their own notifications', function () {
     ]);
 });
 
+test('legacy offer decision notifications omit private offer details in every response', function () {
+    $user = User::factory()->create();
+    createApiNotification($user, OfferRejectedNotification::class, [
+        'offer_id' => 42,
+        'conversation_id' => 17,
+        'patient_profile_id' => 12,
+        'treatment_id' => 3,
+        'rejection_reason' => 'Ret gerekçesi yalnızca teklifte görünmeli.',
+    ]);
+    $notification = $user->notifications()->firstOrFail();
+
+    $this->actingAs($user);
+
+    foreach (['/api/notifications', '/api/notifications/unread'] as $url) {
+        $this->getJson($url)->assertOk()
+            ->assertJsonPath('data.data.0.data.offer_id', 42)
+            ->assertJsonPath('data.data.0.data.conversation_id', 17)
+            ->assertJsonMissingPath('data.data.0.data.patient_profile_id')
+            ->assertJsonMissingPath('data.data.0.data.treatment_id')
+            ->assertJsonMissingPath('data.data.0.data.rejection_reason');
+    }
+
+    $this->postJson("/api/notifications/{$notification->id}/read")->assertOk()
+        ->assertJsonPath('data.data.offer_id', 42)
+        ->assertJsonMissingPath('data.data.patient_profile_id')
+        ->assertJsonMissingPath('data.data.treatment_id')
+        ->assertJsonMissingPath('data.data.rejection_reason');
+});
+
 test('authenticated user can list only unread notifications', function () {
     $user = User::factory()->create([
         'email_verified_at' => now(),

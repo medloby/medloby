@@ -4,8 +4,6 @@ namespace App\Notifications;
 
 use App\Models\Offer;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 class OfferAcceptedNotification extends Notification
@@ -14,8 +12,7 @@ class OfferAcceptedNotification extends Notification
 
     public function __construct(
         public Offer $offer
-    ) {
-    }
+    ) {}
 
     /**
      * Bildirimin gönderileceği kanallar.
@@ -43,8 +40,6 @@ class OfferAcceptedNotification extends Notification
             'offer_id' => $this->offer->id,
             'conversation_id' => $this->offer->conversation_id,
             'business_id' => $this->offer->business_id,
-            'patient_profile_id' => $this->offer->patient_profile_id,
-            'treatment_id' => $this->offer->treatment_id,
         ];
     }
 }

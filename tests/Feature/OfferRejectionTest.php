@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Branch;
 use App\Models\Business;
 use App\Models\BusinessUser;
 use App\Models\Conversation;
@@ -10,6 +11,9 @@ use App\Notifications\NotificationType;
 use App\Notifications\OfferRejectedNotification;
 use App\Services\BusinessNotificationPreferenceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Notifications\Events\NotificationSent;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Notification;
 
 uses(RefreshDatabase::class);
@@ -425,3 +429,71 @@ test('rejection does not notify business when business notification preference i
         'status' => 'rejected',
     ]);
 });
+
+test('a failed decision notification rolls back the offer response and allows a retry', function (string $action, string $status) {
+    $data = createOfferRejectionData();
+    $url = "/api/offers/{$data['offer']->id}/{$action}";
+    $payload = $action === 'reject' ? rejectionPayload() : [];
+    $failNotification = true;
+
+    Exceptions::fake();
+    Event::listen(NotificationSent::class, function (NotificationSent $event) use (&$failNotification): void {
+        if ($failNotification && $event->channel === 'database') {
+            throw new RuntimeException('Decision notification failed.');
+        }
+    });
+
+    $this->actingAs($data['patientUser'])->postJson($url, $payload)->assertServerError();
+
+    Exceptions::assertReported(RuntimeException::class);
+    $this->assertDatabaseHas('offers', [
+        'id' => $data['offer']->id,
+        'status' => 'pending',
+        'responded_at' => null,
+        'rejection_reason' => null,
+    ]);
+    $this->assertDatabaseCount('notifications', 0);
+
+    $failNotification = false;
+
+    $this->postJson($url, $payload)->assertOk()->assertJsonPath('data.status', $status);
+    $this->postJson($url, $payload)->assertUnprocessable();
+
+    $this->assertDatabaseCount('notifications', 1);
+})->with([
+    'acceptance' => ['accept', 'accepted'],
+    'rejection' => ['reject', 'rejected'],
+]);
+
+test('only a creator with current offer branch access receives the decision notice', function (bool $hasAccess) {
+    $data = createOfferRejectionData();
+    $branch = Branch::factory()->for($data['business'])->create();
+    $membership = $data['businessUser']->businessMemberships()->firstOrFail();
+    $membership->update(['role' => 'staff']);
+    $membership->branches()->attach($branch, ['is_active' => true]);
+    $data['offer']->update(['branch_id' => $branch->id]);
+
+    if (! $hasAccess) {
+        $membership->branches()->updateExistingPivot($branch->id, ['is_active' => false]);
+    }
+
+    $this->actingAs($data['patientUser'])
+        ->postJson("/api/offers/{$data['offer']->id}/reject", rejectionPayload())
+        ->assertOk()
+        ->assertJsonPath('data.status', 'rejected');
+
+    $this->assertDatabaseCount('notifications', $hasAccess ? 1 : 0);
+
+    $offers = $this->actingAs($data['businessUser'])
+        ->getJson("/api/conversations/{$data['conversation']->id}/offers")
+        ->assertOk();
+
+    if ($hasAccess) {
+        $offers->assertJsonPath('data.0.rejection_reason', rejectionPayload()['rejection_reason']);
+    } else {
+        $offers->assertJsonCount(0, 'data');
+    }
+})->with([
+    'active branch access' => [true],
+    'revoked branch access' => [false],
+]);

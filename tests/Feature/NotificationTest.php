@@ -2,7 +2,6 @@
 
 use App\Models\Branch;
 use App\Models\Business;
-use App\Models\BusinessNotificationPreference;
 use App\Models\BusinessUser;
 use App\Models\Conversation;
 use App\Models\Offer;
@@ -13,10 +12,10 @@ use App\Models\User;
 use App\Notifications\NewOfferNotification;
 use App\Notifications\NotificationType;
 use App\Notifications\OfferAcceptedNotification;
+use App\Notifications\OfferRejectedNotification;
 use App\Services\BusinessNotificationPreferenceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
-use App\Notifications\OfferRejectedNotification;
 
 uses(RefreshDatabase::class);
 
@@ -48,7 +47,7 @@ function createNotificationTestData(): array
     $branch = Branch::create([
         'business_id' => $business->id,
         'name' => 'Bildirim Test Şubesi',
-        'slug' => 'bildirim-test-subesi-' . uniqid(),
+        'slug' => 'bildirim-test-subesi-'.uniqid(),
         'country_code' => 'TR',
         'city' => 'Istanbul',
         'district' => 'Kadikoy',
@@ -66,7 +65,7 @@ function createNotificationTestData(): array
     $category = TreatmentCategory::create([
         'parent_id' => null,
         'name' => 'Bildirim Test Kategorisi',
-        'slug' => 'bildirim-test-kategorisi-' . uniqid(),
+        'slug' => 'bildirim-test-kategorisi-'.uniqid(),
         'description' => 'Bildirim sistemi test kategorisi.',
         'image' => null,
         'icon' => null,
@@ -77,7 +76,7 @@ function createNotificationTestData(): array
     $treatment = Treatment::create([
         'treatment_category_id' => $category->id,
         'name' => 'Bildirim Test Tedavisi',
-        'slug' => 'bildirim-test-tedavisi-' . uniqid(),
+        'slug' => 'bildirim-test-tedavisi-'.uniqid(),
         'description' => 'Bildirim sistemi test tedavisi.',
         'duration_minutes' => 60,
         'preparation' => null,
@@ -283,11 +282,7 @@ test('offer creator receives notification when patient accepts offer', function 
     expect($notificationData['business_id'])
         ->toBe($data['business']->id);
 
-    expect($notificationData['patient_profile_id'])
-        ->toBe($data['patientProfile']->id);
-
-    expect($notificationData['treatment_id'])
-        ->toBe($data['treatment']->id);
+    expect($notificationData)->not->toHaveKeys(['patient_profile_id', 'treatment_id']);
 });
 
 test('offer creator does not receive notification when offer accepted notification is disabled', function () {
@@ -405,16 +400,8 @@ test('offer creator receives notification when patient rejects offer', function 
     expect($notificationData['business_id'])
         ->toBe($data['business']->id);
 
-    expect($notificationData['patient_profile_id'])
-        ->toBe($data['patientProfile']->id);
-
-    expect($notificationData['treatment_id'])
-        ->toBe($data['treatment']->id);
-
-    expect($notificationData['rejection_reason'])
-        ->toBe('Hasta başka bir klinikle devam etmeye karar verdi.');
+    expect($notificationData)->not->toHaveKeys(['patient_profile_id', 'treatment_id', 'rejection_reason']);
 });
-
 
 test('offer creator does not receive notification when offer rejected notification is disabled', function () {
     $data = createNotificationTestData();

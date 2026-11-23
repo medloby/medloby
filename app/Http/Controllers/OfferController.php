@@ -218,74 +218,12 @@ class OfferController extends Controller
             );
         }
 
-        DB::transaction(function () use ($offer) {
-            $lockedOffer = Offer::query()
-                ->whereKey($offer->id)
-                ->lockForUpdate()
-                ->firstOrFail();
-
-            abort_unless($lockedOffer->hasActiveClinic(), 422, 'Bu sağlık merkezi şu anda teklif işlemlerine açık değil.');
-
-            if ($lockedOffer->status === 'expired') {
-                return;
-            }
-
-            if ($lockedOffer->status !== 'pending') {
-                abort(
-                    422,
-                    'Bu teklif artık kabul edilemez.'
-                );
-            }
-
-            if ($lockedOffer->hasPassedDeadline()) {
-                $lockedOffer->update([
-                    'status' => 'expired',
-                ]);
-
-                return;
-            }
-
-            $lockedOffer->update([
-                'status' => 'accepted',
-                'responded_at' => now(),
-            ]);
-        }, attempts: 3);
-
-        $freshOffer = $offer->fresh();
-
-        if ($freshOffer->status === 'expired') {
-            abort(
-                422,
-                'Bu teklifin geçerlilik süresi dolmuştur.'
-            );
-        }
-
-        /*
-         * Teklif kabul edildiğinde bildirimi,
-         * teklifi oluşturan kullanıcıya göndeririz.
-         *
-         * Bildirim tercihi kapalıysa hiçbir bildirim
-         * oluşturulmaz.
-         */
-        if (
-            $this->notificationPreferenceService->isInAppEnabled(
-                $freshOffer->business,
-                NotificationType::OFFER_ACCEPTED
-            )
-        ) {
-            $creator = $freshOffer->creator;
-
-            if ($creator) {
-                $creator->notify(
-                    new OfferAcceptedNotification($freshOffer)
-                );
-            }
-        }
+        $acceptedOffer = $this->recordPatientDecision($offer, 'accepted');
 
         return response()->json([
             'success' => true,
             'message' => 'Teklif kabul edildi.',
-            'data' => new OfferResource($freshOffer->load(OfferResource::DISPLAY_RELATIONS)),
+            'data' => new OfferResource($acceptedOffer->load(OfferResource::DISPLAY_RELATIONS)),
         ])->header('Cache-Control', 'private, no-store');
     }
 
@@ -314,10 +252,18 @@ class OfferController extends Controller
             ],
         ]);
 
-        DB::transaction(function () use (
-            $offer,
-            $validated
-        ) {
+        $rejectedOffer = $this->recordPatientDecision($offer, 'rejected', $validated['rejection_reason'] ?? null);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Teklif reddedildi.',
+            'data' => new OfferResource($rejectedOffer->load(OfferResource::DISPLAY_RELATIONS)),
+        ])->header('Cache-Control', 'private, no-store');
+    }
+
+    private function recordPatientDecision(Offer $offer, string $status, ?string $rejectionReason = null): Offer
+    {
+        $result = DB::transaction(function () use ($offer, $status, $rejectionReason): Offer {
             $lockedOffer = Offer::query()
                 ->whereKey($offer->id)
                 ->lockForUpdate()
@@ -326,13 +272,13 @@ class OfferController extends Controller
             abort_unless($lockedOffer->hasActiveClinic(), 422, 'Bu sağlık merkezi şu anda teklif işlemlerine açık değil.');
 
             if ($lockedOffer->status === 'expired') {
-                return;
+                return $lockedOffer;
             }
 
             if ($lockedOffer->status !== 'pending') {
                 abort(
                     422,
-                    'Bu teklif artık reddedilemez.'
+                    $status === 'accepted' ? 'Bu teklif artık kabul edilemez.' : 'Bu teklif artık reddedilemez.'
                 );
             }
 
@@ -341,52 +287,42 @@ class OfferController extends Controller
                     'status' => 'expired',
                 ]);
 
-                return;
+                return $lockedOffer;
             }
 
-            $lockedOffer->update([
-                'status' => 'rejected',
+            $changes = [
+                'status' => $status,
                 'responded_at' => now(),
-                'rejection_reason' => $validated['rejection_reason'] ?? null,
-            ]);
+            ];
+            if ($status === 'rejected') {
+                $changes['rejection_reason'] = $rejectionReason;
+            }
+
+            $lockedOffer->update($changes);
+            $this->notifyOfferCreator($lockedOffer);
+
+            return $lockedOffer;
         }, attempts: 3);
 
-        $freshOffer = $offer->fresh();
+        abort_if($result->status === 'expired', 422, 'Bu teklifin geçerlilik süresi dolmuştur.');
 
-        if ($freshOffer->status === 'expired') {
-            abort(
-                422,
-                'Bu teklifin geçerlilik süresi dolmuştur.'
-            );
+        return $result;
+    }
+
+    private function notifyOfferCreator(Offer $offer): void
+    {
+        $creator = $offer->creator;
+        if (! $creator || ! $offer->conversation()->accessibleToClinic($creator)->exists()
+            || ($offer->branch_id !== null && ! $creator->hasBusinessBranchAccess($offer->business_id, $offer->branch_id))) {
+            return;
         }
 
-        /*
-         * Teklif reddedildiğinde bildirimi,
-         * teklifi oluşturan kullanıcıya göndeririz.
-         *
-         * Bildirim tercihi kapalıysa hiçbir bildirim
-         * oluşturulmaz.
-         */
-        if (
-            $this->notificationPreferenceService->isInAppEnabled(
-                $freshOffer->business,
-                NotificationType::OFFER_REJECTED
-            )
-        ) {
-            $creator = $freshOffer->creator;
+        $accepted = $offer->status === 'accepted';
+        $type = $accepted ? NotificationType::OFFER_ACCEPTED : NotificationType::OFFER_REJECTED;
 
-            if ($creator) {
-                $creator->notify(
-                    new OfferRejectedNotification($freshOffer)
-                );
-            }
+        if ($this->notificationPreferenceService->isInAppEnabled($offer->business, $type)) {
+            $creator->notifyNow($accepted ? new OfferAcceptedNotification($offer) : new OfferRejectedNotification($offer));
         }
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Teklif reddedildi.',
-            'data' => new OfferResource($freshOffer->load(OfferResource::DISPLAY_RELATIONS)),
-        ])->header('Cache-Control', 'private, no-store');
     }
 
     private function packageSnapshot(TreatmentPackage $package, Conversation $conversation, ?int $branchId): array

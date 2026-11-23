@@ -12,8 +12,7 @@ class OfferRejectedNotification extends Notification
 
     public function __construct(
         public Offer $offer
-    ) {
-    }
+    ) {}
 
     /**
      * Bildirim sadece Medloby uygulaması içinde gösterilir.
@@ -37,9 +36,6 @@ class OfferRejectedNotification extends Notification
             'offer_id' => $this->offer->id,
             'conversation_id' => $this->offer->conversation_id,
             'business_id' => $this->offer->business_id,
-            'patient_profile_id' => $this->offer->patient_profile_id,
-            'treatment_id' => $this->offer->treatment_id,
-            'rejection_reason' => $this->offer->rejection_reason,
         ];
     }
 }
