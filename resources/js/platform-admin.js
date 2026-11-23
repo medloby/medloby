@@ -6,6 +6,7 @@ import { mountSupportTickets } from './support-tickets';
 import { mountTreatmentAdministration } from './treatment-administration';
 import { mountAdminPatients } from './platform-admin-patients';
 import { createWorkspaceApi } from './workspace-api';
+import { clinicPager } from './clinic-records';
 import { mountWorkspaceNotifications, platformNotificationTarget } from './workspace-notifications';
 
 const number = new Intl.NumberFormat('tr-TR');
@@ -72,24 +73,28 @@ function mountDetailsReport(panel, link, fetchReport, render, endSession) {
     const message = panel.querySelector('[data-report-status]');
     const refresh = panel.querySelector('[data-report-refresh]');
     const result = panel.querySelector('[data-report-result]');
+    let request = 0;
     async function load() {
+        const current = ++request;
         refresh.disabled = true;
         status(message, 'Rapor yükleniyor…');
         try {
             const data = await fetchReport();
-            if (panel.isConnected) {
+            if (current === request && panel.isConnected) {
                 render(panel, data);
                 result.hidden = false;
                 status(message);
             }
         } catch (error) {
-            if (error.status === 403) {
+            if (current === request && error.status === 403) {
                 endSession(error.message);
-            } else if (panel.isConnected) {
+            } else if (current === request && panel.isConnected) {
                 status(message, error.message);
             }
         } finally {
-            refresh.disabled = false;
+            if (current === request) {
+                refresh.disabled = false;
+            }
         }
     }
     link.addEventListener('click', () => {
@@ -102,6 +107,7 @@ function mountDetailsReport(panel, link, fetchReport, render, endSession) {
         }
     });
     refresh.addEventListener('click', load);
+    return load;
 }
 
 function renderAnalytics(panel, data) {
@@ -121,9 +127,51 @@ const operationLabels = {
 
 function renderOperations(panel, data) {
     for (const field of panel.querySelectorAll('[data-operation]')) {
-        const value = data[field.dataset.operation];
-        field.textContent = operationLabels[value] ?? value ?? operationLabels.unknown;
+        const key = field.dataset.operation;
+        const observed = data.last_observed_at?.[key];
+        field.textContent = observed ? time.format(new Date(observed))
+            : operationLabels[data[key]] ?? data[key] ?? operationLabels.unknown;
     }
+}
+
+const auditActions = {
+    approved: 'Klinik başvurusu onaylandı', rejected: 'Klinik başvurusu reddedildi',
+    suspended: 'Klinik askıya alındı', active: 'Klinik yeniden açıldı',
+    published: 'Sözleşme yayımlandı', replied: 'Destek talebine yanıt verildi',
+};
+const auditTargets = { clinic_application: 'Klinik', clinic_status: 'Klinik', contract: 'Sözleşme', support: 'Talep' };
+
+function mountAudit(panel, link, api, endSession) {
+    const source = panel.querySelector('[data-audit-source]');
+    const rows = panel.querySelector('[data-audit-rows]');
+    const pages = panel.querySelector('[data-audit-pages]');
+    let page = 1;
+    const load = mountDetailsReport(panel, link, () => {
+        const query = new URLSearchParams({ page });
+        if (source.value) {
+            query.set('source', source.value);
+        }
+        return api('/admin/audit?' + query);
+    }, (_, result) => {
+        rows.replaceChildren(...result.data.map((event) => {
+            const item = textElement('li', '', 'grid gap-1 rounded-xl border border-slate-200 p-3 text-sm dark:border-slate-800');
+            const target = auditTargets[event.source] + ' #' + event.target_id;
+            const details = [time.format(new Date(event.occurred_at)), event.actor_name ?? 'İşlemi yapan hesap kayıtlı değil', target, event.target_name];
+            item.append(textElement('strong', auditActions[event.action] ?? 'Klinik durumu güncellendi', 'break-words'));
+            item.append(textElement('span', details.filter(Boolean).join(' · '), 'break-words text-slate-700 dark:text-slate-300'));
+            return item;
+        }));
+        if (!result.data.length) {
+            rows.append(textElement('li', 'Bu türde kayıtlı işlem yok.', 'text-sm'));
+        }
+        clinicPager(pages, result, (next) => { page = next; load(); });
+    }, endSession);
+    source.addEventListener('change', () => {
+        page = 1;
+        rows.replaceChildren();
+        clinicPager(pages, null);
+        load();
+    });
 }
 
 function mountDashboard(root, api, account, endSession) {
@@ -148,6 +196,7 @@ function mountDashboard(root, api, account, endSession) {
     const results = find('dashboard-results');
     mountDetailsReport(find('analytics'), find('analytics-link'), () => api('/admin/analytics'), renderAnalytics, endSession);
     mountDetailsReport(find('operations'), find('operations-link'), () => api('/admin/operations'), renderOperations, endSession);
+    mountAudit(find('audit'), find('audit-link'), api, endSession);
 
     function openTarget({ section, id }) {
         if (section === 'basvuru') {

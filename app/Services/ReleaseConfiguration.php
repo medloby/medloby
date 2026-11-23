@@ -10,6 +10,8 @@ use Throwable;
 
 final class ReleaseConfiguration
 {
+    public function __construct(private readonly PlatformOperationActivity $activity) {}
+
     public function databaseReady(): bool
     {
         return DB::connection()->selectOne('select 1', useReadPdo: false) !== null;
@@ -19,17 +21,19 @@ final class ReleaseConfiguration
     {
         $database = $this->readStatus($this->databaseReady(...), 'unavailable');
         $version = config('medloby.release_version');
+        $observed = $this->activity->lastObserved();
 
         return [
             'application' => 'reachable',
             'database' => $database,
             'migrations' => $database === 'ready' ? $this->readStatus(fn (): bool => $this->migrationsReady($migrator), 'needs_attention') : 'unknown',
             'queue_configuration' => $this->readStatus($this->queueReady(...), 'not_configured'),
-            'queue_worker' => 'unknown',
-            'scheduler' => 'unknown',
+            'queue_worker' => $observed[PlatformOperationActivity::QUEUE_WORKER] ? 'observed' : 'unknown',
+            'scheduler' => $observed[PlatformOperationActivity::SCHEDULER] ? 'observed' : 'unknown',
             'smtp_configuration' => $this->readStatus($this->mailReady(...), 'not_configured'),
-            'email_delivery' => 'unknown',
-            'backup_verification' => 'unknown',
+            'email_delivery' => $observed[PlatformOperationActivity::SMTP] ? 'observed' : 'unknown',
+            'backup_verification' => $observed[PlatformOperationActivity::BACKUP] ? 'observed' : 'unknown',
+            'last_observed_at' => $observed,
             'privacy_publication' => $privacy->isPublished() ? 'ready' : 'not_configured',
             'release_version' => is_string($version) && preg_match('/\A(?:[a-f0-9]{7,40}|v?\d+\.\d+\.\d+(?:[-+][a-z0-9.-]{1,35})?)\z/i', $version) ? $version : null,
         ];

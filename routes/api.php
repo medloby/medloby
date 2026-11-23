@@ -142,6 +142,7 @@ Route::middleware(['auth:sanctum', \Illuminate\Auth\Middleware\EnsureEmailIsVeri
         Route::get('/dashboard', [AdminDashboardController::class, 'show']);
         Route::get('/analytics', [AdminDashboardController::class, 'analytics']);
         Route::get('/operations', [AdminDashboardController::class, 'operations']);
+        Route::get('/audit', [AdminDashboardController::class, 'audit']);
         Route::get('/workspace', [AdminDashboardController::class, 'workspace']);
         Route::get('/patient-accounts', AdminPatientAccountController::class);
     });

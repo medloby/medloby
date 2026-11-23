@@ -5,6 +5,7 @@ use App\Models\Business;
 use App\Models\Conversation;
 use App\Models\MessageAttachment;
 use App\Models\User;
+use App\Services\PlatformOperationActivity;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
@@ -61,6 +62,7 @@ test('a backup restores a SQLite snapshot and private attachment with the origin
     $restored = $this->directory.'/restored';
 
     $this->artisan('medloby:backup', ['destination' => $backup])->assertSuccessful();
+    expect(app(PlatformOperationActivity::class)->lastObserved()['backup_verification'])->not->toBeNull();
     expect(fileperms($backup) & 0077)->toBe(0);
     $patient->update(['name' => 'Yedekten sonra değişen ad']);
     Storage::disk('private')->put($attachment->path, 'Değişen dosya');

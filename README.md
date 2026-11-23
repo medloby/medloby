@@ -46,6 +46,8 @@ Komut mevcut ayarları, veritabanı bağlantısını ve migration kayıtlarını
 
 Canlı HTTPS erişimini, SMTP teslimatını, kuyruk işçisini, zamanlayıcıyı ve yedekten geri yüklemeyi yukarıdaki adımlarla prova et. [Teknik kontrol testleri](tests/Feature/ReleaseReadinessTest.php)
 
+**Platform yönetimi → Sistem durumu** ekranı tamamlanan kuyruk işi, başarılı zamanlanmış görev, SMTP kabulü ve doğrulanan yedek oluşturma için son gözlenen saatleri gösterir. Zamanlayıcı, kuyruk işçisi ve web uygulaması aynı veritabanı önbelleği bağlantısını ve ön ekini kullanmalıdır. Önbellek temizlendiğinde saatler ilgili işlem yeniden başarıyla tamamlanınca görünür. SMTP kabulü sonrasında gerçek gelen kutusu teslimatı yayın provasında ayrıca sınanır.
+
 HTTPS bağlantısını bir vekil sunucu karşılıyorsa `MEDLOBY_TRUSTED_PROXIES` ayarına bu sunucunun uygulamanın gördüğü IP adresini gir. Birden fazla adresi virgülle ayır. Vekil sunucuda sitenin alan adını koru ve istemciden gelen yönlendirme başlıklarını vekil sunucunun kendi değerleriyle değiştir. Ayarı değiştirdikten sonra yapılandırma önbelleğini yeniden oluştur. Yayın provasında CSS ve JavaScript dosyalarının HTTPS üzerinden yüklendiğini ve e-posta doğrulama bağlantısının açıldığını dene.
 
 ### İlk platform yöneticisi

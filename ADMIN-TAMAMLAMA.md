@@ -44,6 +44,8 @@ Platform yönetimi tek ekran olarak `/yonetim` adresinde açılır. Üyelik söz
 
 Durum **BLOCKED**. Kritik yetki geçişi onay gerektiriyor. Platform rolleri işletme üyeliği rollerinden bağımsız olacak. Yetkilendirme uçta yapılacak, yeni rollere açık izin dışındaki işlemler kapalı olacak. Mevcut ilk yönetici kurulumu korunacak. Geçiş planı mevcut yöneticilerin eşlenmesini, son üst yöneticiyi koruyan işlem kilidini ve atama/geri alma denetimini içerecek.
 
+**İşlem geçmişi** mevcut başvuru kararlarını, klinik durum değişikliklerini, sözleşme yayımlama tarihlerini ve destek yanıtlarını tek listede gösterir. İşlem türüne göre filtrelenebilir. Liste kayıt numarası, işlem tarihi ve kaynakta kesin olarak tutulmuşsa yönetici adını gösterir. Sözleşmenin son düzenleyicisi yayımlayan kişi olarak kabul edilmez. Ayrıntılı notlar ve mesajlar kendi yetkili ekranlarında kalır. Rol ve izin değişikliklerinin ortak denetimi yetki geçişiyle planlanır. [İşlem geçmişi sorgusu](app/Services/PlatformAdminAudit.php)
+
 ## ADMIN-G3 — Klinik ve hasta hesabı yönetimi
 
 **PARTIAL.** Klinik dizinine il ve ücretsiz üyelik planı filtreleri ile kayıtlı şube sayıları eklendi. Yeni hasta hesabı ekranında hesap numarası ve adı, profil durumu, e-posta doğrulaması ve kayıt tarihi görünür. E-posta ile tam eşleşme üzerinden arama yapılabilir. Liste e-posta adresi, telefon ve sağlık alanlarını döndürmez. Hesaba bağlı destek geçmişi mevcut destek ekranında açılır. Klinik ruhsatı ve doğrulama ölçütleri ile işletme bazlı destek ilişkilendirmesi için ürün kararı açık. [Klinik yönetimi](app/Http/Controllers/AdminBusinessController.php) · [Hasta hesabı](app/Http/Controllers/AdminPatientAccountController.php) · [Gizlilik ve erişim testleri](tests/Feature/AdminPatientAccountTest.php)
@@ -68,7 +70,7 @@ Platform finansı **BLOCKED**. İleride finansal hareketler platformun kendi öd
 
 ## ADMIN-G7 — Sistem durumu
 
-**PARTIAL.** Sistem ekranı uygulama erişimini, veritabanı ve şema durumunu, kuyruk ve e-posta yapılandırmasını ve varsa belirtilen yayın sürümünü gösterir. Yayın komutuyla aynı teknik denetimleri kullanır. İşçi, zamanlayıcı, teslimat ve son yedek doğrulaması için canlı ölçüm bulunmadığında **Bilinmiyor** gösterilir. Veritabanı kesintisi yönetici oturumunun doğrulanmasını da engelliyorsa dış erişim kontrolü `/up` üzerinden yapılır. [Sistem ölçümleri](app/Services/ReleaseConfiguration.php) · [Yayın kontrolü](app/Console/Commands/CheckReleaseReadiness.php)
+**PENDING PRODUCTION ACCEPTANCE.** Sistem ekranı uygulama erişimini, veritabanı ve şema durumunu, kuyruk ve e-posta yapılandırmasını ve varsa belirtilen yayın sürümünü gösterir. Yayın komutuyla aynı teknik denetimleri kullanır. Kuyruk işçisinin tamamladığı son işi, son başarılı zamanlanmış görevi, SMTP’nin kabul ettiği son gönderimi ve doğrulanmış son yedek oluşturma işlemini paylaşılan veritabanı önbelleğinden gösterir. Önbellekte ölçüm bulunmadığında **Bilinmiyor** görünür. Sunucu kabulünden sonraki gelen kutusu teslimatı ve geri yükleme canlı yayın provasında sınanır. Veritabanı kesintisi yönetici oturumunun doğrulanmasını da engelliyorsa dış erişim kontrolü `/up` üzerinden yapılır. [Sistem ölçümleri](app/Services/PlatformOperationActivity.php) · [Yayın kontrolü](app/Console/Commands/CheckReleaseReadiness.php)
 
 ## ADMIN-G8 — Kabul
 

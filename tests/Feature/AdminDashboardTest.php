@@ -7,8 +7,11 @@ use App\Models\SupportTicket;
 use App\Models\Treatment;
 use App\Models\TreatmentCategory;
 use App\Models\User;
+use App\Services\PlatformOperationActivity;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Mail\Events\MessageSent;
+use Illuminate\Mail\SentMessage;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -18,7 +21,7 @@ uses(RefreshDatabase::class);
 test('the public admin page only offers sign in and both private routes require a verified platform administrator', function () {
     $this->withoutVite()->get('/yonetim')->assertOk()->assertSee('Yönetici e-postası')
         ->assertDontSee('Dikkat gerektiren işlemler')->assertDontSee('data-admin-dashboard-results', false);
-    foreach (['dashboard', 'workspace', 'analytics', 'patient-accounts', 'operations'] as $endpoint) {
+    foreach (['dashboard', 'workspace', 'analytics', 'patient-accounts', 'operations', 'audit'] as $endpoint) {
         $this->getJson('/api/admin/'.$endpoint)->assertUnauthorized();
     }
 
@@ -31,7 +34,7 @@ test('the public admin page only offers sign in and both private routes require 
     $unverifiedAdmin = User::factory()->unverified()->create(['is_admin' => true]);
     foreach ([$patient, $staff, $unverifiedAdmin] as $account) {
         $this->actingAs($account, 'sanctum');
-        foreach (['dashboard', 'workspace', 'analytics', 'patient-accounts', 'operations'] as $endpoint) {
+        foreach (['dashboard', 'workspace', 'analytics', 'patient-accounts', 'operations', 'audit'] as $endpoint) {
             $this->getJson('/api/admin/'.$endpoint)->assertForbidden();
         }
     }
@@ -215,4 +218,67 @@ test('the dashboard reports only configured operational observations and catalog
         ->assertJsonPath('data.alerts.membership_contract_expires_at', $contract->fresh()->expires_at->toIso8601String())
         ->assertJsonPath('data.alerts.active_treatments_in_inactive_categories', 1)
         ->assertDontSee('Gizli sözleşme');
+});
+
+test('operation observations contain only timestamps and are recorded from successful SMTP sends', function () {
+    $admin = User::factory()->create(['is_admin' => true]);
+    $activity = app(PlatformOperationActivity::class);
+    $this->travelTo(CarbonImmutable::parse('2026-11-23T16:45:00Z'));
+
+    event(new MessageSent(Mockery::mock(SentMessage::class), ['mailer' => 'log']));
+    expect($activity->lastObserved()['email_delivery'])->toBeNull();
+    event(new MessageSent(Mockery::mock(SentMessage::class), [
+        'mailer' => 'smtp', 'recipient' => 'never-displayed@example.test',
+    ]));
+    $activity->record(PlatformOperationActivity::BACKUP);
+    $this->travel(-1)->minutes();
+    $activity->record(PlatformOperationActivity::BACKUP);
+
+    $this->actingAs($admin, 'sanctum')->getJson('/api/admin/operations')->assertOk()
+        ->assertJsonPath('data.email_delivery', 'observed')
+        ->assertJsonPath('data.backup_verification', 'observed')
+        ->assertJsonPath('data.last_observed_at', [
+            'queue_worker' => null, 'scheduler' => null,
+            'email_delivery' => '2026-11-23T16:45:00+00:00', 'backup_verification' => '2026-11-23T16:45:00+00:00',
+        ])->assertDontSee('never-displayed@example.test');
+});
+
+test('the audit groups existing administrator actions without revealing messages or internal reasons', function () {
+    $admin = User::factory()->create(['is_admin' => true, 'name' => 'İnceleyen Yönetici']);
+    $patient = User::factory()->create(['name' => 'Gizli Hasta']);
+    $clinic = Business::factory()->create(['name' => 'Örnek Klinik']);
+    $clinic->reviews()->create([
+        'reviewed_by_user_id' => $admin->id, 'decision' => 'approved', 'reviewed_at' => '2026-11-23 08:00:00',
+        'notes' => 'Gizli inceleme notu',
+    ]);
+    $clinic->statusHistories()->create([
+        'changed_by_user_id' => $admin->id, 'previous_status' => 'active', 'new_status' => 'suspended',
+        'reason' => 'Gizli askıya alma sebebi', 'changed_at' => '2026-11-23 10:00:00',
+    ]);
+    $contract = PlatformContract::create([
+        'contract_type' => 'clinic_membership', 'title' => 'Üyelik', 'version' => '2026',
+        'content' => 'Gizli sözleşme metni', 'status' => 'published', 'is_required' => true,
+        'published_at' => '2026-11-23 09:00:00', 'updated_by_user_id' => $admin->id,
+    ]);
+    $ticket = SupportTicket::factory()->for($patient, 'requester')->create(['subject' => 'Gizli Destek Konusu']);
+    $ticket->messages()->forceCreate([
+        'from_support' => false, 'sender_user_id' => $patient->id, 'body' => 'Gizli hasta mesajı', 'created_at' => '2026-11-23 11:00:00',
+    ]);
+    $ticket->messages()->forceCreate([
+        'from_support' => true, 'sender_user_id' => $admin->id, 'body' => 'Gizli destek yanıtı', 'created_at' => '2026-11-23 12:00:00',
+    ]);
+
+    $path = '/api/admin/audit';
+    $this->actingAs($admin, 'sanctum')->getJson($path)->assertOk()->assertHeader('Cache-Control', 'no-store, private')
+        ->assertJsonPath('data.total', 4)
+        ->assertJsonPath('data.data.0', [
+            'source' => 'support', 'action' => 'replied', 'target_id' => $ticket->id, 'target_name' => null,
+            'actor_name' => $admin->name, 'occurred_at' => '2026-11-23T12:00:00+00:00',
+        ])
+        ->assertJsonPath('data.data.1.source', 'clinic_status')
+        ->assertJsonPath('data.data.2.target_id', $contract->id)->assertJsonPath('data.data.2.actor_name', null)
+        ->assertJsonPath('data.data.3.target_name', $clinic->name)->assertDontSee('Gizli');
+    $this->getJson($path.'?source=clinic_application')->assertOk()->assertJsonPath('data.total', 1)
+        ->assertJsonPath('data.data.0.action', 'approved');
+    $this->getJson($path.'?source=invalid')->assertUnprocessable()->assertJsonValidationErrors('source');
 });

@@ -2,6 +2,7 @@
 
 use App\Models\PatientProfile;
 use App\Models\User;
+use App\Services\PlatformOperationActivity;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Mail\Events\MessageSending;
 use Illuminate\Support\Facades\DB;
@@ -122,14 +123,18 @@ test('a registered patient can verify their account after the queue retries a fa
     expect(DB::table('jobs')->sole()->payload)->not->toContain($payload['email']);
 
     $workerOptions = ['--once' => true, '--tries' => 2, '--backoff' => 0];
+    $activity = app(PlatformOperationActivity::class);
     $this->artisan('queue:work', $workerOptions)->assertSuccessful();
     Exceptions::assertReported(TransportException::class);
     $this->assertDatabaseHas('jobs', ['attempts' => 1]);
+    expect($activity->lastObserved()['queue_worker'])->toBeNull();
 
     $offline = false;
     $this->artisan('queue:work', $workerOptions)->assertSuccessful();
     $this->assertDatabaseCount('jobs', 0);
     $this->assertDatabaseCount('failed_jobs', 0);
+    expect($activity->lastObserved()['queue_worker'])->not->toBeNull()
+        ->and($activity->lastObserved()['email_delivery'])->toBeNull();
     $mail = Mail::mailer('array')->getSymfonyTransport()->messages()->sole()->getOriginalMessage();
     expect($mail->getTo()[0]->getAddress())->toBe($payload['email']);
     expect(preg_match('~href="([^"]*/email/verify/[^"]+)"~', $mail->getHtmlBody(), $match))->toBe(1);

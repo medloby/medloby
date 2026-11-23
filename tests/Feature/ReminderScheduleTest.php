@@ -6,6 +6,7 @@ use App\Models\CrmFollowUp;
 use App\Models\CrmLead;
 use App\Models\User;
 use App\Notifications\NotificationType;
+use App\Services\PlatformOperationActivity;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
@@ -77,6 +78,7 @@ test('the scheduler delivers due reminders and expires unanswered offers across 
         ])->command([PHP_BINARY, 'artisan', 'schedule:run', '--no-interaction']);
 
         $scheduler->run()->throw();
+        expect(app(PlatformOperationActivity::class)->lastObserved()['scheduler'])->not->toBeNull();
         $this->assertDatabaseCount('notifications', 2);
         expect($followUp->fresh()->reminded_at)->not->toBeNull()
             ->and($appointment->fresh()->reminded_at)->not->toBeNull();

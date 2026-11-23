@@ -9,6 +9,7 @@
             <a href="#admin-overview" class="rounded-lg bg-slate-800 px-3 py-2.5 font-semibold text-teal-200" aria-current="page">Genel bakış</a>
             <a href="#admin-analytics" class="rounded-lg px-3 py-2.5 hover:bg-slate-800" data-admin-analytics-link>İşlem analitiği</a>
             <a href="#admin-operations" class="rounded-lg px-3 py-2.5 hover:bg-slate-800" data-admin-operations-link>Sistem durumu</a>
+            <a href="#admin-audit" class="rounded-lg px-3 py-2.5 hover:bg-slate-800" data-admin-audit-link>İşlem geçmişi</a>
             @foreach ([
                 'clinic-review' => 'Klinik başvuruları',
                 'clinic-administration' => 'Klinik yönetimi',
@@ -114,6 +115,7 @@
             </div>
             @include('platform-admin-analytics')
             @include('platform-admin-operations')
+            @include('platform-admin-audit')
         </main>
     </div>
 </div>
