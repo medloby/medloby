@@ -5,6 +5,7 @@ use App\Models\Business;
 use App\Models\ConsentTemplate;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Symfony\Component\HttpFoundation\Request;
 
 uses(RefreshDatabase::class);
 
@@ -23,9 +24,16 @@ test('clinical consent drafts require explicit preview and are unavailable in pr
     $this->postJson($url, $fields)->assertNotFound();
 
     config(['medloby.consent_template_preview' => true]);
+    $trustedHosts = Request::getTrustedHosts();
+    $environment = $this->app->environment();
     $this->app->instance('env', 'production');
-    $this->getJson($url)->assertNotFound();
-    $this->postJson($url, $fields)->assertNotFound();
+    try {
+        $this->getJson($url)->assertNotFound();
+        $this->postJson($url, $fields)->assertNotFound();
+    } finally {
+        Request::setTrustedHosts($trustedHosts);
+        $this->app->instance('env', $environment);
+    }
 
     $this->assertDatabaseCount('consent_templates', 0);
 });

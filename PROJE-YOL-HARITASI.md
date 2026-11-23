@@ -55,7 +55,7 @@ Bu bölüm ürün ve işletim kararlarını kaydeder. Klinik üyelik sözleşmes
 
 ## Mimari
 
-Medloby tek Laravel uygulaması olarak çalışıyor. Laravel 13.40 ve Sanctum 4.3 kimlik doğrulama ve API erişimini, Eloquent ve migration dosyaları veriyi, Blade, Tailwind 4 ve Vite ise arayüzü yönetiyor. Web'de ana sayfa ve `/paket-teklifleri` var. Katalog, görüşmeler, yönetici diyalogları ve klinik CRM görünümü ikinci rota içinde yer alıyor. [Web rotaları](routes/web.php) · [Arayüz giriş noktası](resources/js/app.js) · [Bağımlılıklar](composer.json)
+Medloby tek Laravel uygulaması olarak çalışıyor. Laravel 13.40 ve Sanctum 4.3 kimlik doğrulama ve API erişimini, Eloquent ve migration dosyaları veriyi, Blade, Tailwind 4 ve Vite ise arayüzü yönetiyor. Katalog ve klinik profilleri kamuya açık. Görüşmeler, teklifler, hasta hesabı ve klinik CRM’i `/paket-teklifleri` üzerinden açılır. Tam yönetici ve atanmış destek görevlisi, `/yonetim` üzerinde kendi yetkisine göre çalışma alanını açar. [Web rotaları](routes/web.php) · [Arayüz giriş noktası](resources/js/app.js) · [Güncel modül kabulü](MEDLOBY-TAMAMLAMA-ENVANTERI.md#4-mimari-uyumluluk-ve-modül-kabulü)
 
 ```mermaid
 flowchart LR

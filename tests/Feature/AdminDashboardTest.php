@@ -19,7 +19,7 @@ use Illuminate\Support\Str;
 uses(RefreshDatabase::class);
 
 test('the public admin page only offers sign in and both private routes require a verified platform administrator', function () {
-    $this->withoutVite()->get('/yonetim')->assertOk()->assertSee('Yönetici e-postası')
+    $this->withoutVite()->get('/yonetim')->assertOk()->assertSee('Platform hesabı e-postası')
         ->assertDontSee('Dikkat gerektiren işlemler')->assertDontSee('data-admin-dashboard-results', false);
     foreach (['dashboard', 'workspace', 'analytics', 'patient-accounts', 'operations', 'audit'] as $endpoint) {
         $this->getJson('/api/admin/'.$endpoint)->assertUnauthorized();

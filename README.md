@@ -11,6 +11,8 @@
 
 Uygulama mimarisi, tamamlanan işler, eksikler ve geliştirme sırası proje yol haritasında tutulur. [Proje yol haritası](PROJE-YOL-HARITASI.md)
 
+Güncel modül kabulü, kod bulguları, test kanıtları ve yayını bekleten kararlar ana envanterde yer alır. [Tamamlama ve yayın raporu](MEDLOBY-TAMAMLAMA-ENVANTERI.md)
+
 ## Kurulum gereksinimleri
 
 Medloby ve kilitli PHP paketleri için en düşük sürüm PHP 8.4.1’dir. GitHub Actions, PHP 8.4 serisinin güncel sürümü ve Node.js 24 ile derleme ve test yapar.
