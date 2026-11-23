@@ -225,7 +225,7 @@ Kamuya açılış için içeriğin uygunluğu, onaylı sözleşme ve kişisel ve
 5. **6.5 Hasta yolculuğu ekranı hazır.** **Tedavi sürecim** sayfası doğrulanmış hastanın mevcut görüşme, teklif ve randevu kayıtlarından bir zaman çizelgesi oluşturur. Hasta olayları kayıt türüne göre süzer ve ayrıntıya geçer. Randevunun saati değişmişse randevu ayrıntısı güncel kaydı açar. [Hasta yolculuğu testleri](tests/Feature/PatientJourneyTest.php)
 6. **6.6 Konaklama ve transfer takibi hazır.** Klinik paket yönetiminde paketin hangi seyahat hizmetlerini içerdiğini işaretler. Kabul sonrası klinik sahibi ve ilgili şubede **Seyahat planını düzenleme** yetkisi verilen personel otel bilgilerini, giriş ve çıkış tarihlerini, birden fazla transferin saatini ve yerlerini kaydeder. Kliniğin geneli için sunulan teklifin planını klinik sahibi yönetir. Hasta plan güncellendiğinde uygulama içi bildirim alır ve ayrıntıları kendi teklifinde görür. [Seyahat planı testleri](tests/Feature/OfferTravelPlanTest.php)
 7. **6.7 Klinik içi gelir ve gider takibi hazır.** Klinik sahibi ve ilgili şubenin düzenleme yetkisini taşıyan personel tarih, tutar, para birimi ve açıklamayla kayıt açabilir, kaydı düzeltebilir veya iptal edebilir. İptal edilen kayıtlar görüntülenebilir ve yeniden etkinleştirilebilir. Aylık gelir, gider ve fark hesaplarına aktif kayıtlar girer. Görüntüleme yetkisi ayrı verilebilir. [Gelir ve gider testleri](tests/Feature/ClinicLedgerTest.php)
-8. **6.8 Clinic AI Premium.** Sesli ve yazılı asistan, PDF/XLSX/DOCX raporları ve yetkili özel rapor arşivi ilk sürüm tamamlandıktan sonra ele alınacak. Finansal raporlar için mevcut şube gelir-gider kayıtları ve hesaplama kuralları esas alınacak. [Şube gelir ve gider akışı](app/Http/Controllers/ClinicLedgerController.php)
+8. **6.8 Clinic AI Premium — DEFERRED.** Sesli ve yazılı asistan, PDF/XLSX/DOCX raporları ve yetkili özel rapor arşivi ilk sürüm tamamlandıktan sonra ele alınacak. Finansal raporlar için mevcut şube gelir-gider kayıtları ve hesaplama kuralları esas alınacak. [Şube gelir ve gider akışı](app/Http/Controllers/ClinicLedgerController.php)
 9. **6.9 Klinik CRM finans raporları hazır.** Finans ekranı seçilen aktif şube veya yetkili olunan tüm aktif şubeler için aylık, yıllık ve tüm dönemler toplamlarını gösterir. Gelir, gider ve net fark her para biriminde ayrı hesaplanır. Aylık ve yıllık görünümler önceki takvim dönemiyle değişimi grafikle gösterir. Hekim raporu randevuları seans tarihine, bağlı tahsilatları gelir kaydının tarihine göre toplar. Tedavi gelir grafiği randevuya bağlı tahsilatları ilgili tedaviye yazar. Toplu paket tahsilatları ve bağlantısı olmayan gelirler şube toplamına girer ve tedavi dağılımında ayrıca gösterilir. [Finans raporu testleri](tests/Feature/ClinicFinanceReportTest.php)
 
 ### 7. Klinik yönetimi genişletmeleri
@@ -243,6 +243,10 @@ Kamuya açılış için içeriğin uygunluğu, onaylı sözleşme ve kişisel ve
 Özetteki vade ve stok uyarıları seçilen rapor ayından bağımsız olarak mevcut durumu gösterir. Vadesi geçen borç ve alacaklar kaydedilmiş aktif ödemeler düşüldükten sonra para birimine göre ayrı toplanır. Finans ve stok uyarıları ilgili şube yetkisini ayrı ayrı kullanır.
 
 [Yönetim testleri](tests/Feature/ClinicManagementTest.php) · [Finans, hasta süreci ve stok testleri](tests/Feature/ClinicOperationsExpansionTest.php)
+
+### 8. Platform yönetim merkezi
+
+Bağımsız **Platform yönetimi** ekranı `/yonetim` adresinde açılır. Doğrulanmış yöneticiler platform sayımlarını ve operasyon uyarılarını görür. Klinik, katalog, destek ve sözleşme işlemleri mevcut diyaloglardan yürütülür. [Admin tamamlama envanteri](ADMIN-TAMAMLAMA.md)
 
 ## Uygulama düzeni
 

@@ -16,6 +16,16 @@ class AuthController extends Controller
 {
     public function login(Request $request): JsonResponse
     {
+        return $this->authenticate($request, false);
+    }
+
+    public function adminLogin(Request $request): JsonResponse
+    {
+        return $this->authenticate($request, true)->header('Cache-Control', 'private, no-store');
+    }
+
+    private function authenticate(Request $request, bool $adminOnly): JsonResponse
+    {
         $field = $request->exists('identifier') ? 'identifier' : 'email';
         $validated = $request->validate([
             $field => $field === 'email' ? ['required', 'email', 'max:255'] : ['required', 'string', 'max:255'],
@@ -28,7 +38,7 @@ class AuthController extends Controller
             $identifier = Str::lower($identifier);
         }
 
-        [$user, $token] = DB::transaction(function () use ($validated, $field, $identifier, $column): array {
+        [$user, $token] = DB::transaction(function () use ($validated, $field, $identifier, $column, $adminOnly): array {
             $user = User::query()->where($column, $identifier)->lockForUpdate()->first();
 
             if (! $user || $user->clinic_onboarding_pending || ! Hash::check($validated['password'], $user->password)) {
@@ -36,6 +46,8 @@ class AuthController extends Controller
                     $field => ['Giriş bilgileri hatalı.'],
                 ]);
             }
+
+            abort_if($adminOnly && (! $user->is_admin || ! $user->hasVerifiedEmail()), 403, 'Doğrulanmış platform yöneticisi hesabıyla giriş yapın.');
 
             if ($user->temporary_password_expires_at !== null) {
                 if ($user->temporary_password_expires_at->isPast()) {
@@ -74,7 +86,7 @@ class AuthController extends Controller
             'data' => [
                 'token' => $token,
                 'token_type' => 'Bearer',
-                'user' => $user,
+                'user' => $adminOnly ? $user->only(['id', 'name']) : $user,
             ],
         ]);
     }

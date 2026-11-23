@@ -16,6 +16,7 @@ import { clinicToday } from './clinic-calendar';
 import { mountPatientAppointments, patientAppointmentsPath } from './patient-appointments';
 import { mountPatientJourney } from './patient-journey';
 import { mountPatientBooking } from './patient-booking';
+import { createWorkspaceApi } from './workspace-api';
 
 const statusLabels = {
     pending: 'Yanıt bekliyor',
@@ -100,6 +101,7 @@ function restorePackageChoice() {
 
 export function mountPackageOffers(root) {
     const get = (id) => root.querySelector('#' + id);
+    const api = createWorkspaceApi(() => token, endSession);
     const notice = get('page-message');
     const signIn = get('sign-in-form');
     const offerList = get('offer-list');
@@ -214,46 +216,6 @@ export function mountPackageOffers(root) {
     let offerRequest = 0;
     let pageRequest = 0;
     let dialogRequest = 0;
-
-    async function api(path, body, method = body === undefined ? 'GET' : 'POST', download = false) {
-        const headers = { Accept: 'application/json' };
-        const requestToken = token;
-        if (requestToken) {
-            headers.Authorization = 'Bearer ' + requestToken;
-        }
-        const multipart = body instanceof FormData;
-        if (body !== undefined && !multipart) {
-            headers['Content-Type'] = 'application/json';
-        }
-
-        const response = await fetch('/api' + path, {
-            method,
-            headers,
-            body: multipart || body === undefined ? body : JSON.stringify(body),
-            cache: 'no-store',
-        });
-        if (download && response.ok) {
-            return response.blob();
-        }
-
-        const result = await response.json().catch(() => null);
-
-        if (!response.ok || !result?.success) {
-            if (response.status === 401 && requestToken && requestToken === token) {
-                endSession();
-            }
-
-            const error = new Error(
-                Object.values(result?.errors ?? {}).flat()[0]
-                    ?? result?.message
-                    ?? 'İşlem tamamlanamadı. Lütfen tekrar deneyin.',
-            );
-            error.status = response.status;
-            throw error;
-        }
-
-        return result.data;
-    }
 
     async function downloadAttachment(attachment) {
         const blob = await api('/attachments/' + attachment.id + '/view', undefined, 'GET', true);
@@ -670,6 +632,7 @@ export function mountPackageOffers(root) {
         get('staff-crm-list').replaceChildren();
         catalogButton.hidden = true;
         sharedServicesButton.hidden = true;
+        get('platform-admin-link').hidden = true;
         appointmentForm.reset();
         offerForm.reset();
         rejectForm.reset();
@@ -1207,6 +1170,7 @@ export function mountPackageOffers(root) {
         const businesses = ownedBusinesses();
         catalogButton.hidden = businesses.length === 0;
         sharedServicesButton.hidden = !(user.is_admin && user.email_verified_at);
+        get('platform-admin-link').hidden = !(user.is_admin && user.email_verified_at);
         notifications.start(businesses);
         supportTickets.start(user);
         clinicApplications.setAccount(businesses, true);

@@ -34,6 +34,7 @@
                         <button id="treatment-administration-button" type="button" class="rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800" hidden>Tedavi kataloğu</button>
                         <button id="shared-package-services-button" type="button" class="rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800" hidden>Ortak ek hizmetler</button>
                         <button id="clinic-contracts-button" type="button" class="rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800" hidden>Üyelik sözleşmeleri</button>
+                        <a id="platform-admin-link" href="{{ route('platform-admin') }}" class="rounded-lg bg-teal-300 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-teal-200" hidden>Platform yönetimi</a>
                         <button id="logout" type="button" class="rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800">Çıkış yap</button>
                     </div>
                 </div>
