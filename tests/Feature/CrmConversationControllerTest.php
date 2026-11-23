@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Appointment;
 use App\Models\Branch;
 use App\Models\Business;
 use App\Models\BusinessUser;
@@ -230,6 +231,74 @@ test('lists attachable conversations within the branch and links a patient only 
         ->assertJsonPath('data.0.id', $conversation->id)
         ->assertJsonPath('data.0.attached', true);
     $this->postJson(attachLeadUrl($branch, $lead, $otherConversation), ['link_patient' => true])->assertUnprocessable();
+});
+
+test('staff can correct a linked conversation and patient while preserving their original records', function () {
+    $business = createCrmConversationTestBusiness();
+    $branch = createCrmConversationTestBranch($business);
+    $staff = createCrmConversationTestBusinessUser($business, $branch);
+    $patient = createCrmConversationTestPatient();
+    $otherPatient = createCrmConversationTestPatient();
+    $lead = createCrmConversationTestLead($business, $branch, $patient);
+    $otherLead = createCrmConversationTestLead($business, $branch, $patient);
+    $conversation = createCrmConversationTestConversation($business, $branch, $patient);
+    $conversation->update(['crm_lead_id' => $lead->id]);
+    $otherConversation = createCrmConversationTestConversation($business, $branch, $otherPatient);
+    $message = $conversation->messages()->create(['sender_user_id' => $patient->user_id, 'body' => 'Randevu görüşmesi', 'message_type' => 'text']);
+    $offer = $conversation->offers()->create([
+        'business_id' => $business->id, 'branch_id' => $branch->id, 'patient_profile_id' => $patient->id,
+        'created_by' => $staff['user']->id, 'title' => 'Tedavi teklifi', 'amount' => 200, 'currency' => 'TRY', 'status' => 'accepted',
+    ]);
+    $appointment = Appointment::create([
+        'business_id' => $business->id, 'branch_id' => $branch->id, 'patient_profile_id' => $patient->id,
+        'offer_id' => $offer->id, 'starts_at' => now()->addDay(), 'ends_at' => now()->addDay()->addHour(), 'status' => 'confirmed',
+    ]);
+    $leadPath = "/api/branches/{$branch->id}/crm/leads/{$lead->id}";
+    $link = "{$leadPath}/conversations/{$conversation->id}";
+
+    $this->actingAs($staff['user'])->deleteJson($link)->assertOk()->assertJsonPath('success', true);
+    $this->deleteJson($link)->assertOk();
+    $this->getJson("{$leadPath}/conversations")->assertOk()->assertJsonPath('data.0.attached', false);
+    expect($lead->refresh()->patient_profile_id)->toBe($patient->id);
+
+    $this->postJson(attachLeadUrl($branch, $otherLead, $conversation))->assertOk();
+    $this->deleteJson($link)->assertConflict();
+    expect($conversation->refresh()->crm_lead_id)->toBe($otherLead->id);
+
+    $this->putJson($leadPath, ['patient_profile_id' => null])->assertOk()->assertJsonPath('data.patient_profile_id', null);
+    $this->postJson(attachLeadUrl($branch, $lead, $otherConversation), ['link_patient' => true])->assertOk();
+    expect($lead->refresh()->patient_profile_id)->toBe($otherPatient->id);
+
+    $this->assertDatabaseHas('messages', ['id' => $message->id, 'conversation_id' => $conversation->id]);
+    $this->assertDatabaseHas('offers', ['id' => $offer->id, 'conversation_id' => $conversation->id, 'patient_profile_id' => $patient->id]);
+    $this->assertDatabaseHas('appointments', ['id' => $appointment->id, 'offer_id' => $offer->id, 'patient_profile_id' => $patient->id]);
+});
+
+test('legacy mismatches can be unlinked within the branch without exposing the mismatched conversation details', function () {
+    $business = createCrmConversationTestBusiness();
+    $branch = createCrmConversationTestBranch($business);
+    $otherBranch = createCrmConversationTestBranch($business, '-other');
+    $staff = createCrmConversationTestBusinessUser($business, $branch);
+    $patient = createCrmConversationTestPatient();
+    $otherPatient = createCrmConversationTestPatient();
+    $lead = createCrmConversationTestLead($business, $branch, $patient);
+    $legacy = createCrmConversationTestConversation($business, $branch, $otherPatient);
+    $legacy->update(['crm_lead_id' => $lead->id, 'subject' => 'Başka hasta görüşmesi']);
+    $outside = createCrmConversationTestConversation($business, $otherBranch, $patient);
+    $outside->update(['crm_lead_id' => $lead->id]);
+    $path = "/api/branches/{$branch->id}/crm/leads/{$lead->id}";
+
+    $this->actingAs($staff['user'])->getJson("{$path}/conversations")
+        ->assertOk()->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0', ['id' => $legacy->id, 'subject' => null, 'patient_name' => null, 'attached' => true, 'can_open' => false]);
+    $this->putJson($path, ['patient_profile_id' => null])->assertUnprocessable()->assertJsonValidationErrors(['patient_profile_id']);
+    $this->deleteJson("{$path}/conversations/{$outside->id}")->assertNotFound();
+    $staff['businessUser']->branches()->updateExistingPivot($branch->id, ['is_active' => false]);
+    $this->deleteJson("{$path}/conversations/{$legacy->id}")->assertForbidden();
+    $staff['businessUser']->branches()->updateExistingPivot($branch->id, ['is_active' => true]);
+    $this->deleteJson("{$path}/conversations/{$legacy->id}")->assertOk();
+    expect($legacy->refresh()->crm_lead_id)->toBeNull();
+    expect($outside->refresh()->crm_lead_id)->toBe($lead->id);
 });
 
 test('cannot attach lead from another branch', function () {

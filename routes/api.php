@@ -1192,6 +1192,7 @@ Route::middleware(['auth:sanctum', 'verified', EnsureClinicCrmAccess::class])
 
         Route::prefix('leads/{crmLead}/conversations')->group(function () {
             Route::get('/', [CrmConversationController::class, 'index']);
+            Route::delete('/{conversation}', [CrmConversationController::class, 'detachLead']);
 
             Route::post('/{conversation}/attach', [
                 CrmConversationController::class,

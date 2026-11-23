@@ -406,7 +406,7 @@ class CrmLeadController extends Controller
             if (array_key_exists('patient_profile_id', $validated)
                 && (int) $validated['patient_profile_id'] !== (int) $lead->patient_profile_id
                 && $lead->conversations()->where('business_id', $branch->business_id)
-                    ->where('branch_id', $branch->id)->where('patient_profile_id', $lead->patient_profile_id)->exists()) {
+                    ->where('branch_id', $branch->id)->exists()) {
                 throw ValidationException::withMessages([
                     'patient_profile_id' => 'Bağlı bir görüşmesi olan adayın hastası değiştirilemez.',
                 ]);

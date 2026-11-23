@@ -19,20 +19,28 @@ class CrmConversationController extends Controller
         $conversations = Conversation::query()
             ->where('business_id', $branch->business_id)
             ->where('branch_id', $branch->id)
-            ->whereHas('patientProfile')
-            ->when($crmLead->patient_profile_id !== null, fn ($query) => $query
-                ->where('patient_profile_id', $crmLead->patient_profile_id))
-            ->where(fn ($query) => $query->whereNull('crm_lead_id')->orWhere('crm_lead_id', $crmLead->id))
+            ->where(fn ($query) => $query->where('crm_lead_id', $crmLead->id)
+                ->orWhere(fn ($available) => $available->whereNull('crm_lead_id')->whereHas('patientProfile')
+                    ->when($crmLead->patient_profile_id !== null, fn ($patient) => $patient
+                        ->where('patient_profile_id', $crmLead->patient_profile_id))))
             ->with('patientProfile:id,first_name,last_name')
             ->orderByDesc('last_message_at')
             ->orderByDesc('id')
             ->get(['id', 'subject', 'patient_profile_id', 'crm_lead_id', 'last_message_at'])
-            ->map(fn (Conversation $conversation) => [
-                'id' => $conversation->id,
-                'subject' => $conversation->subject,
-                'patient_name' => trim($conversation->patientProfile->first_name.' '.$conversation->patientProfile->last_name),
-                'attached' => $conversation->crm_lead_id !== null,
-            ]);
+            ->map(function (Conversation $conversation) use ($crmLead): array {
+                $attached = $conversation->crm_lead_id !== null;
+                $patient = $conversation->patientProfile;
+                $matchesPatient = $patient !== null
+                    && ($crmLead->patient_profile_id === null || $patient->id === $crmLead->patient_profile_id);
+
+                return [
+                    'id' => $conversation->id,
+                    'subject' => $matchesPatient ? $conversation->subject : null,
+                    'patient_name' => $matchesPatient ? trim($patient->first_name.' '.$patient->last_name) : null,
+                    'attached' => $attached,
+                    'can_open' => $attached && $matchesPatient,
+                ];
+            });
 
         return response()->json([
             'success' => true,
@@ -119,6 +127,26 @@ class CrmConversationController extends Controller
                     'crm_lead_id' => $crmLead->id,
                     'crm_lead' => $crmLead->only('id', 'business_id', 'branch_id'),
                 ],
+            ])->header('Cache-Control', 'private, no-store');
+        }, attempts: 3);
+    }
+
+    public function detachLead(Branch $branch, CrmLead $crmLead, Conversation $conversation): JsonResponse
+    {
+        return DB::transaction(function () use ($branch, $crmLead, $conversation): JsonResponse {
+            CrmLead::query()->forBranch($branch)->lockForUpdate()->findOrFail($crmLead->id, ['id']);
+            $conversation = Conversation::query()
+                ->where('business_id', $branch->business_id)->where('branch_id', $branch->id)
+                ->lockForUpdate()->findOrFail($conversation->id);
+
+            abort_if($conversation->crm_lead_id !== null && $conversation->crm_lead_id !== $crmLead->id,
+                409, 'Görüşme bağlantısı değişti. Aday kaydını yenileyin.');
+
+            $conversation->update(['crm_lead_id' => null]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Görüşmenin aday bağlantısı kaldırıldı.',
             ])->header('Cache-Control', 'private, no-store');
         }, attempts: 3);
     }

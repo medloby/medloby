@@ -64,6 +64,7 @@
                 </fieldset>
             </form>
             <p class="text-slate-600 dark:text-slate-300" data-work-no-options hidden>Bağlanabilecek görüşme yok.</p>
+            <button type="button" class="offer-button offer-button-secondary justify-self-start" data-work-clear-patient hidden>Hasta bağlantısını kaldır</button>
         </section>
     </div>
 

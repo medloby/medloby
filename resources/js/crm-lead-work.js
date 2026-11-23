@@ -34,6 +34,7 @@ export function mountCrmLeadWork(panel, { api, onChanged, openConversation }) {
     const linkForm = find('link');
     const linkFields = linkForm.querySelector('fieldset');
     const conversation = linkForm.elements.namedItem('conversation');
+    const clearPatient = find('clear-patient');
     const content = find('content');
     const status = find('status');
     let lead = null;
@@ -189,10 +190,23 @@ export function mountCrmLeadWork(panel, { api, onChanged, openConversation }) {
             row.className = 'flex flex-wrap items-center justify-between gap-2';
             const label = document.createElement('span');
             label.className = 'min-w-0 break-words';
-            label.textContent = title(record);
-            const button = action('Görüşmeyi aç', () => openLinkedConversation(current, record.id, button));
-            button.setAttribute('aria-label', button.textContent + ' · ' + label.textContent);
-            row.append(label, button);
+            label.textContent = record.can_open ? title(record) : 'Hasta bağlantısı uyuşmayan görüşme';
+            const actions = document.createElement('div');
+            actions.className = 'flex flex-wrap gap-2';
+            if (record.can_open) {
+                const open = action('Görüşmeyi aç', () => openLinkedConversation(current, record.id, open));
+                open.setAttribute('aria-label', open.textContent + ' · ' + label.textContent);
+                actions.append(open);
+            }
+            const unlink = action('Bağlantıyı kaldır', () => {
+                if (lead === current && !current.saving && !current.openingConversation
+                    && window.confirm('Görüşmenin aday bağlantısı kaldırılsın mı? Mesajlar ve teklifler korunur.')) {
+                    write(current, current.conversationPath + '/' + record.id, undefined, 'DELETE', 'Görüşmenin aday bağlantısı kaldırıldı.');
+                }
+            });
+            unlink.setAttribute('aria-label', unlink.textContent + ' · ' + label.textContent);
+            actions.append(unlink);
+            row.append(label, actions);
             return row;
         }));
         find('no-conversations').hidden = linked.length > 0;
@@ -203,6 +217,7 @@ export function mountCrmLeadWork(panel, { api, onChanged, openConversation }) {
         linkForm.hidden = options.length === 0;
         find('no-options').hidden = options.length > 0;
         find('link-button').textContent = current.hasPatient ? 'Görüşmeyi bağla' : 'Hastayı ve görüşmeyi bağla';
+        clearPatient.hidden = !current.hasPatient || linked.length > 0;
     }
 
     async function load(current, confirmation = '') {
@@ -239,7 +254,8 @@ export function mountCrmLeadWork(panel, { api, onChanged, openConversation }) {
     function setBusy(busy) {
         fields.disabled = busy;
         linkFields.disabled = busy;
-        for (const button of panel.querySelectorAll('[data-work-row-actions] button')) {
+        clearPatient.disabled = busy;
+        for (const button of panel.querySelectorAll('[data-work-row-actions] button, [data-work-conversations] button')) {
             button.disabled = busy;
         }
     }
@@ -312,11 +328,24 @@ export function mountCrmLeadWork(panel, { api, onChanged, openConversation }) {
         });
     });
 
+    clearPatient.addEventListener('click', () => {
+        const current = lead;
+        if (!current || current.saving || current.openingConversation || clearPatient.hidden) {
+            return;
+        }
+        if (window.confirm('Adayın hasta bağlantısı kaldırılsın mı? Hasta hesabı ve randevuları korunur.')) {
+            write(current, current.path, { patient_profile_id: null }, 'PUT', 'Adayın hasta bağlantısı kaldırıldı.', () => {
+                current.hasPatient = false;
+            });
+        }
+    });
+
     return {
         setLead(detail, { branchCrm = '', members = [], followUpId = null, openWork = false } = {}) {
+            const path = detail && branchCrm + '/leads/' + detail.id;
             lead = detail ? {
                 id: detail.id, hasPatient: detail.patient_profile_id !== null, branchCrm, members, followUpId,
-                conversationPath: branchCrm + '/leads/' + detail.id + '/conversations', loading: false, loaded: false, saving: false, openingConversation: false,
+                path, conversationPath: path + '/conversations', loading: false, loaded: false, saving: false, openingConversation: false,
             } : null;
             panel.open = Boolean(lead && (openWork || lead.followUpId));
             panel.hidden = !lead;
