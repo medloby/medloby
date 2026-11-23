@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Sleep;
 use Laravel\Sanctum\PersonalAccessToken;
 
 uses(RefreshDatabase::class);
@@ -82,6 +83,18 @@ test('login rejects unknown email', function () {
         ->assertJsonValidationErrors([
             'email',
         ]);
+});
+
+test('invalid login uses the authentication timebox for known and unknown accounts', function () {
+    User::factory()->create(['email' => 'known@example.test', 'password' => 'test-password']);
+    config(['auth.timebox_duration' => 1_000_000]);
+    Sleep::fake();
+
+    $known = $this->postJson('/api/login', ['email' => 'known@example.test', 'password' => 'incorrect'])->assertUnprocessable();
+    $unknown = $this->postJson('/api/login', ['email' => 'unknown@example.test', 'password' => 'incorrect'])->assertUnprocessable();
+
+    expect($known->json())->toBe($unknown->json());
+    Sleep::assertSleptTimes(2);
 });
 
 test('login validates required fields', function () {

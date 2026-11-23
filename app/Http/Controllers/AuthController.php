@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Illuminate\Support\Timebox;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
@@ -25,6 +26,16 @@ class AuthController extends Controller
     }
 
     private function authenticate(Request $request, bool $adminOnly): JsonResponse
+    {
+        return app(Timebox::class)->call(function (Timebox $timebox) use ($request, $adminOnly): JsonResponse {
+            $response = $this->issueSession($request, $adminOnly);
+            $timebox->returnEarly();
+
+            return $response;
+        }, config('auth.timebox_duration', 200000));
+    }
+
+    private function issueSession(Request $request, bool $adminOnly): JsonResponse
     {
         $field = $request->exists('identifier') ? 'identifier' : 'email';
         $validated = $request->validate([
