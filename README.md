@@ -11,6 +11,10 @@
 
 Uygulama mimarisi, tamamlanan işler, eksikler ve geliştirme sırası proje yol haritasında tutulur. [Proje yol haritası](PROJE-YOL-HARITASI.md)
 
+## Kurulum gereksinimleri
+
+Medloby ve kilitli PHP paketleri için en düşük sürüm PHP 8.4.1’dir. GitHub Actions, PHP 8.4 serisinin güncel sürümü ve Node.js 24 ile derleme ve test yapar.
+
 ## Medloby yayına çıkmadan önce
 
 - [ ] **İşletmeci ve iletişim bilgilerini doğrula.** Resmî unvanı ve tebligata esas posta adresini `MEDLOBY_OPERATOR_LEGAL_NAME` ve `MEDLOBY_OPERATOR_POSTAL_ADDRESS` ayarlarına gir. KVKK başvuru kanalını belirle. Kullanılacak e-posta ve KEP adreslerini `MEDLOBY_PRIVACY_EMAIL` ve `MEDLOBY_PRIVACY_KEP` ayarlarına gir. Destek ve içerik editörü adreslerini `MEDLOBY_SUPPORT_EMAIL` ve `MEDLOBY_EDITOR_EMAIL` ayarlarına gir.
