@@ -38,6 +38,7 @@ use App\Http\Controllers\ClinicBranchOperationsController;
 
 use App\Http\Controllers\ClinicConsentTemplateController;
 
+use App\Http\Controllers\ClinicFinanceReportController;
 use App\Http\Controllers\ClinicLedgerController;
 
 use App\Http\Controllers\SupportTicketController;
@@ -184,6 +185,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/clinic-applications', ClinicApplicationStatusController::class);
         Route::get('/clinic-crm/staff-workspaces', [ClinicCrmWorkspaceController::class, 'staffIndex']);
         Route::get('/businesses/{business}/crm', ClinicCrmWorkspaceController::class);
+        Route::get('/businesses/{business}/crm/finance/reports', ClinicFinanceReportController::class);
         Route::get('/businesses/{business}/crm/profile', [ClinicProfileController::class, 'show']);
         Route::put('/businesses/{business}/crm/profile', [ClinicProfileController::class, 'update']);
         Route::get('/businesses/{business}/crm/branches', [ClinicProfileController::class, 'branches']);
@@ -965,6 +967,7 @@ Route::middleware(['auth:sanctum', 'verified', EnsureClinicCrmAccess::class])
     ->controller(ClinicLedgerController::class)
     ->prefix('branches/{branch}/crm/ledger')->group(function () {
         Route::get('/', 'index');
+        Route::get('/references', 'references');
         Route::post('/', 'store');
         Route::put('/{entry}', 'update')->whereNumber('entry');
         Route::put('/{entry}/status', 'updateStatus')->whereNumber('entry');

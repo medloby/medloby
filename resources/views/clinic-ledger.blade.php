@@ -1,5 +1,8 @@
 <details class="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 dark:border-slate-800 dark:bg-slate-900" data-crm-ledger hidden>
-    <summary class="cursor-pointer text-lg font-semibold">Gelir ve gider</summary>
+    <summary class="cursor-pointer text-lg font-semibold">Finans</summary>
+    @include('clinic-finance-reports')
+
+    <h3 class="mt-5 font-semibold">Gelir ve gider kayıtları</h3>
     <p class="mt-3 text-sm text-slate-600 dark:text-slate-300" data-ledger-status role="status" hidden></p>
     <button type="button" class="offer-button offer-button-secondary mt-3" data-ledger-retry hidden>Listeyi yeniden yükle</button>
 
@@ -48,6 +51,27 @@
                 <label class="offer-field sm:col-span-2">Açıklama
                     <input class="offer-control" name="description" maxlength="255" required>
                 </label>
+                <div class="grid gap-3 sm:col-span-2" data-ledger-income-reference>
+                    <label class="offer-field">Gelir bağlantısı
+                        <select class="offer-control" data-ledger-reference-type>
+                            <option value="">Genel şube geliri</option>
+                            <option value="appointment">Randevu veya paket seansı</option>
+                            <option value="package">Paket toplamı</option>
+                        </select>
+                    </label>
+                    <div class="grid gap-2" data-ledger-reference-fields hidden>
+                        <div class="flex flex-wrap items-end gap-2">
+                            <label class="offer-field">Kayıt numarasına göre bul
+                                <input class="offer-control" type="number" min="1" step="1" data-ledger-reference-id>
+                            </label>
+                            <button type="button" class="offer-button offer-button-secondary" data-ledger-reference-search>Bul</button>
+                        </div>
+                        <label class="offer-field">Bağlanacak kayıt
+                            <select class="offer-control" data-ledger-reference-choice></select>
+                        </label>
+                        <p class="text-sm text-slate-600 dark:text-slate-300" data-ledger-reference-status role="status" hidden></p>
+                    </div>
+                </div>
             </fieldset>
             <div class="flex flex-wrap gap-2">
                 <button type="submit" class="offer-button" data-ledger-save>Kaydet</button>

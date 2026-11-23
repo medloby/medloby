@@ -108,7 +108,7 @@ export function mountClinicCrm(section, api, { openConversation, ...appointmentD
         const catalogBranch = dashboard.can_manage_branch_catalog ? branchId : null;
         operations.setBranch(catalogBranch);
         socialLinks.setBranch(catalogBranch);
-        ledger.setBranch(dashboard.can_view_finances ? branchId : null);
+        ledger.setBranch(dashboard.can_view_finances ? branchId : null, businessId);
         metrics.replaceChildren(...Object.entries(metricLabels).map(([key, label]) => {
             const metric = find('metric').content.firstElementChild.cloneNode(true);
             metric.querySelector('dt').textContent = label;

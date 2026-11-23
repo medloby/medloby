@@ -1,3 +1,5 @@
+import { mountClinicFinanceReports } from './clinic-finance-reports';
+
 const kindLabels = { income: 'Gelir', expense: 'Gider' };
 const wholeNumber = new Intl.NumberFormat('tr-TR');
 const date = new Intl.DateTimeFormat('tr-TR', { dateStyle: 'medium', timeZone: 'UTC' });
@@ -7,7 +9,6 @@ function amount(value, currency) {
     const sign = value.startsWith('-') ? '−' : '';
     return sign + wholeNumber.format(BigInt(whole)) + ',' + fraction + ' ' + currency;
 }
-
 function requestKey() {
     return Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
@@ -24,7 +25,14 @@ export function mountClinicLedger(panel, api) {
     const editor = find('editor');
     const add = find('new');
     const changeStatus = find('change-status');
+    const kind = editor.elements.namedItem('kind');
+    const referenceType = find('reference-type');
+    const referenceId = find('reference-id');
+    const referenceChoice = find('reference-choice');
+    const referenceStatus = find('reference-status');
+    const reports = mountClinicFinanceReports(panel.querySelector('[data-finance-reports]'), api, amount);
     let scope;
+    let lookup = 0;
 
     function showStatus(message = '') {
         status.textContent = message;
@@ -32,10 +40,52 @@ export function mountClinicLedger(panel, api) {
     }
 
     function closeEditor() {
+        lookup++;
         editor.reset();
         editor.hidden = true;
         if (scope) {
             scope.selected = null;
+        }
+    }
+
+    function showReferenceStatus(message = '') {
+        referenceStatus.textContent = message;
+        referenceStatus.hidden = !message;
+    }
+
+    async function loadReferences(id = '', selected = '') {
+        const current = ++lookup;
+        const type = referenceType.value;
+        referenceChoice.replaceChildren(new Option('Kayıt seçin', ''));
+        referenceChoice.disabled = true;
+        const visible = kind.value === 'income' && type !== '';
+        find('reference-fields').hidden = !visible;
+        find('income-reference').hidden = kind.value !== 'income';
+        showReferenceStatus();
+        if (!visible) {
+            return;
+        }
+
+        const query = new URLSearchParams({ type });
+        if (id) {
+            query.set('id', id);
+        }
+        showReferenceStatus('Kayıtlar yükleniyor…');
+        try {
+            const options = await api(scope.path + '/references?' + query);
+            if (current === lookup) {
+                referenceChoice.append(...options.map(({ label, id: optionId }) => new Option(label, optionId)));
+                referenceChoice.value = selected || (id && options.length === 1 ? String(options[0].id) : '');
+                showReferenceStatus(options.length ? '' : 'Bu şubede eşleşen kayıt bulunamadı.');
+            }
+        } catch (error) {
+            if (current === lookup) {
+                showReferenceStatus(error.message);
+            }
+        } finally {
+            if (current === lookup) {
+                referenceChoice.disabled = false;
+            }
         }
     }
 
@@ -54,6 +104,9 @@ export function mountClinicLedger(panel, api) {
         changeStatus.hidden = !entry;
         changeStatus.textContent = voided ? 'Yeniden etkinleştir' : 'Kaydı iptal et';
         editor.hidden = false;
+        referenceType.value = values.appointment_id ? 'appointment' : values.offer_id ? 'package' : '';
+        referenceId.value = values.appointment_id || values.offer_id || '';
+        loadReferences(referenceId.value, referenceId.value);
         showStatus();
         (voided ? changeStatus : editor.elements.namedItem('kind')).focus();
     }
@@ -100,7 +153,8 @@ export function mountClinicLedger(panel, api) {
             const row = find('entry').content.firstElementChild.cloneNode(true);
             const stamp = date.format(new Date(entry.entry_date + 'T00:00:00Z'));
             find('description', row).textContent = entry.description;
-            find('meta', row).textContent = [stamp, kindLabels[entry.kind], amount(entry.amount, entry.currency)].join(' · ');
+            const reference = entry.appointment_id ? 'Randevu #' + entry.appointment_id : entry.offer_id ? 'Paket teklifi #' + entry.offer_id : '';
+            find('meta', row).textContent = [stamp, kindLabels[entry.kind], amount(entry.amount, entry.currency), reference].filter(Boolean).join(' · ');
             const open = find('open', row);
             open.hidden = !data.can_manage;
             open.setAttribute('aria-label', 'Kaydı aç · ' + entry.description);
@@ -148,12 +202,20 @@ export function mountClinicLedger(panel, api) {
         const selected = active.selected;
         const values = Object.fromEntries(new FormData(editor));
         values.currency = values.currency.toUpperCase();
+        const reference = values.kind === 'income' && referenceType.value;
+        if (reference && (referenceChoice.disabled || !referenceChoice.value)) {
+            showReferenceStatus('Devam etmek için bağlanacak kaydı seçin.');
+            return;
+        }
+        values.appointment_id = reference === 'appointment' ? Number(referenceChoice.value) : null;
+        values.offer_id = reference === 'package' ? Number(referenceChoice.value) : null;
         const saved = await run('Kayıt kaydediliyor…', (current) => selected
             ? api(current.path + '/' + selected.id, { ...values, revision: selected.revision }, 'PUT')
             : api(current.path, { ...values, request_key: current.key }));
         if (saved && active === scope) {
             month.value = saved.entry_date.slice(0, 7);
             filter.value = 'active';
+            reports.refresh();
             await load(1, 'Kayıt kaydedildi.');
         }
     });
@@ -165,11 +227,26 @@ export function mountClinicLedger(panel, api) {
         const saved = await run('Kayıt durumu güncelleniyor…', (current) => api(current.path + '/' + selected.id + '/status',
             { status: activeAgain ? 'active' : 'voided', revision: selected.revision }, 'PUT'));
         if (saved && active === scope) {
+            reports.refresh();
             await load(1, activeAgain ? 'Kayıt yeniden etkinleştirildi.' : 'Kayıt iptal edildi.');
         }
     });
 
     add.addEventListener('click', () => openEditor());
+    kind.addEventListener('change', () => {
+        referenceType.value = '';
+        referenceId.value = '';
+        loadReferences();
+    });
+    referenceType.addEventListener('change', () => {
+        referenceId.value = '';
+        loadReferences();
+    });
+    find('reference-search').addEventListener('click', () => {
+        if (referenceId.reportValidity()) {
+            loadReferences(referenceId.value);
+        }
+    });
     find('close-editor').addEventListener('click', closeEditor);
     month.addEventListener('change', () => load());
     filter.addEventListener('change', () => load());
@@ -184,12 +261,13 @@ export function mountClinicLedger(panel, api) {
     });
 
     return {
-        setBranch(id) {
+        setBranch(id, businessId) {
             const path = id ? '/branches/' + id + '/crm/ledger' : undefined;
             if (scope?.path === path) {
                 return;
             }
             scope = path ? { path } : undefined;
+            reports.setScope(id, businessId);
             panel.open = false;
             panel.hidden = !scope;
             controls.hidden = true;

@@ -2,13 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Appointment;
 use App\Models\Branch;
 use App\Models\BranchLedgerEntry;
+use App\Models\Offer;
 use App\Rules\PriceAmount;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class ClinicLedgerController extends Controller
 {
@@ -18,6 +22,8 @@ class ClinicLedgerController extends Controller
         'amount' => ['required', ...PriceAmount::RULES, 'decimal:0,2', 'min:0.01'],
         'currency' => ['required', 'string', 'alpha:ascii', 'size:3', 'uppercase'],
         'description' => ['required', 'string', 'max:255'],
+        'appointment_id' => ['sometimes', 'nullable', 'integer', 'min:1', 'prohibits:offer_id'],
+        'offer_id' => ['sometimes', 'nullable', 'integer', 'min:1'],
     ];
 
     private const array REVISION_RULES = ['revision' => ['required', 'integer', 'min:1']];
@@ -33,16 +39,9 @@ class ClinicLedgerController extends Controller
         ]);
         $today = CarbonImmutable::today('Europe/Istanbul');
         $month = CarbonImmutable::createFromFormat('!Y-m', $filters['month'] ?? $today->format('Y-m'));
-        $entries = $branch->ledgerEntries()->whereBetween('entry_date', [$month->toDateString(), $month->endOfMonth()->toDateString()]);
-        $totals = (clone $entries)->whereNull('voided_at')->groupBy('currency')->orderBy('currency')
-            ->selectRaw("currency, SUM(CASE WHEN kind = 'income' THEN amount_minor ELSE 0 END) AS income,
-                SUM(CASE WHEN kind = 'expense' THEN amount_minor ELSE 0 END) AS expense")
-            ->get()->map(fn (BranchLedgerEntry $summary): array => [
-                'currency' => $summary->currency,
-                'income' => $this->amount((int) $summary->income),
-                'expense' => $this->amount((int) $summary->expense),
-                'net' => $this->amount((int) $summary->income - (int) $summary->expense),
-            ]);
+        $entries = $branch->ledgerEntries()->recordedBetween($month, $month->endOfMonth());
+        $totals = (clone $entries)->whereNull('voided_at')->withAmountTotals()->orderBy('currency')
+            ->get()->map(fn (BranchLedgerEntry $summary): array => $summary->amountTotals());
 
         $page = ($filters['status'] ?? 'active') === 'voided' ? $entries->whereNotNull('voided_at') : $entries->whereNull('voided_at');
         $page = $page->latest('entry_date')->latest('id')->paginate(20)->through($this->entry(...));
@@ -58,6 +57,36 @@ class ClinicLedgerController extends Controller
         ]);
     }
 
+    public function references(Request $request, Branch $branch): JsonResponse
+    {
+        $this->authorizeWrite($request, $branch);
+        $filters = $request->validate([
+            'type' => ['required', 'in:appointment,package'],
+            'id' => ['sometimes', 'required', 'integer', 'min:1'],
+        ]);
+        $id = $filters['id'] ?? null;
+
+        if ($filters['type'] === 'appointment') {
+            $references = $this->branchAppointments($branch)
+                ->when($id === null, fn (Builder $appointments) => $appointments->where('status', '!=', 'rescheduled'))
+                ->when($id !== null, fn (Builder $appointments) => $appointments->whereKey($id))
+                ->latest('starts_at')->latest('id')->limit(25)->get(['id', 'starts_at', 'treatment_id'])
+                ->load('treatment:id,name')->map(fn (Appointment $visit): array => [
+                    'id' => $visit->id,
+                    'label' => trim('Randevu #'.$visit->id.' · '.$visit->starts_at->format('d.m.Y H:i').($visit->treatment ? ' · '.$visit->treatment->name : '')),
+                ]);
+        } else {
+            $references = $this->branchPackages($branch)->when($id !== null, fn (Builder $offers) => $offers->whereKey($id))
+                ->latest('id')->limit(25)->get(['id', 'created_at'])
+                ->map(fn (Offer $offer): array => [
+                    'id' => $offer->id,
+                    'label' => 'Paket teklifi #'.$offer->id.($offer->created_at ? ' · '.$offer->created_at->format('d.m.Y') : ''),
+                ]);
+        }
+
+        return $this->respond($references->all());
+    }
+
     public function store(Request $request, Branch $branch): JsonResponse
     {
         $this->authorizeWrite($request, $branch);
@@ -66,6 +95,7 @@ class ClinicLedgerController extends Controller
 
         return DB::transaction(function () use ($request, $branch, $fields, $values): JsonResponse {
             $branch = $this->lockBranch($request, $branch);
+            $values += $this->incomeReferences($branch, $fields);
             $existing = $branch->ledgerEntries()->where('request_key', $fields['request_key'])->first();
             if ($existing) {
                 abort_if($existing->fill($values)->isDirty(), 409, 'Bu giriş daha önce kaydedildi. Kayıt listesini yenileyin.');
@@ -89,14 +119,56 @@ class ClinicLedgerController extends Controller
         $fields = $request->validate(self::ENTRY_RULES + self::REVISION_RULES);
 
         return DB::transaction(function () use ($request, $branch, $entry, $fields): JsonResponse {
-            $saved = $this->findEntry($this->lockBranch($request, $branch), $entry);
+            $branch = $this->lockBranch($request, $branch);
+            $saved = $this->findEntry($branch, $entry);
             abort_if($saved->voided_at !== null, 409, 'İptal edilen kaydı düzenlemek için yeniden etkinleştirin.');
-            if ($saved->fill($this->entryValues($fields))->isDirty()) {
+            $values = $this->entryValues($fields);
+            if ($fields['kind'] === 'expense' || array_key_exists('appointment_id', $fields) || array_key_exists('offer_id', $fields)) {
+                $values += $this->incomeReferences($branch, $fields);
+            }
+            if ($saved->fill($values)->isDirty()) {
                 $this->saveChange($request, $saved, (int) $fields['revision']);
             }
 
             return $this->respond($this->entry($saved));
         }, attempts: 3);
+    }
+
+    /** @return Builder<Appointment> */
+    private function branchAppointments(Branch $branch): Builder
+    {
+        return Appointment::query()->where('branch_id', $branch->id)->where('business_id', $branch->business_id);
+    }
+
+    /** @return Builder<Offer> */
+    private function branchPackages(Branch $branch): Builder
+    {
+        return Offer::query()->where('offers.business_id', $branch->business_id)->where('status', 'accepted')
+            ->whereNotNull('package_snapshot')
+            ->where(fn (Builder $offer) => $offer->whereNull('branch_id')->orWhere('branch_id', $branch->id))
+            ->where(fn (Builder $offer) => $offer->whereNull('package_snapshot->branch_id')->orWhere('package_snapshot->branch_id', $branch->id))
+            ->whereHas('conversation', fn (Builder $conversation) => $conversation->whereColumn('conversations.business_id', 'offers.business_id')
+                ->whereColumn('conversations.patient_profile_id', 'offers.patient_profile_id')
+                ->where(fn (Builder $scope) => $scope->whereNull('branch_id')->orWhere('branch_id', $branch->id)))
+            ->where(fn (Builder $offer) => $offer->where('branch_id', $branch->id)->orWhere('package_snapshot->branch_id', $branch->id)
+                ->orWhereHas('conversation', fn (Builder $conversation) => $conversation->where('branch_id', $branch->id))
+                ->orWhereHas('appointments', fn (Builder $appointments) => $appointments->where('branch_id', $branch->id)
+                    ->where('business_id', $branch->business_id)));
+    }
+
+    /** @return array{appointment_id: ?int, offer_id: ?int} */
+    private function incomeReferences(Branch $branch, array $fields): array
+    {
+        $appointment = isset($fields['appointment_id']) ? (int) $fields['appointment_id'] : null;
+        $offer = isset($fields['offer_id']) ? (int) $fields['offer_id'] : null;
+        if ($appointment !== null && ($fields['kind'] !== 'income' || ! $this->branchAppointments($branch)->whereKey($appointment)->exists())) {
+            throw ValidationException::withMessages(['appointment_id' => 'Gelir kaydı için bu şubeye ait bir randevu seçin.']);
+        }
+        if ($offer !== null && ($fields['kind'] !== 'income' || ! $this->branchPackages($branch)->whereKey($offer)->exists())) {
+            throw ValidationException::withMessages(['offer_id' => 'Gelir kaydı için bu şubeye ait kabul edilmiş bir paket seçin.']);
+        }
+
+        return ['appointment_id' => $appointment, 'offer_id' => $offer];
     }
 
     public function updateStatus(Request $request, Branch $branch, string $entry): JsonResponse
@@ -164,14 +236,11 @@ class ClinicLedgerController extends Controller
     {
         return $entry->only(['id', 'kind', 'description', 'currency', 'revision']) + [
             'entry_date' => $entry->entry_date->toDateString(),
-            'amount' => $this->amount($entry->amount_minor),
+            'amount' => BranchLedgerEntry::formatAmount($entry->amount_minor),
             'status' => $entry->voided_at === null ? 'active' : 'voided',
+            'appointment_id' => $entry->appointment_id,
+            'offer_id' => $entry->offer_id,
         ];
-    }
-
-    private function amount(int $minor): string
-    {
-        return ($minor < 0 ? '-' : '').intdiv(abs($minor), 100).'.'.str_pad((string) (abs($minor) % 100), 2, '0', STR_PAD_LEFT);
     }
 
     private function respond(array $data, int $status = 200): JsonResponse
