@@ -43,6 +43,8 @@ final class CheckReleaseReadiness extends Command
             ['Güvenli oturum çerezi', config('session.secure') === true && config('session.http_only') === true
                 && in_array(config('session.same_site'), ['lax', 'strict'], true),
                 'SESSION_SECURE_COOKIE ve SESSION_HTTP_ONLY ayarlarını true yapın. SameSite için lax veya strict kullanın.'],
+            ['Oturum deposu', $this->probe($release->sessionStorageReady(...)),
+                'SESSION_DRIVER ve seçilen oturum deposunu doğrulayın. Dosya oturumlarını web kökü dışında tutun.'],
             ['API oturumu süresi', is_int(config('sanctum.expiration')) && config('sanctum.expiration') > 0,
                 'Onaylanan API oturumu süresini SANCTUM_EXPIRATION ayarına dakika olarak girin.'],
             ['Güvenilen vekil sunucular', config('trustedproxy.valid') === true,

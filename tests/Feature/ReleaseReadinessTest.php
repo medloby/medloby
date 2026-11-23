@@ -43,6 +43,9 @@ beforeEach(function () {
         'app.debug' => false,
         'app.url' => 'https://medloby.example.test',
         'app.key' => 'base64:'.base64_encode(str_repeat('k', 32)),
+        'session.driver' => 'database',
+        'session.connection' => null,
+        'session.table' => 'sessions',
         'session.secure' => true,
         'session.http_only' => true,
         'sanctum.expiration' => 60,
@@ -95,6 +98,34 @@ test('release readiness succeeds with an effective deployment configuration with
         ->not->toContain('Eksik ·', 'Bekliyor ·', config('app.key'), config('mail.mailers.smtp.password'), $this->administrator->email, $this->releaseDirectory);
 
     $this->assertDatabaseCount('jobs', 0);
+});
+
+test('release readiness rejects unusable session storage', function (array $settings) {
+    config($settings);
+
+    expect(Artisan::call('medloby:release-check'))->toBe(Command::FAILURE);
+
+    expect(Artisan::output())->toContain('Eksik · Oturum deposu', 'Hazır · Güvenli oturum çerezi')
+        ->not->toContain('missing_session_table', '/missing/session/path');
+})->with([
+    'per-request storage' => [['session.driver' => 'array']],
+    'disabled sessions' => [['session.driver' => 'null']],
+    'missing database table' => [['session.table' => 'missing_session_table']],
+    'incompatible database table' => [['session.table' => 'jobs']],
+    'missing file storage' => [['session.driver' => 'file', 'session.files' => '/missing/session/path']],
+    'invalid redis store' => [['session.driver' => 'redis', 'session.store' => 'array']],
+]);
+
+test('release readiness rejects file sessions exposed through the public web root', function () {
+    File::ensureDirectoryExists($this->releaseDirectory.'/sessions');
+    config(['session.driver' => 'file', 'session.files' => $this->releaseDirectory.'/sessions']);
+
+    expect(Artisan::call('medloby:release-check'))->toBe(Command::SUCCESS);
+
+    symlink($this->releaseDirectory.'/sessions', public_path('exposed-sessions'));
+
+    expect(Artisan::call('medloby:release-check'))->toBe(Command::FAILURE);
+    expect(Artisan::output())->toContain('Eksik · Oturum deposu')->not->toContain($this->releaseDirectory);
 });
 
 test('release readiness reports incompatible settings and missing build files together', function () {

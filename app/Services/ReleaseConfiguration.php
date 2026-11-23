@@ -136,6 +136,32 @@ final class ReleaseConfiguration
         };
     }
 
+    public function sessionStorageReady(): bool
+    {
+        $driver = config('session.driver');
+        $store = config('session.store') ?: $driver;
+
+        return match ($driver) {
+            'cookie' => true,
+            'database' => Schema::connection(config('session.connection'))
+                ->hasColumns(config('session.table'), ['id', 'payload', 'last_activity', 'user_id', 'ip_address', 'user_agent']),
+            'file' => $this->fileSessionsReady(config('session.files')),
+            'redis', 'memcached', 'dynamodb', 'apc' => config('cache.stores.'.$store.'.driver') === $driver,
+            default => false,
+        };
+    }
+
+    private function fileSessionsReady(mixed $path): bool
+    {
+        if (! is_string($path) || ! is_dir($path) || ! is_readable($path) || ! is_writable($path)) {
+            return false;
+        }
+
+        $publicRoots = array_filter([public_path(), (string) config('filesystems.disks.public.root')]);
+
+        return ! $this->publicFiles->exposes($publicRoots, [$path]);
+    }
+
     public function mailReady(): bool
     {
         $mailer = config('mail.mailers.'.config('mail.default'), []);
