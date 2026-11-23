@@ -148,3 +148,13 @@ Olay sorumlusu, işletim görevlisi, KVKK bildirim görevlisi, acil iletişim nu
 | PRIVACY ACCEPTANCE | `LEGAL_APPROVAL_REQUIRED`. Veri envanteri ve işletim taslağı güncellendi. |
 | PRODUCTION ACCEPTANCE / FINAL VERDICT | `NOT READY FOR PRODUCTION`. Yerel yayın komutu şemayı ve özel depolamayı hazır gördü. HTTPS, güvenli çerez, oturum süresi, ilk yönetici, sözleşme, KVKK, politika ve SMTP için beklenen eksikler bildirildi. |
 | COMMIT / PUSH STATUS | Teslim yerel commit’te. Uzak gönderim onay bekliyor. |
+
+## 24 Kasım 2026 güvenlik ve yayın kabul güncellemesi
+
+Klinik üyeliğindeki rol, etkinlik ve özel izin değişiklikleri mevcut yönetim panelinin denetim geçmişine bağlandı. Durum ve denetim satırı aynı işlemle yazılıyor. Atanmış destek görevlisi ve klinik üyeleri platform denetimini açamıyor. Denetim yanıtı hesap e-postası, personel giriş kodu, destek mesajı veya klinik hasta kaydı içermiyor. Geçmiş yeni değişikliklerle başlar. [Yönetim erişim ve gizlilik testi](tests/Feature/AdminDashboardTest.php)
+
+Yayın kontrolü artık istekler arasında oturum koruyamayan sürücüleri, uyumsuz veritabanı tablosunu ve web üzerinden erişilebilen dosya oturum deposunu reddediyor. Uzak cache’in çalışma koşulları ve TLS/çerez davranışı canlı ortam provasında doğrulanır. [Yayın kontrolü testi](tests/Feature/ReleaseReadinessTest.php)
+
+Yerel regresyon SQLite’ta 1.151 başarılı test ve 7.234 doğrulama, PostgreSQL 17.12’de 1.154 başarılı test ve 7.257 doğrulama verdi. PostgreSQL üç ek yedekleme senaryosunu çalıştırdı. Semgrep Community Edition 1.186.0, 352 hedefi kısmi ayrıştırma uyarısı olmadan taradı. SQL bağlamaları, sabit ifadeler ve yetkili Blade HTML aktarımı incelendi. Git, kaynak, derleme ve yerel günlükte maskeli sır bulgusu 0. Packagist 403 sınırı sürüyor. GitHub Advisory Database 133 kilitli Composer sürümünde ve npm denetimi npm bağımlılıklarında eşleşme göstermedi. [Son teknik kanıt ve Git envanteri](MEDLOBY-TAMAMLAMA-ENVANTERI.md#11-24-kasım-2026-git-uzlaştırması-ve-yeniden-kabul)
+
+Canlı güvenlik, gizlilik ve dağıtım kabulü bekliyor. Yönetici MFA yöntemi, kayıt ve kurtarma akışı ile daha geniş platform rol matrisi işletim kararına bağlı. Üretim yedek kurtarma, e-posta teslimatı, yeni migration’lar ve canlı oturum doğrulaması yetkili deneme ortamında yürütülecek.

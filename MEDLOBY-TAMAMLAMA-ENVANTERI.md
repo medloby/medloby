@@ -119,3 +119,237 @@ Başlangıçtan itibaren 39 dosyada değişiklik var. Yeni migration doğrulanm�
 | Canlı yayın | `RELEASE_PENDING`. Yetkili deneme ortamı, işletmeci/hukuk ve canlı işletim onayları bekliyor. |
 
 İlk yayın için sıradaki kabul yetkili bir deneme ortamında HTTPS, gerçek SMTP, işçi ve zamanlayıcı, özel dosya, şifreli yedek geri dönüşü ve ilk kullanıcı akışlarının birlikte doğrulanmasıdır. İşletmeci ve hukuk onayı ile GitHub teslim yetkisi ayrıca kaydedilir. [Yayın öncesi kontrol listesi](README.md#medloby-yayına-çıkmadan-önce)
+
+## 11. 24 Kasım 2026 Git uzlaştırması ve yeniden kabul
+
+| Git noktası | Doğrulanan değer |
+| --- | --- |
+| Yerel `work` dalının oluşturulduğu commit | `174f87a6a8eee0449653b5128f73623886b38437` |
+| GitHub `main` ve ortak ata | `2991bb17a6c772a19459de864067d44d20459572` |
+| Önceki Master çalışmasının başlangıcı | `25e3f70ddb1fc8eb281530902cfe5508f441a2d8` |
+| Bu uzlaştırmanın başlangıç HEAD’i ve önceki son dokümantasyon commit’i | `17b5572a5ffdff386f285ac467580981dd931580` |
+
+`work` reflog kaydı dalın `FETCH_HEAD` üzerinden oluşturulduğu commit’i gösteriyor. GitHub `main` bu commit’in 144 commit ilerisi ve hem `25e3f70` hem `17b5572` için doğrudan ata. `git merge-base` iki karşılaştırmada da `2991bb17` döndürdü. Önceki başlangıç `main` dalından 19 commit, bu uzlaştırmanın başlangıcı 24 commit ilerideydi. GitHub `main` tarafında yerelde bulunmayan commit yok. Çalışma ağacı temizdi. Git teslimi fast-forward yapılabilir ve gönderim onayına bağlıdır.
+
+### Bu uzlaştırmada tamamlananlar
+
+| Konu | Değişiklik ve kanıt |
+| --- | --- |
+| Klinik üyelik işlem geçmişi | Platform yöneticisinin klinik üyesi rolü, etkinliği ve özel izin değişiklikleri aynı veritabanı işlemi içinde kaydediliyor. Aynı değer ikinci bir olay üretmiyor. Mevcut yönetim panelinin işlem geçmişi klinik üyeliği filtresi, işlemi yapan kişi ve önceki/yeni değerleri gösteriyor. Yanıt e-posta, kod ve hesap sırrı içermiyor. Mobil Chromium’da rol ve durum değişikliği aynı panelden yapıldı ve tarihçe görüntülendi. [Yönetim testleri](tests/Feature/AdminDashboardTest.php) |
+| Yayın oturumu | `medloby:release-check` kalıcı oturum deposu gerekliliğini, veritabanı sürücüsünün sütunlarını ve dosya deposunun erişim sınırını doğruluyor. Yedi yeni senaryoda önceki commit eksik yapılandırmaya hazır diyordu. Bu vakalar güncel komutta hata veriyor. [Yayın testi](tests/Feature/ReleaseReadinessTest.php) |
+| SQLite ve PostgreSQL migration provası | Destek rolü migration’ı iki motorun ayrı test veritabanlarında uygulandı, geri alındı ve yeniden uygulandı. Eski yönetici, parola özeti, erişim anahtarı, destek talebi ve atama korunuyor. Klinik üyelik geçmişi eklemeli bir tabloyla başlıyor. Yerel geliştirme SQLite dosyası yedeklendi, iki bekleyen migration uygulandı ve ilişkiler doğrulandı. Uygulanan migration sayısı 83, bekleyen sayı 0. [Migration testi](tests/Feature/PlatformSupportMigrationTest.php) |
+
+### Bağımsız yeniden doğrulama
+
+| Önceki kayıt | Güncel kaynakta ayrı olarak çalıştırılan senaryo |
+| --- | --- |
+| MC-D01 | Ortak katalogda yanlış doğrulama muafiyeti, 1 test ve 3 doğrulama. |
+| MC-D02 | Onam taslağının ortam, yapılandırma ve sürüm sınırı, 13 test ve 130 doğrulama. |
+| MC-D03 | Finans, stok ve randevuda bağımsız eşzamanlı süreçler, 5 test ve 36 doğrulama. |
+| MC-D04 | Yetkisiz girişte Laravel zaman penceresi, 1 test ve 4 doğrulama. |
+| MC-F01 | Atama, yanıt, rolün geri alınması ve panel/API kapsamı, 21 test ve 366 doğrulama. |
+
+Yıl sınırında randevu takvimi ve finans raporu mevcut İstanbul iş günü sözleşmesine göre yeniden test edildi. Genel işlem zamanı UTC, defter kayıtları tarih alanı, randevu başlangıç ve bitişi İstanbul yerel saati olarak ele alınıyor. Tarihsel randevuları UTC’ye dönüştürme gelecekteki veri geçişi kararıdır. [Rapor sınır testleri](tests/Feature/ClinicFinanceReportTest.php)
+
+### Kapsamı yerel doğrulamayla sınırlı kabul
+
+Güvenlik ve gizlilik denetimi mevcut yönetici, atanmış destek görevlisi, klinik sahibi ve şube personeli, hasta ve anonim ziyaretçi sınırlarına göre yapıldı. MFA için mevcut tek yönetim girişi ve doğrulanmış yönetici koşulu kullanılabilir. Faktör türü, zorunluluk, ilk kayıt, kurtarma ve mevcut yönetici hesaplarının geçişi onay bekliyor. [Güvenlik ve yayın envanteri](GUVENLIK-YAYIN-ENVANTERI.md)
+
+Canlı kabul için gerçek sunucu erişimi, DNS/TLS, yönlendirme ve özel disk, SMTP teslimatı, kuyruk ve zamanlayıcı, izleme, şifreli üretim yedeğinden geri dönüş ve ilk hesap provası bekliyor. Hukuk kabulü işletmeci bilgileri, KVKK kanalları, işleme ve saklama koşulları ile yürürlükteki sözleşme ve politikaları kapsıyor. Ücretsiz ilk yayının dışındaki platform ücretlendirmesi ve Clinic AI Premium ertelenmiş ürün işleri.
+
+### Son regresyon ve yayın kontrolü
+
+| Denetim | 24 Kasım sonucu |
+| --- | --- |
+| SQLite | 1.151 test geçti, 7.234 doğrulama. Yalnız PostgreSQL’de çalışan üç yedekleme senaryosu atlandı. |
+| PostgreSQL 17.12 | 1.154 test geçti, 7.257 doğrulama. Migration, yedek geri yükleme ve eşzamanlı yazma senaryoları dahil. |
+| Ön yüz ve derleme | Vite üretim çıktısı, Blade ve rota önbellekleri, dört Node oturum testi ve mobil Chromium’da panelin gerçek işlem akışı geçti. |
+| Sözdizimi ve güvenlik | 431 PHP ve 46 JS dosyasında sözdizimi denetimi geçti. 56 odak testinde 362 doğrulama. Semgrep 1.186.0 ile 352 hedefte ayrıştırma hatası 0. İncelenen 35 ham SQL ve bir HTML atamasında doğrulanmış açık görülmedi. |
+| Bağımlılık ve sır taraması | npm danışma kayıtlarında 0 bulgu. Composer platform gereksinimleri geçti. Packagist güvenlik uç noktası bu ortamdan 403 döndürdü. GitHub Advisory Database, kilitli 133 Composer sürümünde 0 eşleşme gösterdi. Maskeli Gitleaks taraması Git geçmişi, izlenen kaynak, derlenmiş arayüz ve yerel uygulama günlüğünde 0 bulgu. |
+| Yayın komutu | Yapılandırılmış sentetik ortamda çıkış kodu 0. Çalışma alanında çıkış kodu 1. Şema, oturum deposu, arayüz, özel disk ve kuyruk hazır. Üretim ayarları, HTTPS, güvenli çerez, API süresi, ilk doğrulanmış yönetici, yürürlükteki sözleşme, KVKK/politika yayını ve SMTP bekliyor. |
+
+Bu uzlaştırmada açık kalan doğrulanmış bir kod hatası saptanmadı. Canlı güvenlik, hukuk ve gizlilik kabulü, yetkili dağıtım ve hosted CI yukarıdaki kararlara ve erişime bağlıdır. Üç kod ve test commit’i ile bu dokümantasyon commit’i dahil GitHub `main` dalının 28 commit ilerisinde 137 dosya değişikliği var.
+
+### Yerel commit ve dosya envanteri
+
+Dört eklemeli migration uzakta henüz yok. Bunlar destek atama geçmişini, sözleşme yayın denetimini, atanmış destek rolünü ve klinik üyelik işlem geçmişini içeriyor. Yerel ilk 27 commit aşağıda. Bu envanteri kaydeden son dokümantasyon commit’i listeyi izler.
+
+<details>
+<summary>GitHub main üstündeki yerel commit’ler</summary>
+
+```text
+4045328 Build the Medloby platform administration dashboard
+7575533 Extend platform administration with account, analytics and operations views
+a081a63 Record platform administration verification and remaining decisions
+de38f62 Centralize platform administration in one workspace
+ecfcd44 Show recorded clinic application decisions in administration
+8e597ea Add the platform support reply queue and ticket search
+8467f94 Connect platform operations to observed activity and add audit history
+2e87142 Assign support tickets to verified platform administrators
+efd0075 Record contract publication actions and verify privacy contacts
+e2e559d Document Medloby first launch policies and support role decision
+fb96429 Add Medloby public policy pages and homepage navigation
+cf9863c Enable local policy previews with fictional operator details
+42e2659 Harden Medloby access, response security and technical SEO
+7a4143e Strengthen Medloby release acceptance and private data safeguards
+8ddf290 Protect queue failure diagnostics and offer notification payloads
+c3fee00 Keep private storage behind authorized attachment routes
+7a84897 Reject exposed backup destinations and broken SQLite relationships
+485289a Validate queue failure storage during release checks
+25e3f70 Discard browser responses from ended Medloby sessions
+bb4c6bc Enforce platform catalog verification and defer consent draft endpoints
+0f0f912 Add assigned-only platform support with audited access changes
+e7593dd Serialize concurrent clinic finance and inventory operations on SQLite
+a735254 Apply the Laravel authentication timebox to rejected logins
+17b5572 Record master release acceptance and isolate regression fixtures
+dc0086a Validate production session storage in release checks
+be192f3 Audit clinic member role status and permission changes
+3ae9f33 Verify support role migration on existing records
+```
+
+</details>
+
+<details>
+<summary>GitHub main ile karşılaştırılan bütün değişen dosyalar</summary>
+
+```text
+M	.env.example
+M	.github/workflows/ci.yml
+M	.gitignore
+A	ADMIN-TAMAMLAMA.md
+A	GUVENLIK-YAYIN-ENVANTERI.md
+A	MEDLOBY-TAMAMLAMA-ENVANTERI.md
+M	PROJE-YOL-HARITASI.md
+M	README.md
+M	app/Console/Commands/CheckReleaseReadiness.php
+A	app/Console/PrivateQueueWorkCommand.php
+M	app/Http/Controllers/AdminBusinessController.php
+M	app/Http/Controllers/AdminBusinessMemberPermissionController.php
+M	app/Http/Controllers/AdminBusinessMemberRoleController.php
+M	app/Http/Controllers/AdminBusinessMemberStatusController.php
+A	app/Http/Controllers/AdminDashboardController.php
+A	app/Http/Controllers/AdminPatientAccountController.php
+M	app/Http/Controllers/AdminPlatformContractController.php
+A	app/Http/Controllers/AdminPlatformSupportRoleController.php
+M	app/Http/Controllers/AuthController.php
+M	app/Http/Controllers/ClinicBalanceController.php
+M	app/Http/Controllers/ClinicConsentTemplateController.php
+M	app/Http/Controllers/ClinicDirectoryController.php
+M	app/Http/Controllers/ClinicInventoryController.php
+M	app/Http/Controllers/ClinicLedgerController.php
+M	app/Http/Controllers/ConversationController.php
+A	app/Http/Controllers/PolicyPageController.php
+M	app/Http/Controllers/PrivacyNoticeController.php
+A	app/Http/Controllers/SearchIndexController.php
+M	app/Http/Controllers/SupportTicketController.php
+M	app/Http/Controllers/TreatmentCategoryController.php
+M	app/Http/Controllers/TreatmentController.php
+M	app/Http/Middleware/AdminMiddleware.php
+A	app/Http/Middleware/ApplyResponseSecurity.php
+M	app/Models/Branch.php
+M	app/Models/Business.php
+M	app/Models/PlatformContract.php
+M	app/Models/SupportTicket.php
+A	app/Models/SupportTicketAssignment.php
+M	app/Models/TreatmentPackage.php
+M	app/Models/User.php
+M	app/Notifications/NewOfferNotification.php
+M	app/Providers/AppServiceProvider.php
+A	app/Services/AdminDashboardMetrics.php
+M	app/Services/CatalogManagementAccess.php
+A	app/Services/ClinicMembershipAudit.php
+M	app/Services/LocalBackup.php
+A	app/Services/PlatformAdminAudit.php
+A	app/Services/PlatformOperationActivity.php
+M	app/Services/PrivacyPublication.php
+A	app/Services/PublicFileExposure.php
+A	app/Services/PublicWebsite.php
+A	app/Services/ReleaseConfiguration.php
+M	bootstrap/app.php
+M	config/cache.php
+M	config/database.php
+M	config/filesystems.php
+M	config/medloby.php
+M	config/sanctum.php
+M	config/trustedproxy.php
+A	database/migrations/2026_11_23_172955_create_support_ticket_assignments_table.php
+A	database/migrations/2026_11_23_174126_add_publication_audit_to_platform_contracts_table.php
+A	database/migrations/2026_11_23_210007_add_platform_support_role_and_changes.php
+A	database/migrations/2026_11_23_213234_create_clinic_membership_changes_table.php
+D	public/robots.txt
+M	resources/contracts/medloby-veri-isleme-ve-saklama-taslagi.md
+M	resources/js/app.js
+M	resources/js/clinic-administration.js
+M	resources/js/clinic-records.js
+M	resources/js/clinic-review.js
+M	resources/js/package-conversation.js
+M	resources/js/package-offers.js
+A	resources/js/platform-admin-patients.js
+A	resources/js/platform-admin.js
+M	resources/js/support-tickets.js
+A	resources/js/workspace-api.js
+M	resources/js/workspace-notifications.js
+M	resources/views/clinic-administration-dialog.blade.php
+M	resources/views/clinic-directory/show.blade.php
+M	resources/views/clinic-review-dialog.blade.php
+M	resources/views/package-offers.blade.php
+A	resources/views/platform-admin-analytics.blade.php
+A	resources/views/platform-admin-audit.blade.php
+A	resources/views/platform-admin-operations.blade.php
+A	resources/views/platform-admin-patients-dialog.blade.php
+A	resources/views/platform-admin-workspace.blade.php
+A	resources/views/platform-admin.blade.php
+A	resources/views/platform-support-workspace.blade.php
+A	resources/views/policies/pages/cerez-politikasi.blade.php
+A	resources/views/policies/pages/finans-politikasi.blade.php
+A	resources/views/policies/pages/gizlilik-bildirimi.blade.php
+A	resources/views/policies/pages/hasta-haklari.blade.php
+A	resources/views/policies/pages/hizmet-sartlari.blade.php
+A	resources/views/policies/pages/inceleme-ve-yorum-politikasi.blade.php
+A	resources/views/policies/pages/kullanim-sartlari-ve-kosullari.blade.php
+A	resources/views/policies/pages/kvkk.blade.php
+A	resources/views/policies/pages/odeme-ve-depozito-sartlari.blade.php
+A	resources/views/policies/pages/tibbi-yasal-uyari.blade.php
+A	resources/views/policies/pages/yayin-politikasi.blade.php
+A	resources/views/policies/show.blade.php
+M	resources/views/privacy/clinic.blade.php
+M	resources/views/privacy/footer-links.blade.php
+M	resources/views/privacy/notice.blade.php
+M	resources/views/privacy/rights.blade.php
+M	resources/views/support-tickets-dialog.blade.php
+M	resources/views/welcome.blade.php
+M	resources/views/workspace-registration.blade.php
+M	routes/api.php
+M	routes/console.php
+M	routes/web.php
+M	tests/Feature/AdminBusinessTest.php
+A	tests/Feature/AdminDashboardTest.php
+A	tests/Feature/AdminPatientAccountTest.php
+M	tests/Feature/AdminPlatformContractTest.php
+M	tests/Feature/AppointmentConcurrencyTest.php
+M	tests/Feature/AuthControllerTest.php
+M	tests/Feature/CatalogManagementAccessTest.php
+M	tests/Feature/CatalogVisibilityTest.php
+M	tests/Feature/ClinicConsentTemplateTest.php
+M	tests/Feature/ClinicConsentTemplateVersionTest.php
+M	tests/Feature/ClinicFinanceReportTest.php
+A	tests/Feature/ClinicOperationsConcurrencyTest.php
+M	tests/Feature/ConversationTest.php
+M	tests/Feature/LaunchWorkflowTest.php
+M	tests/Feature/LocalBackupTest.php
+M	tests/Feature/MessageAttachmentTest.php
+M	tests/Feature/OfferCreationTest.php
+M	tests/Feature/PatientRegistrationTest.php
+A	tests/Feature/PlatformSupportAccessTest.php
+A	tests/Feature/PlatformSupportMigrationTest.php
+A	tests/Feature/PolicyPagesTest.php
+A	tests/Feature/QueueFailurePrivacyTest.php
+A	tests/Feature/ReleaseHardeningTest.php
+M	tests/Feature/ReleaseReadinessTest.php
+M	tests/Feature/ReminderScheduleTest.php
+M	tests/Feature/SupportTicketTest.php
+M	tests/TestCase.php
+A	tests/workspace-api.test.js
+```
+
+</details>
