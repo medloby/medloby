@@ -4,7 +4,11 @@
 
 **Güncel durum** İlk sürümün klinik başvurusu ve onayı, şube yetkili CRM, hasta görüşmesi, özel teklif ve seans randevusu akışları test ortamında doğrulandı. Ücretsiz klinik planı seçimi, bekleme bildirimi, destek talepleri, hasta süreci, seyahat planı ve şube gelir-gider takibi de çalışıyor. Canlı kurulum ve ilk klinikle yapılacak yayın provası için aşağıdaki sıra izlenir. [Yayın öncesi kontrol listesi](README.md#medloby-yayına-çıkmadan-önce)
 
+GitHub tesliminin ve `main` dalındaki otomatik testlerin güncel kaydı ana envanterde tutulur. Hostinger satın alma ve kurulum durumu **DEFERRED BY OWNER**. [Teslim kaydı](MEDLOBY-TAMAMLAMA-ENVANTERI.md#12-github-teslimi-ve-actions-kabulü)
+
 ## Kapsam ve doğrulama
+
+Aşağıdaki sayılar 23 Kasım incelemesine aittir.
 
 Envanter, Git'in izlediği 539 dosyayı kapsadı. Depoda 179 uygulama dosyası, 75 migration, 53 model, 18 servis ve 92 Feature test dosyası bulunuyor. Uygulamanın rota listesinde 261 API ucu ve 8 web veya sistem rotası var. [API rotaları](routes/api.php)
 

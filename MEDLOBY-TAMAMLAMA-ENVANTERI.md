@@ -2,6 +2,8 @@
 
 ## 1. Yönetim özeti
 
+Güncel GitHub teslimi, Actions sonucu ve üretim kabulü kapsamı 12. bölümde izlenir. Bu belgedeki önceki Git ve test sayıları ilgili inceleme adımının kayıtlarıdır.
+
 | Alan | Durum |
 | --- | --- |
 | İnceleme tarihi | 23 Kasım 2026, Türkiye saati |
@@ -96,7 +98,7 @@ Temiz SQLite kabul veritabanında `migrate` ve şema kontrolü çalıştı. Sağ
 | MC-E04 · `EXTERNAL_BLOCKER` · Platform geliri | Ücretlendirme, ödeme sağlayıcısı, komisyon, vergi/fatura ve iade kararları. | Ücretsiz planlı ilk yayının kapsamı dışında. |
 | MC-E05 · `EXTERNAL_BLOCKER` · SEO ve analitik | Domain sahipliği, Search Console hesabı, varsa GA4 kimliği, tercih ve veri aktarım onayı. | Sitemap ve robots kodu hazır. İndeksleme ve ölçüm yayına bağlanmayı bekliyor. |
 | MC-E06 · `EXTERNAL_BLOCKER` · İşletim güvencesi | Üretim trafik ölçümü, çok düğümlü ortak sayaç, dosya karantinası seçimi, saklama kararları ve gerçek günlüklere yetkili erişim. | Sunucu kapasitesi ve operasyon kabulünü etkiler. |
-| MC-E07 · `EXTERNAL_BLOCKER` · GitHub teslimi | Uzak gönderim için yetkili onay. | Hosted CI, yerel commit’lerin GitHub’a gönderiminden sonra doğrulanabilir. |
+| MC-E07 · GitHub teslimi | Yetkili fast-forward gönderimi ve aynı SHA’nın GitHub Actions sonucu. | [Güncel teslim kaydı](#12-github-teslimi-ve-actions-kabulü) |
 
 ## 9. Git teslimi
 
@@ -107,7 +109,7 @@ Temiz SQLite kabul veritabanında `migrate` ve şema kontrolü çalıştı. Sağ
 | `e7593dd` | SQLite eşzamanlı işlemleri, PostgreSQL uyumu, yıl sınırı ve test süreçleri, MC-D03, MC-I01 ve MC-I02. |
 | `a735254` | Laravel giriş zaman penceresi ve hesap bazında eşdeğer hata regresyonu, MC-D04. |
 
-Başlangıçtan itibaren 39 dosyada değişiklik var. Yeni migration doğrulanmış destek görevlisi rolü alanı ve rol olayı kaydını ekler. Canlı veritabanında uygulanması yetkili dağıtım ve yedek provası sırasında yapılır. Başlangıçta ve kabul sonrası okunan GitHub `main` aynı SHA’dadır. Uzak gönderim bekliyor. Bu belgenin ve test izolasyon düzeltmelerinin son commit’i yerel geçmişte yukarıdaki kod commit’lerini izler.
+Bu aşamada 39 dosya değişti. Doğrulanmış destek görevlisi rolü ve rol olayları için migration eklendi. Canlı veritabanı uygulaması yetkili dağıtım ve yedek provasında yapılır. Aşama sonunda okunan GitHub `main` başlangıç SHA’sındaydı.
 
 ## 10. Son karar
 
@@ -129,7 +131,7 @@ Başlangıçtan itibaren 39 dosyada değişiklik var. Yeni migration doğrulanm�
 | Önceki Master çalışmasının başlangıcı | `25e3f70ddb1fc8eb281530902cfe5508f441a2d8` |
 | Bu uzlaştırmanın başlangıç HEAD’i ve önceki son dokümantasyon commit’i | `17b5572a5ffdff386f285ac467580981dd931580` |
 
-`work` reflog kaydı dalın `FETCH_HEAD` üzerinden oluşturulduğu commit’i gösteriyor. GitHub `main` bu commit’in 144 commit ilerisi ve hem `25e3f70` hem `17b5572` için doğrudan ata. `git merge-base` iki karşılaştırmada da `2991bb17` döndürdü. Önceki başlangıç `main` dalından 19 commit, bu uzlaştırmanın başlangıcı 24 commit ilerideydi. GitHub `main` tarafında yerelde bulunmayan commit yok. Çalışma ağacı temizdi. Git teslimi fast-forward yapılabilir ve gönderim onayına bağlıdır.
+`work` reflog kaydı dalın `FETCH_HEAD` üzerinden oluşturulduğu commit’i gösteriyor. Bu aşamada okunan `main` bu commit’in 144 commit ilerisinde ve hem `25e3f70` hem `17b5572` için doğrudan ataydı. `git merge-base` iki karşılaştırmada da `2991bb17` döndürdü. Önceki başlangıç `main` dalından 19 commit, bu uzlaştırmanın başlangıcı 24 commit ilerideydi. Uzak tarafta ilave commit yoktu ve çalışma ağacı temizdi.
 
 ### Bu uzlaştırmada tamamlananlar
 
@@ -168,11 +170,11 @@ Canlı kabul için gerçek sunucu erişimi, DNS/TLS, yönlendirme ve özel disk,
 | Bağımlılık ve sır taraması | npm danışma kayıtlarında 0 bulgu. Composer platform gereksinimleri geçti. Packagist güvenlik uç noktası bu ortamdan 403 döndürdü. GitHub Advisory Database, kilitli 133 Composer sürümünde 0 eşleşme gösterdi. Maskeli Gitleaks taraması Git geçmişi, izlenen kaynak, derlenmiş arayüz ve yerel uygulama günlüğünde 0 bulgu. |
 | Yayın komutu | Yapılandırılmış sentetik ortamda çıkış kodu 0. Çalışma alanında çıkış kodu 1. Şema, oturum deposu, arayüz, özel disk ve kuyruk hazır. Üretim ayarları, HTTPS, güvenli çerez, API süresi, ilk doğrulanmış yönetici, yürürlükteki sözleşme, KVKK/politika yayını ve SMTP bekliyor. |
 
-Bu uzlaştırmada açık kalan doğrulanmış bir kod hatası saptanmadı. Canlı güvenlik, hukuk ve gizlilik kabulü, yetkili dağıtım ve hosted CI yukarıdaki kararlara ve erişime bağlıdır. Üç kod ve test commit’i ile bu dokümantasyon commit’i dahil GitHub `main` dalının 28 commit ilerisinde 137 dosya değişikliği var.
+Bu uzlaştırmada açık kalan doğrulanmış bir kod hatası saptanmadı. Üç kod ve test commit’i ile uzlaştırma raporu dahil dal, gönderim öncesi GitHub `main` dalının 28 commit ilerisindeydi. 137 dosya değişmişti.
 
 ### Yerel commit ve dosya envanteri
 
-Dört eklemeli migration uzakta henüz yok. Bunlar destek atama geçmişini, sözleşme yayın denetimini, atanmış destek rolünü ve klinik üyelik işlem geçmişini içeriyor. Yerel ilk 27 commit aşağıda. Bu envanteri kaydeden son dokümantasyon commit’i listeyi izler.
+Dört eklemeli migration destek atama geçmişini, sözleşme yayın denetimini, atanmış destek rolünü ve klinik üyelik işlem geçmişini içeriyor. Uzlaştırma aşamasındaki ilk 27 commit aşağıda. Bu envanteri kaydeden `33e9b4e` commit’i listeyi izler.
 
 <details>
 <summary>GitHub main üstündeki yerel commit’ler</summary>
@@ -353,3 +355,16 @@ A	tests/workspace-api.test.js
 ```
 
 </details>
+
+## 12. GitHub teslimi ve Actions kabulü
+
+24 Kasım 2026 teslim kapsamı, `2991bb17a6c772a19459de864067d44d20459572` üzerindeki `33e9b4e1cbd831092021a84a6404e4ce1480932c` uzlaştırmasını ve güncel dokümantasyonu kapsar. Önceki uzlaştırma 28 commit ve 137 değişen dosya içeriyordu. [Canlı GitHub ana dalı](https://github.com/medloby/medloby/commits/main/)
+
+Hosted CI kabulü için `main` üzerindeki teslim SHA’sına ait **Medloby CI** çalışmasında SQLite, PostgreSQL 17, ön yüz derlemesi, Node testleri ve güvenlik adımları başarılı olmalıdır. GitHub çalışma kaydı commit kimliğini, iş adımlarını ve sonucu birlikte gösterir. [Main dalı için Medloby CI](https://github.com/medloby/medloby/actions/workflows/ci.yml?query=branch%3Amain)
+
+| Kapsam | Durum |
+| --- | --- |
+| Üretim kabulü | `PRODUCTION_ACCEPTANCE_PENDING`. Yetkili deneme ortamı, DNS/TLS, gerçek e-posta, üretim yedek geri dönüşü ve işletim onayları bekliyor. |
+| Hukuk ve gizlilik | `LEGAL_APPROVAL_REQUIRED`. İşletmeci, KVKK kanalları, veri saklama ve yayımlanacak metinler doğrulanacak. |
+| Hostinger satın alma ve kurulum | `DEFERRED BY OWNER`. |
+| Clinic AI Premium | `DEFERRED`. |

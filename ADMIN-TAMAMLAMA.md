@@ -1,5 +1,7 @@
 # Medloby Admin Completion
 
+Güncel yönetim kapsamı ve GitHub teslimi için son kabul kaydı kullanılır. ADMIN-G0 ve ADMIN-G1 tabloları ilk inceleme ve geliştirme koşullarını kaydeder. [Teslim ve test kanıtı](MEDLOBY-TAMAMLAMA-ENVANTERI.md#12-github-teslimi-ve-actions-kabulü)
+
 ## ADMIN-G0 — Mevcut depo incelemesi
 
 İnceleme `2991bb17a6c772a19459de864067d44d20459572` sürümünde yapıldı. `git fetch origin` sonrasında `origin/main` aynı commit’i gösterdi. Çalışma ağacı başlangıçta temizdi.
@@ -36,7 +38,7 @@ Mimari karar, platform yönetimini ayrı sayfada açmak ve mevcut yönetim diyal
 | FOCUSED TEST ve INTEGRATION TEST | Kimlik, rol, Türkiye saati sınırı, süre dolumu, veri gizliliği ve boş durumlar test edildi. Klinik, sözleşme, destek ve ilk kurulumla birlikte 124 ilgili test geçti. |
 | FULL REGRESSION ve FRONTEND BUILD | SQLite 1.075, PostgreSQL 17 1.078 test geçti. Üç yedekleme testi PostgreSQL üzerinde çalıştı. Vite ve Blade derlemeleri geçti. Chromium’da masaüstü ve mobil giriş, altı yönetim diyalogu, grafik tablosu ve yetkisiz giriş doğrulandı. [Yönetim testleri](tests/Feature/AdminDashboardTest.php) |
 | RESULT ve REMAINING RISKS | COMPLETE. Canlı ortam kabulü ve genişletilmiş rol yetkileri sonraki aşamada. |
-| COMMIT, PUSH STATUS ve NEXT GROUP | Yerel `4045328`. GitHub gönderimi onay bekliyor. Sonraki güvenli işler klinik ve hasta yönetimiyle devam ediyor. |
+| İlk geliştirme commit’i | `4045328`. Sonraki yönetim işleri aşağıdaki gruplarda izlenir. |
 
 Platform yönetimi tek ekran olarak `/yonetim` adresinde açılır. Üyelik sözleşmesi, klinik başvurusu, klinik ve ortak katalog yönetimi ile yönetici destek kuyruğu bu adreste toplanır. Paket ve Teklifler sayfasındaki yönetici bağlantısı ile başvuru ve destek bildirimleri aynı adrese gider. Hasta ve klinik hesabının kendi destek talepleri Paket ve Teklifler sayfasından açılabilir. [Tek paneli doğrulayan test](tests/Feature/AdminDashboardTest.php)
 
@@ -44,7 +46,7 @@ Platform yönetimi tek ekran olarak `/yonetim` adresinde açılır. Üyelik söz
 
 Doğrulanmış platform yöneticisi, aynı `/yonetim` ekranından doğrulanmış hesap numarasına destek görevlisi yetkisi verebilir veya geri alabilir. İşlem mevcut erişim anahtarlarını iptal eder ve **İşlem geçmişi** bölümüne kaydedilir. Görevli aynı giriş ekranından kendisine atanan talepleri görür ve açık talepleri yanıtlar. Atama, kapatma ve yeniden açma uçları tam yöneticiye ayrılmıştır. Mevcut tam yöneticilerin ve son yöneticinin `is_admin` yetkisi bu işlemden değiştirilemez. Diğer platform rollerinin kapsamı ve canlı geçiş onayı bekliyor. [Rol testleri](tests/Feature/PlatformSupportAccessTest.php)
 
-**İşlem geçmişi** başvuru kararlarını, klinik durum değişikliklerini, sözleşme yayımlama ve yayından kaldırma işlemlerini, destek yanıtlarını ve atamaları tek listede gösterir. Sözleşmeyi yayımlayan ve yayından kaldıran yöneticiler ilgili işlem anında mevcut sözleşme kaydına yazılır. Eski yayımlama kayıtlarında tarih korunur ve işlemi yapan hesap kayıtlı değilse ekranda bu bilgi gösterilir. Ayrıntılı notlar ve mesajlar kendi yetkili ekranlarında kalır. Rol ve izin değişikliklerinin ortak denetimi yetki geçişiyle planlanır. [İşlem geçmişi sorgusu](app/Services/PlatformAdminAudit.php)
+**İşlem geçmişi** başvuru kararlarını, klinik durum değişikliklerini, sözleşme yayın işlemlerini, destek yanıtlarını ve atamaları tek listede gösterir. Destek görevlisi yetkisinin verilmesi ve kaldırılması ile klinik üyelerinin rol, durum ve özel izin değişiklikleri de aynı geçmişten izlenir. Eski sözleşme kayıtlarında yayın tarihi korunur ve işlemi yapan hesap kayıtlı değilse ekranda bu bilgi gösterilir. Ayrıntılı notlar ve mesajlar kendi yetkili ekranlarında kalır. [İşlem geçmişi sorgusu](app/Services/PlatformAdminAudit.php) · [Yönetim testleri](tests/Feature/AdminDashboardTest.php)
 
 ## ADMIN-G3 — Klinik ve hasta hesabı yönetimi
 

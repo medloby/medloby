@@ -1,5 +1,7 @@
 # Medloby güvenlik ve yayın envanteri
 
+GitHub teslimi ve `main` dalındaki güncel Actions sonucu ana kabul raporundan izlenir. Bu belgedeki tarihli tablolar ilgili inceleme anının kanıtlarını saklar. [Teslim kaydı](MEDLOBY-TAMAMLAMA-ENVANTERI.md#12-github-teslimi-ve-actions-kabulü)
+
 İnceleme tarihi 23 Kasım 2026. Başlangıç çalışma ağacı temizdi. Yerel `work` dalı `cf9863c` ile başladı. GitHub üzerinden okunan `main` ucu `2991bb17a6c772a19459de864067d44d20459572`. Yerel depo sığ klon değildi. Başlangıçta erişilebilir ref’lerde 286 commit vardı. Rota envanterinde 302 kayıt, bunların içinde 285 API kaydı ve oturum şartı olmayan 23 API kaydı vardı.
 
 ## Durum ve kanıtlar
@@ -143,11 +145,11 @@ Olay sorumlusu, işletim görevlisi, KVKK bildirim görevlisi, acil iletişim nu
 | CHANGED FILES / MIGRATIONS / COMPATIBILITY | [Yayın kontrolü](app/Console/Commands/CheckReleaseReadiness.php), [disk ayarları](config/filesystems.php), [Sanctum](config/sanctum.php), [yedekleme](app/Services/LocalBackup.php), [günlük](bootstrap/app.php), [konuşma eki](app/Http/Controllers/ConversationController.php), [kuyruk işçisi](app/Console/PrivateQueueWorkCommand.php), [teklif bildirimi](app/Notifications/NewOfferNotification.php). Yeni migration yok. Eski `local` ekleri yetkili görüşme rotasıyla açılır. Önceki kuyruk işleri Laravel tarafından işlenir. Yeni hata kaydı yeniden denemeye uygun kuyruk yükünü tutar. Üretim süresi seçildiğinde bu süre daha önce açılmış bearer oturumlarına da uygulanır. |
 | TEST RESULTS | Önceki kabulde 187 odak testi ve 1.344 doğrulama tamamlandı. Gerçek yerel HTTP’de CSRF belirteci eksik şifre isteği 419 döndürdü. PHP 421 dosyada ve JS sözdizimi kontrolü geçti. Kuyruk güvenliğinde 85 odak testi ve 623 doğrulama tamamlandı. Web kökü ve özel dosyalarda 59 odak testi ve 351 doğrulama tamamlandı. Yedekleme ve yayın denetiminde 48 odak testi ve 286 doğrulama tamamlandı. Kuyruk hazırlığında 82 odak testi ve 831 doğrulama tamamlandı. Oturum denetiminde 12 PHP ve dört Node testi ile Chromium provası geçti. Dört Node testi mevcut CI iş akışına eklendi. Vite, Blade ve rota önbelleği önceki kabul adımlarında doğrulandı. |
 | FULL REGRESSION | SQLite 1.142 test, 7.160 doğrulama. PostgreSQL 17, SQLite’ta atlanan üç yedekleme senaryosuyla birlikte 1.145 test ve 7.183 doğrulamayı tamamladı. [Ana kabul raporu](MEDLOBY-TAMAMLAMA-ENVANTERI.md) |
-| CI STATUS | GitHub’daki son başarılı kaydın SHA’sı `2991bb17a6c7`. Bu yerel değişikliklerin hosted CI sonucu `NOT TESTED`. |
+| İnceleme başlangıcındaki CI | `2991bb17a6c7` için 95 numaralı çalışma başarılıydı. [İnceleme başlangıcı CI kaydı](https://github.com/medloby/medloby/actions/runs/45208645825) |
 | SECURITY ACCEPTANCE | Yerel kod ve sentetik kontroller PASS. Semgrep 265 kaynağı değerlendirdi, beş kısmi PHP ayrıştırma sınırı çıktı. İşaretlenen SQL ve yetkili HTML akışı elle gözden geçirildi. Canlı sistem kabulü bekliyor. |
 | PRIVACY ACCEPTANCE | `LEGAL_APPROVAL_REQUIRED`. Veri envanteri ve işletim taslağı güncellendi. |
 | PRODUCTION ACCEPTANCE / FINAL VERDICT | `NOT READY FOR PRODUCTION`. Yerel yayın komutu şemayı ve özel depolamayı hazır gördü. HTTPS, güvenli çerez, oturum süresi, ilk yönetici, sözleşme, KVKK, politika ve SMTP için beklenen eksikler bildirildi. |
-| COMMIT / PUSH STATUS | Teslim yerel commit’te. Uzak gönderim onay bekliyor. |
+| GitHub teslimi | Güncel teslim ve CI durumu ana kabul raporunda izlenir. [Teslim kaydı](MEDLOBY-TAMAMLAMA-ENVANTERI.md#12-github-teslimi-ve-actions-kabulü) |
 
 ## 24 Kasım 2026 güvenlik ve yayın kabul güncellemesi
 

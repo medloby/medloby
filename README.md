@@ -13,6 +13,8 @@ Uygulama mimarisi, tamamlanan işler, eksikler ve geliştirme sırası proje yol
 
 Güncel modül kabulü, kod bulguları, test kanıtları ve yayını bekleten kararlar ana envanterde yer alır. [Tamamlama ve yayın raporu](MEDLOBY-TAMAMLAMA-ENVANTERI.md)
 
+`main` dalındaki yazılım teslimi ve GitHub Actions kabulü, aynı commit’in CI çalışması üzerinden izlenir. Canlı yayın koşulları aşağıdaki listede tutulur. [Teslim kaydı](MEDLOBY-TAMAMLAMA-ENVANTERI.md#12-github-teslimi-ve-actions-kabulü) · [Medloby CI](https://github.com/medloby/medloby/actions/workflows/ci.yml?query=branch%3Amain)
+
 ## Kurulum gereksinimleri
 
 Medloby ve kilitli PHP paketleri için en düşük sürüm PHP 8.4.1’dir. GitHub Actions, PHP 8.4 serisinin güncel sürümü ve Node.js 24 ile derleme ve test yapar.
@@ -50,6 +52,8 @@ php artisan medloby:release-check --no-interaction
 ```
 
 Komut mevcut ayarları, veritabanı bağlantısını ve migration kayıtlarını, yönetici hesabını ve yürürlükteki klinik üyelik sözleşmesini salt okunur biçimde kontrol eder. Yayın dosyalarının kontrolüne Vite bildirimi, bağlı CSS ve JavaScript dosyaları ile yerel yazı tipi bildirimi ve dosyaları dahildir. Özel depolama kontrolü, web dizinindeki sembolik bağlantılar üzerinden özel bir klasöre veya dosyaya ulaşılıp ulaşılmadığını da denetler. Her madde için **Hazır**, **Eksik** veya **Bekliyor** gösterir. Tüm maddeler hazırsa çıkış kodu `0`, eksik veya bekleyen madde varsa `1` olur.
+
+Oturum deposu istekler arasında korunabilmelidir. Veritabanı oturumlarında gerekli tablo sütunları kontrol edilir. Dosya tabanlı oturum dizini yazılabilir olmalı ve web kökünün dışında kalmalıdır.
 
 Kuyruk için iş tablosunun gerekli sütunları ve `QUEUE_FAILED_DRIVER` ile seçilen başarısız iş deposu ayrı denetlenir. Varsayılan `database-uuids` ayarı, yeniden deneme için `uuid` sütunu olan başarısız iş tablosunu kullanır. Dosya tabanlı depoda web üzerinden erişilemeyen yazılabilir bir hedef gerekir. Platform yönetimindeki kuyruk yapılandırması bu iki kontrolün sonucunu gösterir.
 
