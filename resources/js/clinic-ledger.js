@@ -26,11 +26,18 @@ export function mountClinicLedger(panel, api, onChanged) {
     const referenceStatus = find('reference-status');
     const reports = mountClinicFinanceReports(panel.querySelector('[data-finance-reports]'), api, amount);
     const balances = mountClinicBalances(find('balances'), api, (balance) => {
-        if (scope?.data?.can_manage) {
-            openEditor(null, balance);
-            editor.scrollIntoView({ block: 'nearest' });
+        if (!scope) {
+            return;
         }
-    });
+        if (!scope.data) {
+            scope.pendingBalance = balance;
+            load();
+            return;
+        }
+        if (scope.data.can_manage) {
+            openBalanceEditor(balance);
+        }
+    }, onChanged);
     let scope;
     let lookup = 0;
 
@@ -53,6 +60,11 @@ export function mountClinicLedger(panel, api, onChanged) {
         const expense = kind.value === 'expense';
         find('category').hidden = !expense;
         editor.elements.namedItem('expense_category').disabled = !expense;
+    }
+
+    function openBalanceEditor(balance) {
+        openEditor(null, balance);
+        editor.scrollIntoView({ block: 'nearest' });
     }
 
     function showReferenceStatus(message = '') {
@@ -212,6 +224,10 @@ export function mountClinicLedger(panel, api, onChanged) {
         if (result) {
             render(result);
             showStatus(confirmation);
+            if (active.pendingBalance && result.can_manage) {
+                openBalanceEditor(active.pendingBalance);
+            }
+            delete active.pendingBalance;
         } else {
             controls.hidden = true;
             retry.hidden = false;
@@ -297,6 +313,14 @@ export function mountClinicLedger(panel, api, onChanged) {
     });
 
     return {
+        openOverdue() {
+            if (!scope) {
+                return false;
+            }
+            panel.open = true;
+            balances.openOverdue();
+            return true;
+        },
         setBranch(id, businessId) {
             const path = id ? '/branches/' + id + '/crm/ledger' : undefined;
             if (scope?.path === path) {

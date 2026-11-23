@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Appointment;
 use App\Models\Branch;
+use App\Models\BranchBalance;
+use App\Models\BranchInventoryItem;
 use App\Models\BranchLedgerEntry;
 use App\Models\Business;
 use App\Models\CrmLead;
@@ -13,6 +15,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class ClinicManagementController extends Controller
 {
@@ -29,6 +32,15 @@ class ClinicManagementController extends Controller
         $end = $month->endOfMonth();
         $branchIds = $branches->modelKeys();
         $financialBranches = $branches->filter(fn (Branch $branch) => $actor->branchFinancePermissions($branch->setRelation('business', $business)) !== [])->modelKeys();
+        $inventoryBranches = $branches->filter(fn (Branch $branch) => $actor->branchInventoryPermissions($branch) !== [])->modelKeys();
+        $today = CarbonImmutable::today('Europe/Istanbul');
+        $overdue = BranchBalance::query()->select(['branch_id', 'currency', 'direction', 'amount_minor'])
+            ->whereIn('branch_id', $financialBranches)->overdue($today)->withSettlementTotal();
+        $overdueByBranch = DB::query()->fromSub($overdue, 'overdue_balances')->groupBy('branch_id', 'currency', 'direction')
+            ->selectRaw('branch_id, currency, direction, COUNT(*) AS records, SUM(amount_minor - settled_minor) AS remaining_minor')
+            ->orderBy('currency')->orderBy('direction')->get()->groupBy('branch_id');
+        $lowStockByBranch = BranchInventoryItem::query()->whereIn('branch_id', $inventoryBranches)->lowStock()
+            ->groupBy('branch_id')->selectRaw('branch_id, COUNT(*) AS items')->pluck('items', 'branch_id');
         $cash = BranchLedgerEntry::query()->whereIn('branch_id', $financialBranches)->whereNull('voided_at')
             ->recordedBetween($month, $end)->withAmountTotals(['branch_id', 'currency'])->orderBy('currency')->get()->groupBy('branch_id');
         $visitMetrics = $performance->summarize($business->id, $branchIds, $month);
@@ -56,6 +68,7 @@ class ClinicManagementController extends Controller
 
         return response()->json(['success' => true, 'data' => [
             'month' => $month->format('Y-m'),
+            'alerts_on' => $today->toDateString(),
             'summary' => [
                 'open_tasks' => (int) $open->sum(), 'lead_count' => (int) $leads->sum('lead_count'),
                 'offered_count' => (int) $leads->sum('offered_count'), 'booked_count' => (int) $leads->sum('booked_count'),
@@ -70,6 +83,11 @@ class ClinicManagementController extends Controller
                 'offered_count' => (int) ($leads->get($branch->id)?->offered_count ?? 0),
                 'booked_count' => (int) ($leads->get($branch->id)?->booked_count ?? 0),
                 'cash' => in_array($branch->id, $financialBranches, true) ? $cash->get($branch->id, collect())->map->amountTotals()->all() : null,
+                'overdue_balances' => in_array($branch->id, $financialBranches, true) ? $overdueByBranch->get($branch->id, collect())->map(fn (object $row): array => [
+                    'direction' => $row->direction, 'currency' => $row->currency, 'count' => (int) $row->records,
+                    'remaining' => BranchLedgerEntry::formatAmount((int) $row->remaining_minor),
+                ])->all() : null,
+                'low_stock_count' => in_array($branch->id, $inventoryBranches, true) ? (int) $lowStockByBranch->get($branch->id, 0) : null,
             ])->all(),
             'performance' => $visitMetrics['counts'],
             'doctors' => $visitMetrics['doctors'],

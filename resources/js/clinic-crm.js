@@ -39,13 +39,17 @@ export function mountClinicCrm(section, api, { openConversation, ...appointmentD
     });
     const treatmentPrices = mountClinicTreatmentPrices(find('prices'), api);
     const socialLinks = mountClinicSocialLinks(find('social-links'), api);
-    const management = mountClinicManagement(find('management'), api, async (visit) => {
-        if (await selectRecordBranch(visit)) {
-            await calendar.openAppointment(visit, { showCard: true });
-        }
+    const management = mountClinicManagement(find('management'), api, {
+        async openAppointment(visit) {
+            if (await selectRecordBranch(visit)) {
+                await calendar.openAppointment(visit, { showCard: true });
+            }
+        },
+        openOverdue: (record) => openManagementPanel(record, ledger.openOverdue),
+        openLowStock: (record) => openManagementPanel(record, inventory.openLowStock),
     });
     const ledger = mountClinicLedger(find('ledger'), api, management.refresh);
-    const inventory = mountClinicInventory(find('inventory'), api);
+    const inventory = mountClinicInventory(find('inventory'), api, management.refresh);
     const calendar = mountClinicCalendar(find('calendar'), api, {
         ...appointmentDialogs, openLead: (id) => leads.openLead(id),
     });
@@ -62,6 +66,7 @@ export function mountClinicCrm(section, api, { openConversation, ...appointmentD
     });
     let businessId = null;
     let businessLoad;
+    let branchLoad;
     let canManageOperations = false;
     let request = 0;
     let stageRequest = 0;
@@ -140,6 +145,7 @@ export function mountClinicCrm(section, api, { openConversation, ...appointmentD
 
     async function loadBusiness(preferredBranch = '') {
         const pending = ++request;
+        branchLoad = null;
         resetStageEditor();
         setBranchPanels(null);
         clearSummary();
@@ -216,7 +222,7 @@ export function mountClinicCrm(section, api, { openConversation, ...appointmentD
     branch.addEventListener('change', () => {
         resetStageEditor();
         setBranchPanels(branch.value);
-        refreshDashboard();
+        branchLoad = refreshDashboard();
     });
 
     stageForm.addEventListener('submit', async (event) => {
@@ -262,6 +268,19 @@ export function mountClinicCrm(section, api, { openConversation, ...appointmentD
         }
 
         return true;
+    }
+
+    async function openManagementPanel(record, open) {
+        if (!await selectRecordBranch(record)) {
+            management.refresh();
+            return;
+        }
+        const loading = branchLoad;
+        await loading;
+        if (loading === branchLoad && String(record.business_id) === businessId && String(record.branch_id) === branch.value && !open()) {
+            showStatus('Bu şubedeki kaydı açma yetkinizi kontrol edin.');
+            management.refresh();
+        }
     }
 
     return {

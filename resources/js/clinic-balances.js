@@ -2,7 +2,7 @@ import { clinicAction, clinicPager, clinicRecordRow, clinicRequestKey, clinicSta
 
 const channels = { cash: 'Kasa', bank: 'Banka' };
 
-export function mountClinicBalances(panel, api, settle) {
+export function mountClinicBalances(panel, api, settle, onChanged) {
     const find = (part) => panel.querySelector('[data-balances-' + part + ']');
     const editor = find('editor');
     const field = (name) => editor.elements.namedItem(name);
@@ -65,6 +65,7 @@ export function mountClinicBalances(panel, api, settle) {
             if (current === scope) {
                 clinicStatus(status);
                 apply(data);
+                return true;
             }
         } catch (error) {
             if (current === scope) {
@@ -72,6 +73,11 @@ export function mountClinicBalances(panel, api, settle) {
             }
         } finally {
             current.busy = false;
+            if (current === scope && current.nextPage !== undefined) {
+                const nextPage = current.nextPage;
+                delete current.nextPage;
+                load(nextPage);
+            }
         }
     }
 
@@ -129,7 +135,15 @@ export function mountClinicBalances(panel, api, settle) {
 
     function load(page = 1) {
         const current = scope;
-        return run(current, 'Borç ve alacaklar yükleniyor…', () => api(current.path + '?page=' + page + '&status=' + filter.value), render);
+        if (current?.busy) {
+            current.nextPage = page;
+            return;
+        }
+        return run(current, 'Borç ve alacaklar yükleniyor…', () => api(current.path + '?page=' + page + '&status=' + filter.value), (data) => {
+            if (current.nextPage === undefined) {
+                render(data);
+            }
+        });
     }
 
     async function updateStatus(record) {
@@ -138,10 +152,11 @@ export function mountClinicBalances(panel, api, settle) {
         if (voiding && !window.confirm('Bu borç veya alacak kaydı iptal edilsin mi?')) {
             return;
         }
-        await run(current, 'Kayıt güncelleniyor…', () => api(current.path + '/' + record.id + '/status', {
+        const saved = await run(current, 'Kayıt güncelleniyor…', () => api(current.path + '/' + record.id + '/status', {
             revision: record.revision, status: voiding ? 'voided' : 'active',
         }, 'PUT'), closeEditor);
-        if (current === scope && !status.textContent) {
+        if (saved && current === scope) {
+            onChanged();
             load();
         }
     }
@@ -152,10 +167,11 @@ export function mountClinicBalances(panel, api, settle) {
         const editing = current.editor;
         const values = Object.fromEntries(new FormData(editor));
         values.currency = values.currency.toUpperCase();
-        await run(current, 'Kayıt kaydediliyor…', () => editing.record
+        const saved = await run(current, 'Kayıt kaydediliyor…', () => editing.record
             ? api(current.path + '/' + editing.record.id, { ...values, revision: editing.record.revision }, 'PUT')
             : api(current.path, { ...values, request_key: editing.key }), closeEditor);
-        if (current === scope && !status.textContent) {
+        if (saved && current === scope) {
+            onChanged();
             load();
         }
     });
@@ -200,8 +216,21 @@ export function mountClinicBalances(panel, api, settle) {
             clinicPager(find('pages'), null);
             clinicStatus(status);
         },
+        openOverdue() {
+            if (!scope) {
+                return;
+            }
+            filter.value = 'overdue';
+            panel.open = true;
+            panel.querySelector('summary').focus();
+            find('history').hidden = true;
+            scope.historyRequest++;
+            find('list').replaceChildren();
+            clinicPager(find('pages'), null);
+            load();
+        },
         refresh() {
-            if (panel.open) {
+            if (scope && panel.open) {
                 find('history').hidden = true;
                 scope.historyRequest++;
                 load();

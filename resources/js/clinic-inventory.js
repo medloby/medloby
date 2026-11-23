@@ -2,7 +2,7 @@ import { clinicAction, clinicPager, clinicRecordRow, clinicRequestKey, clinicSta
 
 const dateTime = new Intl.DateTimeFormat('tr-TR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Istanbul' });
 
-export function mountClinicInventory(panel, api) {
+export function mountClinicInventory(panel, api, onChanged) {
     const find = (part) => panel.querySelector('[data-inventory-' + part + ']');
     const filter = find('filter');
     const editor = find('editor');
@@ -50,6 +50,7 @@ export function mountClinicInventory(panel, api) {
             if (current === scope) {
                 clinicStatus(status);
                 apply(data);
+                return true;
             }
         } catch (error) {
             if (current === scope) {
@@ -57,6 +58,11 @@ export function mountClinicInventory(panel, api) {
             }
         } finally {
             current.busy = false;
+            if (current === scope && current.nextPage !== undefined) {
+                const nextPage = current.nextPage;
+                delete current.nextPage;
+                load(nextPage);
+            }
         }
     }
 
@@ -101,9 +107,17 @@ export function mountClinicInventory(panel, api) {
 
     function load(page = 1) {
         const current = scope;
+        if (current?.busy) {
+            current.nextPage = page;
+            return;
+        }
         const query = new URLSearchParams(new FormData(filter));
         query.set('page', page);
-        return run(current, 'Stok listesi yükleniyor…', () => api(current.path + '?' + query), render);
+        return run(current, 'Stok listesi yükleniyor…', () => api(current.path + '?' + query), (data) => {
+            if (current.nextPage === undefined) {
+                render(data);
+            }
+        });
     }
 
     filter.addEventListener('submit', (event) => {
@@ -115,10 +129,11 @@ export function mountClinicInventory(panel, api) {
         const current = scope;
         const item = current.item;
         const values = Object.fromEntries(new FormData(editor));
-        await run(current, 'Malzeme kaydediliyor…', () => item
+        const saved = await run(current, 'Malzeme kaydediliyor…', () => item
             ? api(current.path + '/' + item.id, { ...values, revision: item.revision }, 'PUT')
             : api(current.path, values), closeForms);
-        if (current === scope && !status.textContent) {
+        if (saved && current === scope) {
+            onChanged();
             load();
         }
     });
@@ -127,10 +142,11 @@ export function mountClinicInventory(panel, api) {
         const current = scope;
         const item = current.item;
         const values = Object.fromEntries(new FormData(movement));
-        await run(current, 'Stok hareketi kaydediliyor…', () => api(current.path + '/' + item.id + '/movements', {
+        const saved = await run(current, 'Stok hareketi kaydediliyor…', () => api(current.path + '/' + item.id + '/movements', {
             ...values, request_key: current.key,
         }), closeForms);
-        if (current === scope && !status.textContent) {
+        if (saved && current === scope) {
+            onChanged();
             load();
             history(item);
         }
@@ -145,6 +161,21 @@ export function mountClinicInventory(panel, api) {
     });
 
     return {
+        openLowStock() {
+            if (!scope) {
+                return false;
+            }
+            filter.reset();
+            filter.elements.namedItem('low').checked = true;
+            panel.open = true;
+            panel.querySelector('summary').focus();
+            find('history').hidden = true;
+            scope.historyRequest++;
+            find('list').replaceChildren();
+            clinicPager(find('pages'), null);
+            load();
+            return true;
+        },
         setBranch(id) {
             const path = id ? '/branches/' + id + '/crm/inventory' : null;
             if ((scope?.path ?? null) === path) {

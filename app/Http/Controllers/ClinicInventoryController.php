@@ -24,9 +24,9 @@ class ClinicInventoryController extends Controller
         $permissions = $this->authorizeView($request, $branch);
         $filters = $request->validate(['low' => ['sometimes', 'boolean'], 'q' => ['nullable', 'string', 'max:80']]);
         $items = $this->items($branch);
-        $low = (clone $items)->whereColumn('on_hand', '<=', 'minimum_stock')->count();
+        $low = (clone $items)->lowStock()->count();
         if ($filters['low'] ?? false) {
-            $items->whereColumn('on_hand', '<=', 'minimum_stock');
+            $items->lowStock();
         }
         if (isset($filters['q'])) {
             $term = '%'.$filters['q'].'%';

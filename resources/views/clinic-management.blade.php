@@ -12,6 +12,7 @@
             <h3 id="management-branches-title" class="font-semibold">Şubeler ve hasta dönüşümü</h3>
             <ul class="mt-2 text-sm" data-management-summary></ul>
             <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">Teklif ve randevu sayıları, seçilen ayda açılan adaylarla bağlantılı ve aday kaydından sonra oluşturulan kayıtları gösterir.</p>
+            <p class="mt-1 text-sm text-slate-600 dark:text-slate-300" data-management-alert-date hidden></p>
             <ul class="mt-3 grid gap-3 sm:grid-cols-2" data-management-branches></ul>
         </section>
         <section class="min-w-0" aria-labelledby="management-performance-title">

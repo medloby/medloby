@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -19,5 +21,11 @@ class BranchInventoryItem extends Model
     public function movements(): HasMany
     {
         return $this->hasMany(BranchInventoryMovement::class);
+    }
+
+    #[Scope]
+    protected function lowStock(Builder $query): Builder
+    {
+        return $query->whereColumn('on_hand', '<=', 'minimum_stock');
     }
 }

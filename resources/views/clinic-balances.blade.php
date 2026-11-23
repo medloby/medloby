@@ -4,6 +4,7 @@
         <label class="offer-field">Kayıt durumu
             <select class="offer-control" data-balances-filter>
                 <option value="active">Aktif borç ve alacaklar</option>
+                <option value="overdue">Vadesi geçenler</option>
                 <option value="voided">İptal edilenler</option>
             </select>
         </label>

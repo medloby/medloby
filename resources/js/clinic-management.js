@@ -3,10 +3,11 @@ import { clinicAction, clinicPager, clinicRecordRow, clinicStatus, formatClinicA
 const visitStates = { pending: 'Bekliyor', confirmed: 'Onaylı', completed: 'Tamamlandı', cancelled: 'İptal', no_show: 'Hasta gelmedi' };
 const taskStates = { pending: 'Bekliyor', open: 'Açık', in_progress: 'Devam ediyor', completed: 'Tamamlandı', cancelled: 'İptal' };
 const dateTime = new Intl.DateTimeFormat('tr-TR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Istanbul' });
+const dateOnly = new Intl.DateTimeFormat('tr-TR', { dateStyle: 'medium', timeZone: 'UTC' });
 const number = new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 2 });
 const percentage = (value) => value === null ? '—' : '%' + number.format(value);
 
-export function mountClinicManagement(panel, api, openAppointment) {
+export function mountClinicManagement(panel, api, { openAppointment, openOverdue, openLowStock }) {
     const find = (part) => panel.querySelector('[data-management-' + part + ']');
     const form = find('form');
     const month = form.elements.namedItem('month');
@@ -42,6 +43,24 @@ export function mountClinicManagement(panel, api, openAppointment) {
             line.textContent = text;
             card.append(line);
         }
+        const target = { branch_id: branch.id, business_id: business };
+        const alerts = [];
+        if (branch.overdue_balances?.length) {
+            const overdue = branch.overdue_balances.map((total) => [
+                total.count + (total.direction === 'receivable' ? ' gecikmiş alacak' : ' gecikmiş borç'),
+                formatClinicAmount(total.remaining, total.currency),
+            ].join(' · '));
+            alerts.push(clinicRecordRow(overdue.join(' / '), [clinicAction('Vadeleri aç', () => openOverdue(target))]));
+        }
+        if (branch.low_stock_count > 0) {
+            alerts.push(clinicRecordRow(branch.low_stock_count + ' malzeme düşük stokta', [clinicAction('Düşük stoğu aç', () => openLowStock(target))]));
+        }
+        if (alerts.length) {
+            const list = document.createElement('ul');
+            list.className = 'divide-y divide-amber-200 rounded-lg bg-amber-50 px-2 text-amber-950 dark:divide-amber-800 dark:bg-amber-950 dark:text-amber-100';
+            list.append(...alerts);
+            card.append(list);
+        }
         return card;
     }
 
@@ -49,6 +68,8 @@ export function mountClinicManagement(panel, api, openAppointment) {
         month.value = data.month;
         const branchNames = new Map(data.branches.map((branch) => [branch.id, branch.name]));
         const summary = data.summary;
+        const hasAlerts = data.branches.some((branch) => branch.overdue_balances?.length || branch.low_stock_count > 0);
+        clinicStatus(find('alert-date'), hasAlerts ? 'Vade ve stok uyarıları · ' + dateOnly.format(new Date(data.alerts_on + 'T00:00:00Z')) : '');
         find('summary').replaceChildren(clinicRecordRow(
             data.branches.length + ' şube · ' + summary.open_tasks + ' açık görev · ' + summary.lead_count + ' aday · '
             + summary.offered_count + ' teklif alan · ' + summary.booked_count + ' randevu oluşan',

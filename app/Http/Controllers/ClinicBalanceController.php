@@ -8,6 +8,7 @@ use App\Models\BranchLedgerEntry;
 use App\Models\PatientProfile;
 use App\Rules\PriceAmount;
 use App\Services\BranchPatientSearch;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -29,9 +30,13 @@ class ClinicBalanceController extends Controller
     public function index(Request $request, Branch $branch): JsonResponse
     {
         $permissions = $this->permissions($request, $branch);
-        $status = $request->validate(['status' => ['sometimes', 'required', 'in:active,voided']])['status'] ?? 'active';
-        $balances = $this->balances($branch)->withSum('activeEntries as settled_minor', 'amount_minor');
-        $status === 'voided' ? $balances->whereNotNull('voided_at') : $balances->whereNull('voided_at');
+        $status = $request->validate(['status' => ['sometimes', 'required', 'in:active,voided,overdue']])['status'] ?? 'active';
+        $balances = $this->balances($branch)->withSettlementTotal();
+        match ($status) {
+            'voided' => $balances->whereNotNull('voided_at'),
+            'overdue' => $balances->overdue(CarbonImmutable::today('Europe/Istanbul')),
+            default => $balances->whereNull('voided_at'),
+        };
         $page = $balances->latest('id')->paginate(20)->through($this->summary(...));
 
         return $this->respond(['can_manage' => in_array('finance.manage', $permissions, true), 'balances' => $page]);
@@ -153,7 +158,7 @@ class ClinicBalanceController extends Controller
     private function summary(BranchBalance $balance): array
     {
         $patient = $balance->patient;
-        $settled = (int) ($balance->settled_minor ?? $balance->activeEntries()->sum('amount_minor'));
+        $settled = (int) ($balance->settled_minor ?? $balance->activeEntries()->where('branch_id', $balance->branch_id)->sum('amount_minor'));
         $remaining = $balance->amount_minor - $settled;
 
         return $balance->only(['id', 'direction', 'counterparty', 'description', 'currency', 'revision']) + [
