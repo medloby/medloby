@@ -12,11 +12,7 @@ class ClinicCrmWorkspaceController extends Controller
     public function staffIndex(Request $request): JsonResponse
     {
         $workspaces = $request->user()->businessMemberships()
-            ->whereIn('role', ['manager', 'staff'])->where('is_active', true)
-            ->whereHas('business', fn ($query) => $query->where('status', 'active')->where('is_verified', true))
-            ->whereHas('branches', fn ($query) => $query->where('branches.status', 'active')
-                ->whereColumn('branches.business_id', 'business_user.business_id')
-                ->where('business_user_branch.is_active', true))
+            ->withStaffCrmAccess()
             ->with('business:id,name')
             ->get()
             ->map(fn (BusinessUser $member) => $member->business->only(['id', 'name']))

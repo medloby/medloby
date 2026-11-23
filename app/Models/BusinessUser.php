@@ -49,6 +49,15 @@ class BusinessUser extends Model
                     ->where('business_user_branch.is_active', true)));
     }
 
+    #[Scope]
+    protected function withStaffCrmAccess(Builder $query): Builder
+    {
+        return $query->whereIn('business_user.role', ['manager', 'staff'])->where('business_user.is_active', true)
+            ->whereHas('business', fn (Builder $business) => $business->where('status', 'active')->where('is_verified', true))
+            ->whereHas('branches', fn (Builder $branches) => $branches->where('branches.status', 'active')
+                ->whereColumn('branches.business_id', 'business_user.business_id')->where('business_user_branch.is_active', true));
+    }
+
     public function business(): BelongsTo
     {
         return $this->belongsTo(Business::class);

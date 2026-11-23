@@ -261,14 +261,29 @@ export function mountPackageOffers(root) {
         setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
 
+    function selectedClinicCrm() {
+        return /^#klinik-crm\/([1-9][0-9]*)$/.exec(window.location.hash)?.[1];
+    }
+
+    function canOpenClinicCrm(businessId) {
+        return Boolean(businessId && (
+            String(user.default_crm_business_id) === businessId
+            || ownedBusinesses().some((item) => String(item.id) === businessId && item.status === 'active' && item.is_verified)
+            || clinicApplications.canOpenCrm(businessId) || staffCrmIds.has(businessId)
+        ));
+    }
+
+    function selectedPatientAppointments() {
+        return /^#randevular(?:\/([1-9][0-9]*))?$/.exec(window.location.hash);
+    }
+
     function syncPage(preparedAppointment = null) {
         const browsing = window.location.hash === '#katalog';
         const openingCatalogue = browsing && discoverySection.hidden;
         const verified = Boolean(user?.email_verified_at || user?.staff_business_id);
-        const crmBusiness = /^#klinik-crm\/([1-9][0-9]*)$/.exec(window.location.hash)?.[1];
-        const inCrm = verified && (ownedBusinesses().some((item) => String(item.id) === crmBusiness && item.status === 'active' && item.is_verified)
-            || clinicApplications.canOpenCrm(crmBusiness) || staffCrmIds.has(crmBusiness));
-        const appointmentsTarget = /^#randevular(?:\/([1-9][0-9]*))?$/.exec(window.location.hash);
+        const crmBusiness = selectedClinicCrm();
+        const inCrm = verified && canOpenClinicCrm(crmBusiness);
+        const appointmentsTarget = selectedPatientAppointments();
         const canSeeAppointments = Boolean(user?.email_verified_at && user.patient_profile_exists);
         const inAppointments = Boolean(canSeeAppointments && appointmentsTarget);
         const inJourney = canSeeAppointments && window.location.hash === '#tedavi-surecim';
@@ -1097,14 +1112,16 @@ export function mountPackageOffers(root) {
         }
     }
 
-    async function openVerifiedWorkspace() {
+    async function openVerifiedWorkspace(defaultCrmBusinessId = null) {
+        const currentToken = token;
+        const initialHash = window.location.hash;
         const businesses = ownedBusinesses();
         catalogButton.hidden = businesses.length === 0;
         sharedServicesButton.hidden = !(user.is_admin && user.email_verified_at);
         notifications.start(businesses);
         supportTickets.start(user);
         clinicApplications.setAccount(businesses, true);
-        loadStaffCrm();
+        const staffWorkspaces = loadStaffCrm();
         if (user.is_admin) {
             clinicReview.start();
             clinicAdministration.start();
@@ -1117,6 +1134,19 @@ export function mountPackageOffers(root) {
             rememberPackage(undefined);
             showStatus(notice, 'Paket görüşmesi başlatmak için hasta hesabınızla giriş yapın.');
         }
+        const patientPage = user.patient_profile_exists && (selectedPatientAppointments() || initialHash === '#tedavi-surecim');
+        if (defaultCrmBusinessId && !clinicBookingSelection() && !patientPage) {
+            const clinicId = selectedClinicCrm();
+            if (clinicId && !canOpenClinicCrm(clinicId)) {
+                await staffWorkspaces;
+            }
+            if (currentToken !== token) {
+                return;
+            }
+            if (window.location.hash === initialHash && !canOpenClinicCrm(clinicId)) {
+                window.location.hash = 'klinik-crm/' + defaultCrmBusinessId;
+            }
+        }
         syncPage();
         if (!get('package-request').hidden) {
             confirmPackage.focus();
@@ -1124,7 +1154,7 @@ export function mountPackageOffers(root) {
         await loadConversations(1);
     }
 
-    async function activateSession(sessionToken, openOwnerCrm = false) {
+    async function activateSession(sessionToken, openDefaultCrm = false) {
         token = sessionToken;
         try {
             user = (await api('/me')).user;
@@ -1137,13 +1167,10 @@ export function mountPackageOffers(root) {
         get('account-name').textContent = user.name;
         get('account').hidden = false;
         showStatus(notice);
-        if (openOwnerCrm && user.owner_crm_business_id && clinicBookingSelection() === null) {
-            window.location.hash = 'klinik-crm/' + user.owner_crm_business_id;
-        }
-        syncPage();
         if (user.email_verified_at || user.staff_business_id) {
-            await openVerifiedWorkspace();
+            await openVerifiedWorkspace(openDefaultCrm ? user.default_crm_business_id : null);
         } else {
+            syncPage();
             clinicApplications.setAccount(ownedBusinesses(), false);
         }
     }

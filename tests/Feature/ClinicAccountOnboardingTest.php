@@ -282,6 +282,28 @@ test('a clinic rejection can be retried when the database cannot enqueue the app
     $this->assertDatabaseCount('jobs', 1);
 });
 
+test('the clinic linked to an owners login code takes precedence among their approved workspaces', function () {
+    $otherBusiness = Business::factory()->create();
+    $primaryBusiness = Business::factory()->create();
+    $owner = User::factory()->create(['login_code' => 'klinik-'.$primaryBusiness->id, 'password' => 'klinik-sahibi-123']);
+    foreach ([$otherBusiness, $primaryBusiness] as $business) {
+        $business->memberships()->create(['user_id' => $owner->id, 'role' => 'business_owner', 'is_active' => true]);
+    }
+
+    $token = $this->postJson('/api/login', ['identifier' => $owner->login_code, 'password' => 'klinik-sahibi-123'])
+        ->assertOk()->json('data.token');
+    Auth::forgetGuards();
+    $me = $this->withToken($token);
+    $me->getJson('/api/me')->assertOk()
+        ->assertJsonPath('data.user.owner_crm_business_id', $primaryBusiness->id)
+        ->assertJsonPath('data.user.default_crm_business_id', $primaryBusiness->id);
+
+    $primaryBusiness->update(['status' => 'suspended']);
+    $me->getJson('/api/me')->assertOk()->assertJsonPath('data.user.default_crm_business_id', $otherBusiness->id);
+    $otherBusiness->update(['is_verified' => false]);
+    $me->getJson('/api/me')->assertOk()->assertJsonPath('data.user.default_crm_business_id', null);
+});
+
 test('a clinic owner creates and manages a branch-scoped staff login without an email address', function () {
     $branch = Branch::factory()->create();
     $otherBranch = Branch::factory()->for($branch->business)->create();
@@ -309,12 +331,21 @@ test('a clinic owner creates and manages a branch-scoped staff login without an 
     $credentials = ['identifier' => 'Merkez_Personel', 'password' => $account['password']];
     $token = $this->postJson('/api/login', $credentials)->assertOk()->json('data.token');
     Auth::forgetGuards();
-    $this->withToken($token)->getJson("/api/businesses/{$branch->business_id}/crm")
+    $this->withToken($token)->getJson('/api/me')->assertOk()
+        ->assertJsonPath('data.user.owner_crm_business_id', null)
+        ->assertJsonPath('data.user.default_crm_business_id', $branch->business_id);
+    $this->getJson("/api/businesses/{$branch->business_id}/crm")
         ->assertOk()->assertJsonPath('data.can_manage_operations', false)->assertJsonCount(1, 'data.branches')
         ->assertJsonPath('data.branches.0.id', $branch->id);
     $this->getJson("/api/branches/{$otherBranch->id}/crm/dashboard")->assertForbidden();
     $this->getJson("/api/businesses/{$branch->business_id}/crm/profile?branch_id={$branch->id}")->assertForbidden();
     $this->postJson($operations.'/staff/accounts', $account)->assertForbidden();
+
+    $branch->update(['status' => 'inactive']);
+    $this->getJson('/api/me')->assertOk()->assertJsonPath('data.user.default_crm_business_id', null);
+    $this->getJson('/api/clinic-crm/staff-workspaces')->assertOk()->assertJsonCount(0, 'data');
+    $this->postJson('/api/login', $credentials)->assertForbidden();
+    $branch->update(['status' => 'active']);
 
     $this->actingAs($owner, 'sanctum')->putJson($operations.'/staff/'.$membership->id.'/password', ['password' => 'yenilenen-personel-sifresi'])
         ->assertOk();

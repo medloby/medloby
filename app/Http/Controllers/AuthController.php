@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BusinessUser;
 use App\Models\User;
 use App\Rules\AccountPassword;
 use Illuminate\Http\JsonResponse;
@@ -52,11 +53,8 @@ class AuthController extends Controller
             }
 
             if ($user->staff_business_id !== null) {
-                $membership = $user->businessMemberships()->where('business_id', $user->staff_business_id)
-                    ->whereIn('role', ['staff', 'manager'])->where('is_active', true)
-                    ->whereHas('business', fn ($query) => $query->where('status', 'active')->where('is_verified', true))
-                    ->whereHas('branches', fn ($query) => $query->where('branches.status', 'active')
-                        ->where('branches.business_id', $user->staff_business_id)->where('business_user_branch.is_active', true))
+                $membership = $user->businessMemberships()->where('business_user.business_id', $user->staff_business_id)
+                    ->withStaffCrmAccess()
                     ->exists();
                 abort_unless($membership, 403, 'Personel hesabınızın aktif şube erişimi yok.');
             }
@@ -89,15 +87,23 @@ class AuthController extends Controller
             'businessMemberships.business',
         ]);
         $user->loadExists('patientProfile');
-        $ownerCrmBusinessId = $user->hasVerifiedEmail()
-            ? $user->businessMemberships->sortBy('business_id')->first(fn ($member) => $member->role === 'business_owner'
-                && $member->is_active && $member->business?->allowsCrmAccess())?->business_id
-            : null;
+        $ownedClinics = $user->hasVerifiedEmail()
+            ? $user->businessMemberships->filter(fn (BusinessUser $member) => $member->role === 'business_owner'
+                && $member->is_active && $member->business?->allowsCrmAccess())->sortBy('business_id')
+            : collect();
+        $primaryClinic = $ownedClinics->first(fn (BusinessUser $member) => $user->login_code === 'klinik-'.$member->business_id);
+        $ownerCrmBusinessId = ($primaryClinic ?? $ownedClinics->first())?->business_id;
+        $defaultCrmBusinessId = $user->staff_business_id === null ? $ownerCrmBusinessId
+            : $user->businessMemberships()->where('business_user.business_id', $user->staff_business_id)
+                ->withStaffCrmAccess()->value('business_user.business_id');
 
         return response()->json([
             'success' => true,
             'data' => [
-                'user' => $user->toArray() + ['owner_crm_business_id' => $ownerCrmBusinessId],
+                'user' => $user->toArray() + [
+                    'owner_crm_business_id' => $ownerCrmBusinessId,
+                    'default_crm_business_id' => $defaultCrmBusinessId,
+                ],
             ],
         ]);
     }
