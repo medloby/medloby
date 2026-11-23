@@ -313,12 +313,12 @@ export function mountCrmLeadWork(panel, { api, onChanged, openConversation }) {
     });
 
     return {
-        setLead(detail, { branchCrm = '', members = [], followUpId = null } = {}) {
+        setLead(detail, { branchCrm = '', members = [], followUpId = null, openWork = false } = {}) {
             lead = detail ? {
                 id: detail.id, hasPatient: detail.patient_profile_id !== null, branchCrm, members, followUpId,
                 conversationPath: branchCrm + '/leads/' + detail.id + '/conversations', loading: false, loaded: false, saving: false, openingConversation: false,
             } : null;
-            panel.open = Boolean(lead?.followUpId);
+            panel.open = Boolean(lead && (openWork || lead.followUpId));
             panel.hidden = !lead;
             content.hidden = true;
             resetForm();
@@ -328,6 +328,9 @@ export function mountCrmLeadWork(panel, { api, onChanged, openConversation }) {
             conversation.replaceChildren();
             setBusy(false);
             showStatus();
+            if (lead && openWork) {
+                panel.querySelector('summary').focus();
+            }
         },
     };
 }

@@ -52,7 +52,7 @@ export function mountCrmLeads(section, { api, onChanged, openAppointment, bookFo
         api,
         openConversation(item, hasWorkChanges) {
             if (canLeaveEditor('Kaydedilmemiş değişiklikler var. Görüşme açılsın mı?', hasWorkChanges)) {
-                return openConversation(item);
+                return openConversation(item, activeEditor.leadId);
             }
         },
         onChanged() {
@@ -217,7 +217,7 @@ export function mountCrmLeads(section, { api, onChanged, openAppointment, bookFo
         history.hidden = false;
     }
 
-    async function openEditor(lead = null, followUpId = null) {
+    async function openEditor(lead = null, { followUpId = null, openWork = false, preparedLead = null } = {}) {
         if (!branch || editor.open) {
             return;
         }
@@ -240,7 +240,7 @@ export function mountCrmLeads(section, { api, onChanged, openAppointment, bookFo
         showStatus(formStatus, 'Aday ayrıntısı yükleniyor…');
         try {
             const [detail, members, stages] = await Promise.all([
-                api(current.base + '/' + current.leadId),
+                preparedLead ?? api(current.base + '/' + current.leadId),
                 api(current.base + '/assignees'),
                 api(branchCrm + '/pipeline-stages'),
             ]);
@@ -282,7 +282,7 @@ export function mountCrmLeads(section, { api, onChanged, openAppointment, bookFo
             stage.disabled = finalized || !stages.length;
             syncStageNote();
             outcome.hidden = finalized;
-            leadWork.setLead(detail, { branchCrm, members, followUpId });
+            leadWork.setLead(detail, { branchCrm, members, followUpId, openWork });
             leadAppointments.setLead(current.base + '/' + current.leadId + '/appointments');
 
             current.original = formValues();
@@ -402,8 +402,8 @@ export function mountCrmLeads(section, { api, onChanged, openAppointment, bookFo
     }
 
     return {
-        openFollowUp(leadId, followUpId) {
-            return openEditor({ id: leadId }, followUpId);
+        openLead(leadId, options) {
+            return openEditor({ id: leadId }, options);
         },
         setBranch(id) {
             if (branch === id) {

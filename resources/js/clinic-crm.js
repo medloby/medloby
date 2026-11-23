@@ -42,7 +42,10 @@ export function mountClinicCrm(section, api, { openConversation, ...appointmentD
     const ledger = mountClinicLedger(find('ledger'), api);
     const calendar = mountClinicCalendar(find('calendar'), api, appointmentDialogs);
     const leads = mountCrmLeads(find('leads'), {
-        api, onChanged: refreshDashboard, openConversation,
+        api, onChanged: refreshDashboard,
+        openConversation: (item, leadId) => openConversation(item, {
+            business_id: businessId, branch_id: branch.value, crm_lead_id: leadId,
+        }),
         openAppointment: calendar.openAppointment, bookForPatient: calendar.bookForPatient,
     });
     const profile = mountClinicProfile(find('profile'), api, (saved) => {
@@ -253,9 +256,9 @@ export function mountClinicCrm(section, api, { openConversation, ...appointmentD
     }
 
     return {
-        async openFollowUp(followUp) {
-            if (await selectRecordBranch(followUp)) {
-                await leads.openFollowUp(followUp.crm_lead_id, followUp.id);
+        async openLead(record, options) {
+            if (await selectRecordBranch(record)) {
+                await leads.openLead(record.crm_lead_id, options);
             }
         },
         async openAppointment(appointment) {

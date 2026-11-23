@@ -104,6 +104,7 @@ export function mountPackageOffers(root) {
     const signIn = get('sign-in-form');
     const offerList = get('offer-list');
     const newOfferButton = get('new-offer');
+    const returnToLead = get('conversation-return-to-lead');
     const offerDialog = get('offer-dialog');
     const offerForm = get('offer-form');
     const rejectDialog = get('reject-dialog');
@@ -202,6 +203,7 @@ export function mountPackageOffers(root) {
     let user;
     let staffCrmIds = new Set();
     let conversation;
+    let crmConversationOrigin = null;
     let pendingPackage = restorePackageChoice();
     let currentPage = 1;
     let selectedPackageById = new Map();
@@ -314,6 +316,10 @@ export function mountPackageOffers(root) {
         get('booking-return').hidden = bookingSelection === null;
         get('booking-account-required').hidden = !bookingSelection || !user || user.patient_profile_exists;
         get('workspace').hidden = outsideConversations || !verified;
+        if (get('workspace').hidden) {
+            crmConversationOrigin = null;
+        }
+        syncConversationReturn();
 
         clinicApplications.setVisible(!outsideConversations && Boolean(user));
         get('staff-crm').hidden = outsideConversations || !verified || staffCrmIds.size === 0;
@@ -443,7 +449,13 @@ export function mountPackageOffers(root) {
         const followUpId = Number(data.crm_follow_up_id);
         if (Number.isSafeInteger(followUpId) && followUpId > 0) {
             const followUp = await api('/branches/' + Number(data.branch_id) + '/crm/follow-ups/' + followUpId);
-            return user === actor ? { followUp } : null;
+            if (user !== actor) {
+                return null;
+            }
+            if (!followUp.crm_lead_id) {
+                throw new Error('Bu takip artık bu şubedeki bir adaya bağlı değil.');
+            }
+            return { followUp };
         }
         const applicationId = Number(data.clinic_application_id);
         if (Number.isSafeInteger(applicationId) && applicationId > 0) {
@@ -527,8 +539,14 @@ export function mountPackageOffers(root) {
         await loadConversations(1, item);
     }
 
-    async function openCrmConversation(item) {
+    function syncConversationReturn() {
+        returnToLead.hidden = !crmConversationOrigin || crmConversationOrigin.actor !== user
+            || crmConversationOrigin.conversationId !== conversation?.id;
+    }
+
+    async function openCrmConversation(item, origin) {
         const actor = user;
+        crmConversationOrigin = { ...origin, conversationId: item.id, actor };
         try {
             await showConversationPage(item);
             if (user === actor && window.location.hash === '#gorusmeler' && conversation?.id === item.id) {
@@ -540,6 +558,30 @@ export function mountPackageOffers(root) {
             }
         }
     }
+
+    returnToLead.addEventListener('click', async () => {
+        if (returnToLead.hidden || returnToLead.disabled) {
+            return;
+        }
+
+        const origin = crmConversationOrigin;
+        returnToLead.disabled = true;
+        try {
+            const preparedLead = await api('/branches/' + origin.branch_id + '/crm/leads/' + origin.crm_lead_id);
+            if (crmConversationOrigin !== origin || returnToLead.hidden) {
+                return;
+            }
+            window.location.hash = 'klinik-crm/' + origin.business_id;
+            syncPage();
+            await clinicCrm.openLead(origin, { openWork: true, preparedLead });
+        } catch (error) {
+            if (crmConversationOrigin === origin && !returnToLead.hidden) {
+                showStatus(notice, error.message);
+            }
+        } finally {
+            returnToLead.disabled = false;
+        }
+    });
 
     function focusNotificationTarget(target) {
         if (target.supportTicket) {
@@ -568,7 +610,7 @@ export function mountPackageOffers(root) {
         if (target.followUp) {
             window.location.hash = 'klinik-crm/' + target.followUp.business_id;
             syncPage();
-            clinicCrm.openFollowUp(target.followUp);
+            clinicCrm.openLead(target.followUp, { followUpId: target.followUp.id });
             return;
         }
         if (target.applicationReviewId) {
@@ -709,6 +751,7 @@ export function mountPackageOffers(root) {
             await showConversation(items.find((item) => item.id === preferred?.id) ?? items[0]);
         } else {
             conversation = undefined;
+            syncConversationReturn();
             thread.select(undefined);
             offerRequest++;
             newOfferButton.hidden = true;
@@ -720,6 +763,7 @@ export function mountPackageOffers(root) {
 
     async function showConversation(item) {
         conversation = item;
+        syncConversationReturn();
         thread.select(item);
         for (const button of conversationList.children) {
             button.setAttribute('aria-current', String(Number(button.dataset.conversation) === item.id));

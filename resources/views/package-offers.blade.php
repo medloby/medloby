@@ -127,7 +127,10 @@
                                 <h2 id="conversation-title" tabindex="-1" class="break-words text-2xl font-semibold tracking-tight">Görüşme seçin</h2>
                                 <p id="conversation-context" class="mt-1 break-words text-sm text-slate-600 dark:text-slate-300"></p>
                             </div>
-                            <button id="new-offer" type="button" class="offer-button" hidden>Paket teklifi oluştur</button>
+                            <div class="flex flex-wrap gap-2">
+                                <button id="conversation-return-to-lead" type="button" class="offer-button offer-button-secondary" hidden>Adaya dön</button>
+                                <button id="new-offer" type="button" class="offer-button" hidden>Paket teklifi oluştur</button>
+                            </div>
                         </div>
                         <div id="offer-list" class="mt-5 grid gap-4"></div>
                         @include('package-conversation')
