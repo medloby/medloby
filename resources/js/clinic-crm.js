@@ -4,7 +4,6 @@ import { mountClinicCalendar } from './clinic-calendar';
 import { mountClinicProfile } from './clinic-profile';
 import { mountClinicTreatmentPrices } from './clinic-treatment-prices';
 import { mountClinicBranchManagement } from './clinic-branch-management';
-import { mountClinicConsentTemplates } from './clinic-consent-templates';
 import { mountClinicSocialLinks } from './clinic-social-links';
 import { mountClinicLedger } from './clinic-ledger';
 
@@ -36,7 +35,6 @@ export function mountClinicCrm(section, api, { openConversation, ...appointmentD
     const branchManagement = mountClinicBranchManagement(find('branch-management'), api, (saved) => {
         businessLoad = loadBusiness(saved.status === 'active' ? String(saved.id) : branch.value);
     });
-    const consentTemplates = mountClinicConsentTemplates(find('consent-templates'), api);
     const treatmentPrices = mountClinicTreatmentPrices(find('prices'), api);
     const socialLinks = mountClinicSocialLinks(find('social-links'), api);
     const ledger = mountClinicLedger(find('ledger'), api);
@@ -155,7 +153,6 @@ export function mountClinicCrm(section, api, { openConversation, ...appointmentD
             plan.textContent = clinic.membership_plan ? 'Üyelik planı · ' + clinic.membership_plan + ' · Ücretsiz' : 'Üyelik planı seçilmedi.';
             plan.hidden = !canManageOperations;
             branchManagement.setBusiness(canManageOperations ? businessId : null);
-            consentTemplates.setBusiness(canManageOperations ? businessId : null);
             find('return').textContent = canManageOperations ? 'Başvurulara dön' : 'Çalışma alanına dön';
             const branches = clinic.branches;
             if (!branches.length) {
@@ -174,7 +171,6 @@ export function mountClinicCrm(section, api, { openConversation, ...appointmentD
             if (pending === request) {
                 if (!workspaceLoaded && [401, 403, 404].includes(error.status)) {
                     branchManagement.setBusiness(null);
-                    consentTemplates.setBusiness(null);
                 }
                 showStatus(error.message);
             }
@@ -275,7 +271,6 @@ export function mountClinicCrm(section, api, { openConversation, ...appointmentD
             businessId = id;
             section.hidden = !id;
             branchManagement.setBusiness(null);
-            consentTemplates.setBusiness(null);
 
             if (id) {
                 businessLoad = loadBusiness();

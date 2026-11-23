@@ -9,6 +9,13 @@ use Illuminate\Support\Facades\Notification;
 
 uses(RefreshDatabase::class);
 
+test('the clinic workspace renders the first release panels without the deferred draft editor', function () {
+    $this->get(route('package-offers'))->assertOk()
+        ->assertSee('data-crm-branch-management', false)
+        ->assertSee('data-crm-ledger', false)
+        ->assertDontSee('data-crm-consent-templates', false);
+});
+
 test('the owner controls which clinic and branch contacts appear on the public profile', function () {
     $clinic = Business::factory()->create([
         'phone' => '+90 (312) 555 01 02', 'email' => 'basvuru@example.test', 'website' => 'https://example.test/klinik',

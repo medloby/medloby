@@ -1,17 +1,26 @@
 # Medloby mimarisi ve proje yol haritası
 
-**İnceleme tarihi** 23 Kasım 2026 · **Envanterin dayandığı sürüm** `main / d110189`
+**İnceleme tarihi** 23 Kasım 2026 · **Envanterin dayandığı sürüm** `main / 55f1bd2`
 
-**Güncel durum** İlk sürümde ücretsiz klinik planı seçimi, tedavi fiyat aralıkları, şube yönetim yetkileri, randevu bekleme bildirimleri, destek talepleri, hasta süreci ekranı, seyahat planı ve şube gelir-gider takibi test ortamında hazır. Canlı e-posta, üretim zamanlayıcısı ve yedeklemesi, işletmeci bilgileri ve KVKK onayları yayın öncesi kontrol listesinde takip ediliyor. [Yayın öncesi kontrol listesi](README.md#medloby-yayına-çıkmadan-önce)
+**Güncel durum** İlk sürümün klinik başvurusu ve onayı, şube yetkili CRM, hasta görüşmesi, özel teklif ve seans randevusu akışları test ortamında doğrulandı. Ücretsiz klinik planı seçimi, bekleme bildirimi, destek talepleri, hasta süreci, seyahat planı ve şube gelir-gider takibi de çalışıyor. Canlı kurulum ve ilk klinikle yapılacak yayın provası için aşağıdaki sıra izlenir. [Yayın öncesi kontrol listesi](README.md#medloby-yayına-çıkmadan-önce)
 
 ## Kapsam ve doğrulama
 
-Envanter, Git'in izlediği 529 dosyayı kapsadı. Depoda 173 uygulama dosyası, 74 migration, 53 model, 17 servis ve 90 Feature test dosyası bulunuyor. Laravel rota listesinde 257 API ucu ve 13 web veya sistem rotası var. [API rotaları](routes/api.php)
+Envanter, Git'in izlediği 539 dosyayı kapsadı. Depoda 179 uygulama dosyası, 75 migration, 53 model, 18 servis ve 92 Feature test dosyası bulunuyor. Uygulamanın rota listesinde 261 API ucu ve 8 web veya sistem rotası var. [API rotaları](routes/api.php)
 
-- 419 PHP dosyasının sözdizimi, Blade önbelleği ve Vite derlemesi doğrulandı.
-- SQLite üzerinde **987 test**, PostgreSQL 17.12 üzerinde **990 test** geçti. PostgreSQL’e özel üç yedekleme senaryosu PostgreSQL aşamasında çalıştı.
+- 428 PHP dosyasının sözdizimi, PHP paket gereksinimleri, Blade önbelleği ve Vite derlemesi doğrulandı.
+- SQLite üzerinde **1.060 test**, PostgreSQL 17 üzerinde **1.063 test** geçti. PostgreSQL’e özel üç yedekleme senaryosu PostgreSQL aşamasında çalıştı.
+- Chromium’da masaüstü klinik sahibi, mobil şube personeli ve mobil hasta girişleri ile ilgili çalışma alanları doğrulandı.
+- Yerel kopyada bekleyen 14 şema güncellemesi ayrı bir deneme veritabanında uygulandı. 75 migration tamamlandı, ikinci çalıştırmada bekleyen kayıt kalmadı ve teknik kontrol şemayı hazır gösterdi.
 - Klinik üyeliği için `0.2-draft` hazırlandı. Başvuru formu, geçerli ve yayımlanmış zorunlu sözleşme olduğunda açılır.
-- Kilit dosyalarının önceki npm taramasında ve 133 PHP paket sürümü için GitHub Advisory Database taramasında eşleşen bildirim bulunmadı.
+- `npm audit` taramasında ve kilitli 133 PHP paket sürümü için GitHub Advisory Database taramasında eşleşen bildirim bulunmadı.
+
+## İlk sürüm için kalan sıra
+
+1. **Canlı ortamı belirle.** Alan adı, HTTPS, sunucu ve veritabanı seçiminin ardından yayın ayarları, özel dosya alanı ve veritabanı şeması deneme ortamında doğrulanır. [Yayın ortamı kontrolü](README.md#medloby-yayına-çıkmadan-önce)
+2. **İşletmeci ve yayın içeriğini onayla.** Resmî unvan, tebligat adresi, destek ve KVKK iletişim kanalları, veri işleme ve saklama süreleri ile sözleşmenin sürümü ve yürürlük tarihi kesinleşir. İlk kliniklerin bilgileri ve kamuya açılacak katalog içerikleri gözden geçirilir. [İçerik ve yayın onayı](#4-kamuya-açık-site-ve-yayın-içeriği)
+3. **Canlı servisleri dene.** İlk platform yöneticisi kurulumu, SMTP teslimatı, arka plan kuyruğu, zamanlayıcı, erişim izlemesi ve şifreli yedeğin ayrı veritabanına dönüşü doğrulanır. [Operasyon kontrol listesi](README.md#medloby-yayına-çıkmadan-önce)
+4. **İlk klinik ve hasta provasını tamamla.** Yayın koşullarında klinik onayı, personel yetkisi, görüşme eki, özel teklif, paket seansları ve eşzamanlı randevu seçimi deneme hesaplarıyla baştan sona çalıştırılır. [İlk klinik ve hasta provası](tests/Feature/LaunchWorkflowTest.php)
 
 ## Mimari
 
@@ -65,7 +74,7 @@ flowchart LR
 | Seyahat planı | Klinik, konaklama veya transfer içeren kabul edilmiş teklifin seyahat ayrıntılarını düzenler. Hasta güncel planı kendi teklifinden görür. | Yayın ortamında klinikle konaklama ve transfer akışını prova etme |
 | Gelir ve gider | Klinik CRM’de şube bazında elle gelir ve gider kaydı, düzeltme ve iptal. Aylık özet her para birimi için ayrı hesaplanır. | Kayıt saklama ve resmî faturalama kapsamı |
 | Destek | Hasta ve klinik hesapları destek talebi açabilir ve kendi taleplerini takip edebilir. Platform yöneticisi yanıtlayabilir, talebi kapatabilir veya yeniden açabilir. | Yayın öncesinde destek kayıtlarının saklama süresini belirleme |
-| Tıbbi kayıt | Tıbbi kayıt için şema ve model | Tıbbi kayıt yetkileri ve saklama kararları |
+| Tıbbi kayıt | Tıbbi kayıt için şema ve model | Sonraki aşamada kullanım kapsamı, yetkiler ve saklama kararları |
 | Yayın ve operasyon | Yerel kurulum, otomatik derleme ve test, yerel font ve lisans bildirimleri, SQLite ve PostgreSQL 17 yedekleme ve geri yükleme provaları, `/up` adresinden uygulama ve veritabanı erişim kontrolü | Üretim kurulumu ve yedekleme, canlı izleme ve yayın öncesi kontroller |
 
 İlk sürümde klinik başvurusunda **Başlangıç**, **Standart** ve **Profesyonel** üyelik planları ücretsiz ve isteğe bağlıdır. Seçim klinik sahibinin CRM’inde ve platform yönetim ekranlarında görünür. Resmî faturalama akışı ayrıca tanımlanacak. [Klinik başvuru akışı](app/Http/Controllers/BusinessRegistrationController.php)
@@ -209,12 +218,13 @@ Kamuya açılış için içeriğin uygunluğu, onaylı sözleşme ve kişisel ve
 ### 6. Yeni modüller
 
 1. **6.1 Randevu bekleme bildirimi tamamlandı.** Hasta klinik sayfasından açılan randevu ekranında uygun saat bulunmayan gün için bildirim isteyebilir. İstek kendi hesabına ve seçtiği şube, hekim, tedavi ile güne bağlıdır. Hasta aynı ekrandan isteği kaldırabilir. Zamanlayıcı uygun bir saat açıldığında bir kez uygulama içi bildirim gönderir. Bildirim seçilen günü açar ve hasta güncel saatlerden randevusunu seçer. Eşleşen randevu oluşturulunca veya o güne taşınınca istek tamamlanır. Eski bildirim, tamamlanan isteği veya artık çevrimiçi seçilemeyen günü açıklar. [Bekleme listesi testleri](tests/Feature/AppointmentWaitingListTest.php)
-2. **6.2 Tıbbi kayıt.** Tıbbi kayıt için erişim ve saklama kararları bekliyor. [Tıbbi kayıt modeli](app/Models/MedicalRecord.php)
+2. **6.2 Tıbbi kayıt.** Şema ve model hazır. Ürün akışının kapsamı, erişim ve saklama kararları sonraki aşamada belirlenecek. [Tıbbi kayıt modeli](app/Models/MedicalRecord.php)
 3. **6.3 Klinik üyelik planı seçimi tamamlandı.** Üç ücretsiz plandan yapılan seçim klinik kaydında saklanır. Seçilen plan başvuru incelemesinde, yönetim listesindeki klinik ayrıntılarında ve klinik sahibinin CRM’inde görünür. Plan ücretlendirmesi ve faturalama akışları daha sonra tanımlanacak. [Klinik üyelik testi](tests/Feature/ClinicAccountOnboardingTest.php)
 4. **6.4 Uygulama içi destek talepleri hazır.** Hasta ve klinik hesapları **Destek taleplerim** bölümünde konu ve açıklama ile bir talep açabilir. Platform yöneticileri **Destek talepleri** bölümünden açık veya kapalı kayıtları bulabilir, açık talepleri yanıtlayabilir ve durumu güncelleyebilir. Yeni talep ve mesajlar ilgili hesabın bildirimlerinden açılabilir. Yanıt geçmişi talep sahibi ve platform yöneticilerine açıktır. [Destek testleri](tests/Feature/SupportTicketTest.php)
 5. **6.5 Hasta yolculuğu ekranı hazır.** **Tedavi sürecim** sayfası doğrulanmış hastanın mevcut görüşme, teklif ve randevu kayıtlarından bir zaman çizelgesi oluşturur. Hasta olayları kayıt türüne göre süzer ve ayrıntıya geçer. Randevunun saati değişmişse randevu ayrıntısı güncel kaydı açar. [Hasta yolculuğu testleri](tests/Feature/PatientJourneyTest.php)
 6. **6.6 Konaklama ve transfer takibi hazır.** Klinik paket yönetiminde paketin hangi seyahat hizmetlerini içerdiğini işaretler. Kabul sonrası klinik sahibi ve ilgili şubede **Seyahat planını düzenleme** yetkisi verilen personel otel bilgilerini, giriş ve çıkış tarihlerini, birden fazla transferin saatini ve yerlerini kaydeder. Kliniğin geneli için sunulan teklifin planını klinik sahibi yönetir. Hasta plan güncellendiğinde uygulama içi bildirim alır ve ayrıntıları kendi teklifinde görür. [Seyahat planı testleri](tests/Feature/OfferTravelPlanTest.php)
 7. **6.7 Klinik içi gelir ve gider takibi hazır.** Klinik sahibi ve ilgili şubenin düzenleme yetkisini taşıyan personel tarih, tutar, para birimi ve açıklamayla kayıt açabilir, kaydı düzeltebilir veya iptal edebilir. İptal edilen kayıtlar görüntülenebilir ve yeniden etkinleştirilebilir. Aylık gelir, gider ve fark hesaplarına aktif kayıtlar girer. Görüntüleme yetkisi ayrı verilebilir. [Gelir ve gider testleri](tests/Feature/ClinicLedgerTest.php)
+8. **6.8 Clinic AI Premium.** Sesli ve yazılı asistan, PDF/XLSX/DOCX raporları ve yetkili özel rapor arşivi ilk sürüm tamamlandıktan sonra ele alınacak. Finansal raporlar için mevcut şube gelir-gider kayıtları ve hesaplama kuralları esas alınacak. [Şube gelir ve gider akışı](app/Http/Controllers/ClinicLedgerController.php)
 
 ## Uygulama düzeni
 
