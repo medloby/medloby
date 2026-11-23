@@ -38,7 +38,7 @@ Dağıtım ortamında uygulamayı yapılandırdıktan ve ön yüzü derledikten 
 php artisan medloby:release-check --no-interaction
 ```
 
-Komut mevcut ayarları, veritabanı bağlantısını ve migration kayıtlarını, yayın dosyalarını, yönetici hesabını ve yürürlükteki klinik üyelik sözleşmesini salt okunur biçimde kontrol eder. Her madde için **Hazır**, **Eksik** veya **Bekliyor** gösterir. Tüm maddeler hazırsa çıkış kodu `0`, eksik veya bekleyen madde varsa `1` olur.
+Komut mevcut ayarları, veritabanı bağlantısını ve migration kayıtlarını, yönetici hesabını ve yürürlükteki klinik üyelik sözleşmesini salt okunur biçimde kontrol eder. Yayın dosyalarının kontrolüne Vite bildirimi, bağlı CSS ve JavaScript dosyaları ile yerel yazı tipi bildirimi ve dosyaları dahildir. Her madde için **Hazır**, **Eksik** veya **Bekliyor** gösterir. Tüm maddeler hazırsa çıkış kodu `0`, eksik veya bekleyen madde varsa `1` olur.
 
 Canlı HTTPS erişimini, SMTP teslimatını, kuyruk işçisini, zamanlayıcıyı ve yedekten geri yüklemeyi yukarıdaki adımlarla prova et. [Teknik kontrol testleri](tests/Feature/ReleaseReadinessTest.php)
 

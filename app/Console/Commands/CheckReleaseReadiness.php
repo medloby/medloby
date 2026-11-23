@@ -11,6 +11,7 @@ use Illuminate\Console\Command;
 use Illuminate\Contracts\Encryption\Encrypter;
 use Illuminate\Database\Migrations\Migrator;
 use Illuminate\Foundation\Vite;
+use Illuminate\Foundation\ViteFonts;
 use Illuminate\Support\ConfigurationUrlParser;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -38,7 +39,7 @@ final class CheckReleaseReadiness extends Command
             ['Uygulama anahtarı', $this->probe(fn (): bool => app(Encrypter::class) instanceof Encrypter),
                 'Dağıtım ortamındaki APP_KEY değerini doğrulayın.'],
             ['Derlenmiş arayüz dosyaları', $this->probe(fn (): bool => $this->assetsReady($vite)),
-                'Vite yayın derlemesini oluşturun ve public/build dizinini dağıtıma ekleyin.'],
+                'Vite yayın derlemesini oluşturun ve yazı tipi bildirimi dahil public/build dizinini dağıtıma ekleyin.'],
             ['Özel dosya dizini', $this->privateStorageReady(), 'Özel dosya dizininin konumunu ve dosya izinlerini doğrulayın.'],
             ['Veritabanı bağlantısı', $databaseReady, 'Dağıtım ortamındaki veritabanı bağlantısını kontrol edin.'],
             ['Veritabanı şeması', $schemaReady, $databaseReady ? 'Bekleyen migration kayıtlarını kontrol edin.' : 'Veritabanı bağlantısı doğrulanınca kontrol edilir.'],
@@ -91,24 +92,81 @@ final class CheckReleaseReadiness extends Command
     private function assetsReady(Vite $vite): bool
     {
         $build = public_path('build');
-        $manifestPath = $build.'/manifest.json';
-        if ($vite->isRunningHot() || ! is_file($manifestPath) || ! is_readable($manifestPath)) {
+        $assetRoot = realpath($build.'/assets');
+        if ($vite->isRunningHot() || $assetRoot === false) {
             return false;
         }
 
-        $manifest = json_decode(file_get_contents($manifestPath), true, flags: JSON_THROW_ON_ERROR);
+        $manifest = $this->readBuildManifest($build.'/manifest.json');
         if (! isset($manifest['resources/css/app.css'], $manifest['resources/js/app.js'])) {
             return false;
         }
 
         foreach ($manifest as $entry) {
-            $file = $entry['file'] ?? null;
-            if (! is_string($file) || ! str_starts_with($file, 'assets/') || ! is_file($build.'/'.$file) || ! is_readable($build.'/'.$file)) {
-                return false;
+            foreach ([$entry['file'] ?? null, ...($entry['css'] ?? []), ...($entry['assets'] ?? [])] as $file) {
+                if (! $this->buildAssetReady($assetRoot, $file)) {
+                    return false;
+                }
+            }
+
+            foreach ([...($entry['imports'] ?? []), ...($entry['dynamicImports'] ?? [])] as $reference) {
+                if (! is_string($reference) || ! isset($manifest[$reference])) {
+                    return false;
+                }
             }
         }
 
-        return true;
+        return $this->fontAssetsReady($build, $assetRoot);
+    }
+
+    private function readBuildManifest(string $path): ?array
+    {
+        if (! is_file($path) || ! is_readable($path)) {
+            return null;
+        }
+
+        $manifest = json_decode(file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+
+        return is_array($manifest) ? $manifest : null;
+    }
+
+    private function fontAssetsReady(string $build, string $assetRoot): bool
+    {
+        $manifest = $this->readBuildManifest($build.'/fonts-manifest.json');
+        if ($manifest === null) {
+            return false;
+        }
+
+        $fonts = new ViteFonts;
+        $fonts->ensureValidManifest($manifest);
+        $preloads = $manifest['preloads'] ?? [];
+        $fonts->ensureValidPreloads($preloads, false);
+
+        $inlineStyles = $manifest['style']['inline'] ?? null;
+        if ((! is_string($inlineStyles) || trim($inlineStyles) === '')
+            && ! $this->buildAssetReady($assetRoot, $manifest['style']['file'] ?? null)) {
+            return false;
+        }
+
+        $fontFiles = collect($manifest['families'])
+            ->flatMap(fn (array $family) => array_values($family['variants'] ?? []))
+            ->flatMap(fn (array $variant) => $variant['files'] ?? [])
+            ->pluck('file');
+
+        return $fontFiles->isNotEmpty() && $fontFiles->merge(collect($preloads)->pluck('file'))
+            ->every(fn ($file) => $this->buildAssetReady($assetRoot, $file));
+    }
+
+    private function buildAssetReady(string $assetRoot, mixed $file): bool
+    {
+        if (! is_string($file) || ! str_starts_with($file, 'assets/')) {
+            return false;
+        }
+
+        $path = realpath($assetRoot.DIRECTORY_SEPARATOR.substr($file, strlen('assets/')));
+
+        return $path !== false && str_starts_with($path, $assetRoot.DIRECTORY_SEPARATOR)
+            && is_file($path) && is_readable($path);
     }
 
     private function privateStorageReady(): bool

@@ -23,6 +23,17 @@ beforeEach(function () {
     ], JSON_THROW_ON_ERROR));
     File::put(public_path('build/assets/app.css'), 'body {}');
     File::put(public_path('build/assets/app.js'), 'export {}');
+    $this->fontManifest = [
+        'version' => 1,
+        'style' => ['file' => 'assets/fonts.css'],
+        'preloads' => [['alias' => 'instrument-sans', 'file' => 'assets/instrument.woff2']],
+        'families' => ['instrument-sans' => [
+            'variants' => ['400 700:normal' => ['files' => [['file' => 'assets/instrument.woff2']]]],
+        ]],
+    ];
+    File::put(public_path('build/fonts-manifest.json'), json_encode($this->fontManifest, JSON_THROW_ON_ERROR));
+    File::put(public_path('build/assets/fonts.css'), '@font-face { font-family: Instrument Sans; src: url(instrument.woff2); }');
+    File::put(public_path('build/assets/instrument.woff2'), 'Font fixture');
 
     config([
         'app.env' => 'production',
@@ -104,6 +115,43 @@ test('release readiness reports incompatible settings and missing build files to
         'Hazır · Veritabanı şeması',
     );
 });
+
+test('release readiness reports missing or invalid local font assets without exposing the file location', function (string $issue) {
+    $path = public_path('build/fonts-manifest.json');
+    $manifest = $this->fontManifest;
+    $staleVariant = $manifest;
+    $staleVariant['families']['instrument-sans']['variants']['400 700:normal']['files'] = [['file' => 'assets/previous.woff2']];
+
+    match ($issue) {
+        'missing manifest' => File::delete($path),
+        'invalid manifest' => File::put($path, '{'),
+        'missing stylesheet' => File::delete(public_path('build/assets/fonts.css')),
+        'missing font' => File::delete(public_path('build/assets/instrument.woff2')),
+        'stale preload' => File::put($path, json_encode([
+            ...$manifest, 'preloads' => [['alias' => 'instrument-sans', 'file' => 'assets/previous.woff2']],
+        ], JSON_THROW_ON_ERROR)),
+        'stale variant' => File::put($path, json_encode($staleVariant, JSON_THROW_ON_ERROR)),
+    };
+
+    expect(Artisan::call('medloby:release-check'))->toBe(Command::FAILURE);
+    expect(Artisan::output())->toContain('Eksik · Derlenmiş arayüz dosyaları', 'Hazır · Veritabanı şeması')
+        ->not->toContain($this->releaseDirectory);
+})->with(['missing manifest', 'invalid manifest', 'missing stylesheet', 'missing font', 'stale preload', 'stale variant']);
+
+test('release readiness reports missing dependencies of an existing app entry', function (string $field, string $reference) {
+    $path = public_path('build/manifest.json');
+    $manifest = json_decode(File::get($path), true, flags: JSON_THROW_ON_ERROR);
+    $manifest['resources/js/app.js'][$field] = [$reference];
+    File::put($path, json_encode($manifest, JSON_THROW_ON_ERROR));
+
+    expect(Artisan::call('medloby:release-check'))->toBe(Command::FAILURE);
+    expect(Artisan::output())->toContain('Eksik · Derlenmiş arayüz dosyaları');
+})->with([
+    'missing chunk' => ['imports', 'removed-chunk.js'],
+    'missing dynamic chunk' => ['dynamicImports', 'removed-chunk.js'],
+    'missing CSS' => ['css', 'assets/previous.css'],
+    'missing asset' => ['assets', 'assets/previous.woff2'],
+]);
 
 test('release readiness defers account and contract checks when a migration is pending', function () {
     $migration = DB::table('migrations')->orderByDesc('id')->value('migration');
