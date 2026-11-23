@@ -22,6 +22,37 @@ Envanter, Git'in izlediği 539 dosyayı kapsadı. Depoda 179 uygulama dosyası, 
 3. **Canlı servisleri dene.** İlk platform yöneticisi kurulumu, SMTP teslimatı, arka plan kuyruğu, zamanlayıcı, erişim izlemesi ve şifreli yedeğin ayrı veritabanına dönüşü doğrulanır. [Operasyon kontrol listesi](README.md#medloby-yayına-çıkmadan-önce)
 4. **İlk klinik ve hasta provasını tamamla.** Yayın koşullarında klinik onayı, personel yetkisi, görüşme eki, özel teklif, paket seansları ve eşzamanlı randevu seçimi deneme hesaplarıyla baştan sona çalıştırılır. [İlk klinik ve hasta provası](tests/Feature/LaunchWorkflowTest.php)
 
+## Medloby ilk yayın politikaları
+
+Bu bölüm ürün ve işletim kararlarını kaydeder. Klinik üyelik sözleşmesi, hasta ve klinik aydınlatma metinleri ile veri saklama planı yayın öncesi hukuki incelemeden geçer. [Klinik üyelik taslağı](resources/contracts/medloby-klinik-uyelik-taslak.txt) · [Veri işleme ve saklama taslağı](resources/contracts/medloby-veri-isleme-ve-saklama-taslagi.md)
+
+### Kararlaştırılan ürün kuralları
+
+| Alan | İlk yayın kuralı |
+| --- | --- |
+| Klinik üyeliği | Başlangıç, Standart ve Profesyonel planları ücretsiz ve isteğe bağlıdır. Seçim klinik CRM’inde ve platform panelinde görünür. İleride ücretli plan açılması ayrı bir ürün kararı ve kliniklere bildirilen koşullara bağlıdır. |
+| Klinik hesabı | Başvuru klinik adı, e-posta, telefon ve yürürlükteki klinik üyelik sözleşmesinin kabulüyle alınır. Başvuru platform yöneticisinin onayına kadar bekler. Onaydan sonra işletme sahibine kullanıcı kodu ve geçici şifre gönderilir. Sahip ilk girişte şifresini değiştirip kendi CRM’ine geçer. |
+| Şubeler ve personel | Klinik sahibi şube açar veya pasife alır ve personele kişisel kullanıcı kodu, şifre ve şube yetkisi verir. Personel girişi için kullanıcı kodu ve şifre yeterlidir. İşlemler kişinin görevlendirildiği şube ve verilen izinlerle sınırlıdır. |
+| Katalog, teklifler ve randevu | Yayımlanmış aktif katalog herkese açıktır. İşletme sahibi kendi paket ve ek hizmetlerini, platform yöneticisi ortak hizmetleri yönetir. Özel teklif fiyatı ilgili hastanın hesabında görünür. Klinik tedavi fiyat aralığını belirler. Hasta tekil randevuya klinik aramasından başlar, **Randevularım** bölümünde mevcut randevularını görür. Kabul edilen paket için her seans ayrı randevu olarak planlanır. |
+| Randevu iletişimi ve onam | Yetkili klinik çalışanı görevli olduğu şubenin randevu kartında hasta adı ve iletişim bilgilerini, randevu ayrıntılarını ve varsa açıklamayı görür. PDF de aynı şube yetkisiyle indirilir. Klinik tedaviye ilişkin hasta onamını kendi sürecinde yönetir. |
+| Ücret ve tahsilat | İlk yayında Medloby üyelik tahsilatı ve komisyonu sıfırdır. Tedavi ödemelerini klinik yönetir. CRM’deki şube tahsilatları ve giderleri ilgili kliniğin kayıtlarıdır. |
+| Platform desteği | Platform yöneticisi açık taleplere elle sorumlu atar. Ayrı destek görevlisi rolü açıldığında görevliler yalnızca kendilerine atanan talepleri görür ve yanıtlar. Atama, kapatma ve yeniden açma platform yöneticisindedir. |
+| Yazılım ve lisanslar | Ticari kullanımda lisans ücreti gerektirmeyen, lisansı doğrulanmış bileşenler tercih edilir ve gerekli lisans bildirimleri korunur. Temel işlevler kendi ortamımızda çalışabilmeli ve sağlayıcı seçimi değiştirilebilmelidir. Ücretli veya zorunlu sağlayıcı bağımlılığı doğuran seçimler proje sahibinin onayına bağlıdır. |
+
+### Onaya sunulan işletim kuralları
+
+- **Klinik ve içerik doğrulama.** Yayından önce kliniğin unvanı, temsil yetkisi, ruhsatı ve şube adresi kontrol edilir. Kararı veren kişi ve gerekçe kaydedilir. Kamuya açık katalogda doğrulanabilir hizmet ve konum bilgileri kullanılır. Kişiye özel fiyat, para birimi, seanslar, teklif geçerliliği, dahil hizmetler ve varsa iptal koşulları ilgili hastaya özel teklifte gösterilir. [Klinik üyelik taslağı](resources/contracts/medloby-klinik-uyelik-taslak.txt) · [Sağlık hizmetlerinde tanıtım yönetmeliği](https://www.resmigazete.gov.tr/eskiler/2025/11/12/20251112-2.htm)
+- **Yönetici yetkisi ve denetim.** Platformda tek yönetim paneli kullanılır. Yetkiler kişiye ve göreve bağlanır. Kritik rol atama ve geri alma, yetkili üst yöneticiye bırakılır ve işlem geçmişine yazılır. Son üst yönetici hesabı korunur. Destek görevlisi rolünün devreye alınması mevcut yöneticilerin eşlemesinin ve teknik geçiş planının onayına bağlıdır. [Yönetici rolleri ve geçiş](ADMIN-TAMAMLAMA.md#admin-g2--yönetici-rolleri)
+- **Destek kuyruğu.** Güvenlik veya gizlilik şüphesi öncelikle görevli yöneticiye aktarılır. Normal talepler sırayla incelenir ve elle atanır. Genel destek yazışmasında hesap veya işlem için gereken bilgiler istenir. Şifre işlemleri hesap ayarları veya şifre yenileme akışı üzerinden yürütülür. Sağlık belgeleri için yetkili klinik kanalları kullanılır. İlk yanıt ve kapanma süreleri ölçülür. Hedef süre ve otomatik kapanış ayrı işletim kararlarıdır. [Destek akışı](ADMIN-TAMAMLAMA.md#admin-g6--destek-katalog-ve-uyum)
+- **KVKK ve veri güvenliği.** Hesap, randevu ve destek işlemleri için gereken en az bilgi kullanılır. Randevu ve teklif bildirimleri kullanıcıyı yetkili ekranına yönlendirir. Dosyalar özel depolamada tutulur ve her indirmede erişim denetlenir. KVKK başvurusu işletmecinin belirlediği resmî kanaldan alınır. Görevli kişi başvuru tarihini ve kararını kaydeder, kimliği doğrular ve yasal sürede yanıtlar. Sağlık verisinin işleme ve aktarım şartları ile her kayıt grubunun azami saklama süresi yayın öncesi onaya bağlıdır. [Veri işleme ve saklama taslağı](resources/contracts/medloby-veri-isleme-ve-saklama-taslagi.md) · [6698 sayılı Kanun](https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6698.pdf)
+- **Yayın ve operasyon.** Canlı ortama geçişte gerçek gelen kutusuna e-posta teslimi, zamanlayıcı, erişim izlemesi ve şifreli yedeğin ayrı ortamda geri yüklenmesi prova edilir. Yedek erişim yetkisi ve saklama takvimi canlı kurulumda belirlenir. Uygulama anahtarları ve parolalar dağıtım ortamındaki gizli ayarlarda tutulur. [Yayın öncesi kontrol listesi](README.md#medloby-yayına-çıkmadan-önce)
+
+### Yayımdan önce kesinleşecek bilgiler
+
+- İşletmecinin resmî unvanı, tebligat ve KVKK başvuru adresi, destek ve editör adresleri ile KVKK başvurularından sorumlu görevli.
+- Onaylanacak üyelik sözleşmesinin sürümü ve yürürlük tarihi, hasta ve klinik aydınlatma metinleri, sağlık verisinin işleme şartları ve veri saklama ile imha takvimi.
+- Canlı sunucu, e-posta ve yedek kurulumu için seçilen sağlayıcılar, veri işleme konumları ve canlı prova sorumlusu.
+
 ## Mimari
 
 Medloby tek Laravel uygulaması olarak çalışıyor. Laravel 13.40 ve Sanctum 4.3 kimlik doğrulama ve API erişimini, Eloquent ve migration dosyaları veriyi, Blade, Tailwind 4 ve Vite ise arayüzü yönetiyor. Web'de ana sayfa ve `/paket-teklifleri` var. Katalog, görüşmeler, yönetici diyalogları ve klinik CRM görünümü ikinci rota içinde yer alıyor. [Web rotaları](routes/web.php) · [Arayüz giriş noktası](resources/js/app.js) · [Bağımlılıklar](composer.json)

@@ -42,7 +42,7 @@ Platform yönetimi tek ekran olarak `/yonetim` adresinde açılır. Üyelik söz
 
 ## ADMIN-G2 — Yönetici rolleri
 
-Kritik yetki geçişi onay bekliyor. Önerilen görev ayrımında tam yönetici platform işlemlerini kullanır. Destek görevlisi kendisine atanan talepleri görür ve yanıtlar. Atama, klinik hesabı, sözleşme ve finans işlemleri tam yöneticiye açık kalır. Onaylanan görevler API düzeyinde ve klinik üyeliği rollerinden bağımsız uygulanacak. Geçiş planı mevcut yöneticileri eşler, son tam yöneticiyi korur ve yetki değişikliklerini işlem geçmişine kaydeder.
+Kritik yetki geçişi onay bekliyor. İlk yayın için destek görevlisinin kendisine atanan talepleri görmesi ve yanıtlaması kararlaştırıldı. Atama, kapatma ve yeniden açma platform yöneticisinde kalır. Klinik hesabı ve sözleşme işlemleri yönetim yetkisine bağlıdır. Destek görevlisinin erişimi API düzeyinde ve klinik üyeliği rollerinden bağımsız uygulanacak. Geçiş planı mevcut yöneticileri eşler, son tam yöneticiyi korur ve yetki değişikliklerini işlem geçmişine kaydeder. [İlk yayın politikaları](PROJE-YOL-HARITASI.md#medloby-ilk-yayın-politikaları)
 
 **İşlem geçmişi** başvuru kararlarını, klinik durum değişikliklerini, sözleşme yayımlama ve yayından kaldırma işlemlerini, destek yanıtlarını ve atamaları tek listede gösterir. Sözleşmeyi yayımlayan ve yayından kaldıran yöneticiler ilgili işlem anında mevcut sözleşme kaydına yazılır. Eski yayımlama kayıtlarında tarih korunur ve işlemi yapan hesap kayıtlı değilse ekranda bu bilgi gösterilir. Ayrıntılı notlar ve mesajlar kendi yetkili ekranlarında kalır. Rol ve izin değişikliklerinin ortak denetimi yetki geçişiyle planlanır. [İşlem geçmişi sorgusu](app/Services/PlatformAdminAudit.php)
 
