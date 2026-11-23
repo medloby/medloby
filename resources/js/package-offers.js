@@ -140,7 +140,9 @@ export function mountPackageOffers(root) {
         timeLabel: (value) => offerDeadline.format(new Date(value)),
         onChanged: syncPage,
     });
-    const clinicCrm = mountClinicCrm(get('clinic-crm'), api, { openBookingDialog, openAppointmentAction, appointmentActionLabels });
+    const clinicCrm = mountClinicCrm(get('clinic-crm'), api, {
+        openBookingDialog, openAppointmentAction, appointmentActionLabels, openConversation: openCrmConversation,
+    });
     const supportTickets = mountSupportTickets(get('support-tickets-dialog'), get('support-tickets-button'), {
         api,
         timeLabel: (value) => offerDeadline.format(new Date(value)),
@@ -515,10 +517,28 @@ export function mountPackageOffers(root) {
         if (user !== actor) {
             return null;
         }
+        await showConversationPage(item);
+        return { offerId, appointmentId };
+    }
+
+    async function showConversationPage(item) {
         window.location.hash = 'gorusmeler';
         syncPage();
         await loadConversations(1, item);
-        return { offerId, appointmentId };
+    }
+
+    async function openCrmConversation(item) {
+        const actor = user;
+        try {
+            await showConversationPage(item);
+            if (user === actor && window.location.hash === '#gorusmeler' && conversation?.id === item.id) {
+                thread.openLatest();
+            }
+        } catch (error) {
+            if (user === actor && window.location.hash === '#gorusmeler') {
+                showStatus(notice, error.message);
+            }
+        }
     }
 
     function focusNotificationTarget(target) {

@@ -12,7 +12,7 @@ const statusLabels = new Map([
 const leadDate = new Intl.DateTimeFormat('tr-TR', { dateStyle: 'medium', timeZone: 'Europe/Istanbul' });
 const historyDate = new Intl.DateTimeFormat('tr-TR', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Istanbul' });
 
-export function mountCrmLeads(section, { api, onChanged, openAppointment, bookForPatient }) {
+export function mountCrmLeads(section, { api, onChanged, openAppointment, bookForPatient, openConversation }) {
     const find = (part, root = section) => root.querySelector('[data-leads-' + part + ']');
     const create = find('new');
     const filter = find('filter');
@@ -50,6 +50,11 @@ export function mountCrmLeads(section, { api, onChanged, openAppointment, bookFo
     });
     const leadWork = mountCrmLeadWork(find('work'), {
         api,
+        openConversation(item, hasWorkChanges) {
+            if (canLeaveEditor('Kaydedilmemiş değişiklikler var. Görüşme açılsın mı?', hasWorkChanges)) {
+                return openConversation(item);
+            }
+        },
         onChanged() {
             onChanged();
             leadAppointments.refresh();
@@ -157,13 +162,16 @@ export function mountCrmLeads(section, { api, onChanged, openAppointment, bookFo
         showStatus(formStatus);
     }
 
-    function goToCalendar(open) {
+    function canLeaveEditor(question, hasWorkChanges = false) {
         if (!activeEditor || activeEditor.saving) {
-            return;
+            return false;
         }
-        const original = activeEditor.original;
-        if (original && Object.entries(formValues()).some(([field, value]) => value !== original[field])
-            && !window.confirm('Aday bilgilerinde kaydedilmemiş değişiklikler var. Takvime geçilsin mi?')) {
+        const hasLeadChanges = activeEditor.original && Object.keys(changedValues(activeEditor)).length > 0;
+        return (!hasLeadChanges && !hasWorkChanges) || window.confirm(question);
+    }
+
+    function goToCalendar(open) {
+        if (!canLeaveEditor('Aday bilgilerinde kaydedilmemiş değişiklikler var. Takvime geçilsin mi?')) {
             return;
         }
 

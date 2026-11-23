@@ -25,7 +25,7 @@ function localDateInput(value) {
     return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 }
 
-export function mountCrmLeadWork(panel, { api, onChanged }) {
+export function mountCrmLeadWork(panel, { api, onChanged, openConversation }) {
     const find = (part, root = panel) => root.querySelector('[data-work-' + part + ']');
     const form = find('form');
     const fields = form.querySelector('fieldset');
@@ -152,13 +152,47 @@ export function mountCrmLeadWork(panel, { api, onChanged }) {
         find('empty', section).hidden = rows.length > 0;
     }
 
+    function hasUnsavedWork() {
+        if (editing) {
+            return Object.entries(payload()).some(([name, value]) => value !== editing.original[name]);
+        }
+        return Boolean(input('title').value.trim() || input('description').value.trim() || input('when').value);
+    }
+
+    async function openLinkedConversation(current, id, button) {
+        if (lead !== current || current.saving || current.openingConversation) {
+            return;
+        }
+
+        current.openingConversation = true;
+        button.disabled = true;
+        try {
+            const { conversation: item } = await api('/conversations/' + id);
+            if (lead === current && !current.saving) {
+                await openConversation(item, hasUnsavedWork() || Boolean(conversation.value));
+            }
+        } catch (error) {
+            if (lead === current) {
+                showStatus(error.message);
+            }
+        } finally {
+            current.openingConversation = false;
+            button.disabled = false;
+        }
+    }
+
     function renderConversations(current, records) {
         const title = (record) => [record.subject || 'Görüşme #' + record.id, record.patient_name].filter(Boolean).join(' · ');
         const linked = records.filter((record) => record.attached);
         find('conversations').replaceChildren(...linked.map((record) => {
             const row = document.createElement('li');
-            row.className = 'break-words';
-            row.textContent = title(record);
+            row.className = 'flex flex-wrap items-center justify-between gap-2';
+            const label = document.createElement('span');
+            label.className = 'min-w-0 break-words';
+            label.textContent = title(record);
+            const button = action('Görüşmeyi aç', () => openLinkedConversation(current, record.id, button));
+            button.setAttribute('aria-label', button.textContent + ' · ' + label.textContent);
+            row.append(label, button);
             return row;
         }));
         find('no-conversations').hidden = linked.length > 0;
@@ -282,7 +316,7 @@ export function mountCrmLeadWork(panel, { api, onChanged }) {
         setLead(detail, { branchCrm = '', members = [], followUpId = null } = {}) {
             lead = detail ? {
                 id: detail.id, hasPatient: detail.patient_profile_id !== null, branchCrm, members, followUpId,
-                conversationPath: branchCrm + '/leads/' + detail.id + '/conversations', loading: false, loaded: false, saving: false,
+                conversationPath: branchCrm + '/leads/' + detail.id + '/conversations', loading: false, loaded: false, saving: false, openingConversation: false,
             } : null;
             panel.open = Boolean(lead?.followUpId);
             panel.hidden = !lead;

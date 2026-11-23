@@ -6,6 +6,7 @@ use App\Models\BusinessUser;
 use App\Models\CrmActivity;
 use App\Models\CrmLead;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -246,6 +247,25 @@ test('can create crm activity', function () {
         'type' => 'call',
         'title' => 'Hasta ile görüşüldü',
     ]);
+});
+
+test('creating and editing an activity preserves the instant and its clinic day', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-11-23T21:30:00Z'));
+    $branchApi = "/api/branches/{$this->branch->id}/crm";
+    $created = $this->postJson("{$branchApi}/activities", [
+        'crm_lead_id' => $this->lead->id,
+        'title' => 'Görüşme notu',
+        'type' => 'note',
+        'occurred_at' => '2026-11-24T00:10:00+03:00',
+    ])->assertCreated()->assertJsonPath('data.occurred_at', '2026-11-23T21:10:00.000000Z');
+
+    $this->getJson("{$branchApi}/dashboard")->assertOk()->assertJsonPath('data.summary.today_activities', 1);
+
+    $this->putJson("{$branchApi}/activities/{$created->json('data.id')}", [
+        'occurred_at' => '2026-11-23T16:55:00-04:00',
+    ])->assertOk()->assertJsonPath('data.occurred_at', '2026-11-23T20:55:00.000000Z');
+
+    $this->getJson("{$branchApi}/dashboard")->assertOk()->assertJsonPath('data.summary.today_activities', 0);
 });
 
 test('crm activity uses current time when occurred at is omitted', function () {

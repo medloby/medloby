@@ -8,6 +8,7 @@ use App\Models\CrmActivity;
 use App\Models\CrmLead;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Date;
 use Illuminate\Validation\Rule;
 
 class CrmActivityController extends Controller
@@ -113,7 +114,7 @@ class CrmActivityController extends Controller
             'type' => $validated['type'],
             'title' => $validated['title'],
             'description' => $validated['description'] ?? null,
-            'occurred_at' => $validated['occurred_at'] ?? now(),
+            'occurred_at' => isset($validated['occurred_at']) ? Date::parse($validated['occurred_at'])->utc() : now(),
         ]);
 
         return response()->json([
@@ -215,6 +216,10 @@ class CrmActivityController extends Controller
                     'message' => 'Seçilen lead bu şubeye ait değil.',
                 ], 422);
             }
+        }
+
+        if (isset($validated['occurred_at'])) {
+            $validated['occurred_at'] = Date::parse($validated['occurred_at'])->utc();
         }
 
         $crmActivity->update($validated);

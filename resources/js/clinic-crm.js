@@ -17,7 +17,7 @@ const metricLabels = {
     pending_follow_ups: 'Bekleyen takip',
 };
 
-export function mountClinicCrm(section, api, appointmentDialogs) {
+export function mountClinicCrm(section, api, { openConversation, ...appointmentDialogs }) {
     const find = (part) => section.querySelector('[data-crm-' + part + ']');
     const title = section.querySelector('#clinic-crm-name');
     const plan = find('plan');
@@ -42,7 +42,7 @@ export function mountClinicCrm(section, api, appointmentDialogs) {
     const ledger = mountClinicLedger(find('ledger'), api);
     const calendar = mountClinicCalendar(find('calendar'), api, appointmentDialogs);
     const leads = mountCrmLeads(find('leads'), {
-        api, onChanged: refreshDashboard,
+        api, onChanged: refreshDashboard, openConversation,
         openAppointment: calendar.openAppointment, bookForPatient: calendar.bookForPatient,
     });
     const profile = mountClinicProfile(find('profile'), api, (saved) => {
