@@ -62,11 +62,20 @@ Platform finansı **BLOCKED**. İleride finansal hareketler platformun kendi öd
 
 ## ADMIN-G7 — Sistem durumu
 
-**PARTIAL.** Sistem ekranı uygulama erişimini, veritabanı ve şema durumunu, kuyruk ve e-posta yapılandırmasını ve varsa belirtilen yayın sürümünü gösterir. Yayın komutuyla aynı teknik denetimleri kullanır. İşçi, zamanlayıcı, teslimat ve son yedek doğrulaması için canlı ölçüm bulunmadığında **Bilinmiyor** gösterilir. [Sistem ölçümleri](app/Services/ReleaseConfiguration.php) · [Yayın kontrolü](app/Console/Commands/CheckReleaseReadiness.php)
+**PARTIAL.** Sistem ekranı uygulama erişimini, veritabanı ve şema durumunu, kuyruk ve e-posta yapılandırmasını ve varsa belirtilen yayın sürümünü gösterir. Yayın komutuyla aynı teknik denetimleri kullanır. İşçi, zamanlayıcı, teslimat ve son yedek doğrulaması için canlı ölçüm bulunmadığında **Bilinmiyor** gösterilir. Veritabanı kesintisi yönetici oturumunun doğrulanmasını da engelliyorsa dış erişim kontrolü `/up` üzerinden yapılır. [Sistem ölçümleri](app/Services/ReleaseConfiguration.php) · [Yayın kontrolü](app/Console/Commands/CheckReleaseReadiness.php)
 
 ## ADMIN-G8 — Kabul
 
-Yerel kabul sonuçları son test çalıştırmasından sonra kaydedilir. Canlı ortam kabulü ve GitHub gönderimi kullanıcı onayı bekliyor.
+| Teslim alanı | Doğrulanan sonuç |
+| --- | --- |
+| GROUP, GIT HEAD ve WORKTREE STATUS | ADMIN-G8. Test edilen kod `7575533`. Yerel özellik commit’leri çalışma ağacına kaydedildi. |
+| INITIAL STATE, CONFIRMED GAPS ve ROOT CAUSE | Yönetim merkezi ve yeni salt okunur görünümler eklendi. Canlı ölçüm kaynakları ve kritik veri politikaları henüz tanımlı değil. |
+| IMPLEMENTED, CHANGED FILES, NEW FILES ve MIGRATIONS | Yerel kabul, yönetim paneli ve genişletmeler üzerinde çalıştırıldı. Dosyalar ilgili grup kayıtlarına bağlı. Şema değişikliği yok. |
+| AUTHORIZATION, DATA PRIVACY ve API COMPATIBILITY | Doğrulanmamış, hasta ve klinik personeli hesapları yeni yönetim uçlarından reddedilir. Yönetici işareti kaldırılan hesabın eski oturumuyla yeni sayım isteği reddedilir. Hasta hesap listesi ve özetler sınırlı alan döndürür. Mevcut destek, klinik ve sözleşme uçları regresyonda geçti. |
+| FOCUSED TEST ve INTEGRATION TEST | Son odak grubunda 49 test ve 369 doğrulama geçti. Chromium’da masaüstü ve mobil panel, mevcut yönetim diyalogları, hastaya göre destek filtresi, grafikler, analitik ve sistem durumu doğrulandı. |
+| FULL REGRESSION ve FRONTEND BUILD | SQLite **1.080** test ve 6.537 doğrulama. PostgreSQL 17 **1.083** test ve 6.562 doğrulama. SQLite’ta atlanan üç PostgreSQL yedekleme testi PostgreSQL’de geçti. Vite derlemesi, Blade ve rota önbelleği hazırlandı. |
+| RESULT, REMAINING RISKS ve DECISIONS REQUIRED | Yerel kabul **COMPLETE**. Canlı kabul **PENDING PRODUCTION ACCEPTANCE**. Rol geçişi, platform finansı ve hukuki politikalar aşağıda listelenmiştir. |
+| COMMIT, PUSH STATUS ve NEXT GROUP | Özellik commit’leri `4045328` ve `7575533`. Son doğrulanan `origin/main` `2991bb1`. Gönderim onayı ve ürün kararları bekleniyor. |
 
 ## PRODUCT_DECISIONS_REQUIRED
 
