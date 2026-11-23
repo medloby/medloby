@@ -14,6 +14,8 @@ use Illuminate\Console\Command;
 use Illuminate\Contracts\Encryption\Encrypter;
 use Illuminate\Foundation\Vite;
 use Illuminate\Foundation\ViteFonts;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 use Throwable;
 
 #[Signature('medloby:release-check')]
@@ -46,8 +48,8 @@ final class CheckReleaseReadiness extends Command
                 'Dağıtım ortamındaki APP_KEY değerini doğrulayın.'],
             ['Derlenmiş arayüz dosyaları', $this->probe(fn (): bool => $this->assetsReady($vite)),
                 'Vite yayın derlemesini oluşturun ve yazı tipi bildirimi dahil public/build dizinini dağıtıma ekleyin.'],
-            ['Özel dosya dizini', $this->probe(fn (): bool => $this->privateStorageReady()),
-                'Özel dosya izinlerini ve web dizinindeki bağlantıları doğrulayın. Ortam dosyalarını, logları ve yedekleri web kökü dışında saklayın.'],
+            ['Özel dosya dizini', $this->probe(fn (): bool => $this->privateStorageReady($databaseReady)),
+                'Özel dosya izinlerini, web dizinindeki bağlantıları ve rota önbelleğini doğrulayın. Gizli dosyaları ve yedekleri web kökü dışında saklayın.'],
             ['Veritabanı bağlantısı', $databaseReady, 'Dağıtım ortamındaki veritabanı bağlantısını kontrol edin.'],
             ['Veritabanı şeması', $schemaReady, $databaseReady ? 'Bekleyen migration kayıtlarını kontrol edin.' : 'Veritabanı bağlantısı doğrulanınca kontrol edilir.'],
             ['İlk platform yöneticisi', $administratorReady, $schemaReady
@@ -170,8 +172,14 @@ final class CheckReleaseReadiness extends Command
             && is_file($path) && is_readable($path);
     }
 
-    private function privateStorageReady(): bool
+    private function privateStorageReady(bool $databaseReady): bool
     {
+        foreach (['local', 'private'] as $disk) {
+            if (Route::has('storage.'.$disk) || Route::has('storage.'.$disk.'.upload')) {
+                return false;
+            }
+        }
+
         $path = config('filesystems.disks.private.root');
         if (config('filesystems.disks.private.driver') !== 'local' || ! is_string($path) || blank($path)) {
             return false;
@@ -183,10 +191,25 @@ final class CheckReleaseReadiness extends Command
             return false;
         }
 
-        return ! $this->publicPathsExposeSensitiveFiles($public, [
-            $root, base_path('.git'), base_path('vendor'), config_path(), database_path(),
-            base_path('bootstrap/cache'), storage_path('logs'), storage_path('framework'),
-        ]);
+        $protectedPaths = [
+            $root, base_path('.git'), base_path('vendor'), app_path(), config_path(), database_path(),
+            resource_path(), base_path('routes'), base_path('bootstrap'), app()->getCachedConfigPath(),
+            storage_path('logs'), storage_path('framework'),
+        ];
+
+        $localRoot = config('filesystems.disks.local.root');
+        if (config('filesystems.disks.local.driver') === 'local' && is_string($localRoot) && filled($localRoot)) {
+            $protectedPaths[] = $localRoot;
+        }
+
+        if ($databaseReady && DB::connection()->getDriverName() === 'sqlite') {
+            $file = DB::connection()->scalar("select file from pragma_database_list where name = 'main'", useReadPdo: false);
+            if (is_string($file) && $file !== '') {
+                array_push($protectedPaths, $file, $file.'-wal', $file.'-shm', $file.'-journal');
+            }
+        }
+
+        return ! $this->publicPathsExposeSensitiveFiles($public, $protectedPaths);
     }
 
     /** @param list<string> $protectedPaths */
@@ -231,6 +254,6 @@ final class CheckReleaseReadiness extends Command
     private function hasSensitivePublicName(string $name): bool
     {
         return $name === '.git'
-            || preg_match('/\A\.env(?:\.|\z)|\.(?:sqlite3?(?:-(?:wal|shm|journal))?|dump|sql(?:\.gz)?|log(?:\.\d+)?|pem|key|pfx|p12)\z/i', $name) === 1;
+            || preg_match('/\A\.env(?:\.|\z)|\.(?:(?:db|sqlite3?)(?:-(?:wal|shm|journal))?|dump|sql(?:\.gz)?|log(?:\.\d+)?|pem|key|pfx|p12)\z/i', $name) === 1;
     }
 }

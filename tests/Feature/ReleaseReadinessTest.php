@@ -7,6 +7,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 
 uses(RefreshDatabase::class);
@@ -258,13 +259,52 @@ test('the release check detects public credential files and backups without prin
     expect(Artisan::output())->toContain('Eksik · Özel dosya dizini')
         ->not->toContain($filename, 'synthetic-public-exposure-fixture');
     expect(File::exists(public_path($filename)))->toBeTrue();
-})->with(['.env.staging', 'backup.sql.gz', 'application.sqlite-wal']);
+})->with(['.env.staging', 'backup.sql.gz', 'application.sqlite-wal', 'clinic.db-shm']);
 
-test('the release check refuses a public link to application dependencies', function () {
-    File::link(base_path('vendor'), public_path('published-files'));
+test('the release check refuses a public link to internal application files', function (string $directory) {
+    File::link(base_path($directory), public_path('published-files'));
 
     expect(Artisan::call('medloby:release-check'))->toBe(Command::FAILURE);
     expect(Artisan::output())->toContain('Eksik · Özel dosya dizini')->not->toContain(base_path());
+})->with(['vendor', 'app', 'resources', 'routes']);
+
+test('the release check detects a public link to a separate local attachment disk', function () {
+    $legacyStorage = $this->releaseDirectory.'/legacy-attachments';
+    File::ensureDirectoryExists($legacyStorage);
+    File::put($legacyStorage.'/attachment.pdf', 'Synthetic attachment');
+    config(['filesystems.disks.local.root' => $legacyStorage]);
+    File::link($legacyStorage, public_path('published-files'));
+
+    expect(Artisan::call('medloby:release-check'))->toBe(Command::FAILURE);
+    expect(Artisan::output())->toContain('Eksik · Özel dosya dizini')->not->toContain($legacyStorage);
+});
+
+test('the release check rejects legacy direct upload routes that are still registered', function () {
+    Route::put('/storage/{path}', static fn () => abort(404))->name('storage.local.upload');
+    Route::getRoutes()->refreshNameLookups();
+
+    expect(Artisan::call('medloby:release-check'))->toBe(Command::FAILURE);
+    expect(Artisan::output())->toContain('Eksik · Özel dosya dizini');
+});
+
+test('the release check detects a public link to the active SQLite file regardless of its name', function () {
+    $databasePath = $this->releaseDirectory.'/catalog-store';
+    File::put($databasePath, '');
+    File::link($databasePath, public_path('catalog-fixture'));
+    $previousDefault = config('database.default');
+    config([
+        'database.default' => 'release-sqlite-fixture',
+        'database.connections.release-sqlite-fixture' => ['driver' => 'sqlite', 'database' => $databasePath],
+    ]);
+
+    try {
+        expect(Artisan::call('medloby:release-check'))->toBe(Command::FAILURE);
+        expect(Artisan::output())->toContain('Hazır · Veritabanı bağlantısı', 'Eksik · Özel dosya dizini')
+            ->not->toContain($databasePath);
+    } finally {
+        DB::purge('release-sqlite-fixture');
+        config(['database.default' => $previousDefault]);
+    }
 });
 
 test('release readiness accepts separate public storage even when a link points back to public', function () {

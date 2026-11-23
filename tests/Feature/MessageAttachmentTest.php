@@ -9,6 +9,7 @@ use App\Models\MessageAttachment;
 use App\Models\PatientProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -89,6 +90,11 @@ function createTestAttachment(
         'size' => 12,
     ]);
 }
+
+test('local attachments have no generic file serving or upload route', function () {
+    expect(Route::has('storage.local'))->toBeFalse()
+        ->and(Route::has('storage.local.upload'))->toBeFalse();
+});
 
 test('branch assignment controls conversation listing, messages, offer access and attachments together', function () {
     Storage::fake('local');
