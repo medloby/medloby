@@ -15,7 +15,7 @@ class CatalogManagementAccess
     public function canManage(User $user, ?int $businessId, ?int $branchId = null): bool
     {
         $allowed = $businessId === null
-            ? (bool) $user->is_admin
+            ? $user->isVerifiedPlatformAdmin()
             : $user->businessMemberships()
                 ->where('business_id', $businessId)
                 ->where('role', 'business_owner')

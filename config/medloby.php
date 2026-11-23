@@ -5,6 +5,7 @@ return [
     'privacy_published' => env('MEDLOBY_PRIVACY_PUBLISHED', false),
     'policies_published' => env('MEDLOBY_POLICIES_PUBLISHED', false),
     'policy_preview' => env('MEDLOBY_POLICY_PREVIEW', false),
+    'consent_template_preview' => env('MEDLOBY_CONSENT_TEMPLATE_PREVIEW', false),
     'search_indexing' => env('MEDLOBY_SEARCH_INDEXING', false),
 
     'policy_pages' => [

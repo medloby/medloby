@@ -8,6 +8,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
+beforeEach(fn () => config(['medloby.consent_template_preview' => true]));
+
 test('an owner can prepare fixed versions and review earlier text after editing the draft', function () {
     $clinic = Business::factory()->create();
     $owner = User::factory()->create();

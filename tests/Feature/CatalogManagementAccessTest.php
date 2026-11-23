@@ -75,6 +75,16 @@ test('global category and treatment definitions require a platform administrator
     $this->assertDatabaseMissing('treatments', ['name' => 'Yetkisiz tedavi']);
 });
 
+test('a staff verification exemption cannot authorize shared catalog changes', function () {
+    $clinic = Business::factory()->create();
+    $staff = User::factory()->unverified()->create(['is_admin' => true, 'staff_business_id' => $clinic->id]);
+
+    $this->actingAs($staff, 'sanctum')->getJson('/api/package-services/manage')->assertForbidden();
+    $this->postJson('/api/package-services', ['name' => 'Yetkisiz ortak hizmet', 'service_type' => 'other'])->assertForbidden();
+
+    $this->assertDatabaseMissing('package_services', ['name' => 'Yetkisiz ortak hizmet']);
+});
+
 test('a verified platform administrator can manage global catalog definitions using a bearer token', function () {
     $admin = User::factory()->create(['is_admin' => true]);
     $token = $admin->createToken('catalog-test')->plainTextToken;

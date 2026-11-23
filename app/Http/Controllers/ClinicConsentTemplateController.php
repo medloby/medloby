@@ -119,6 +119,7 @@ class ClinicConsentTemplateController extends Controller
 
     private function authorizeOwner(Request $request, Business $business): void
     {
+        abort_unless(config('medloby.consent_template_preview') === true && ! app()->isProduction(), 404);
         abort_unless($business->allowsOwnerManagement($request->user()), 403, 'Onam taslaklarını yönetme yetkiniz yok.');
     }
 

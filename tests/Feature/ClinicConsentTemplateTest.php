@@ -8,6 +8,28 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
+beforeEach(fn () => config(['medloby.consent_template_preview' => true]));
+
+test('clinical consent drafts require explicit preview and are unavailable in production', function () {
+    $clinic = Business::factory()->create();
+    $owner = User::factory()->create();
+    $clinic->memberships()->create(['user_id' => $owner->id, 'role' => 'business_owner', 'is_active' => true]);
+    $url = "/api/businesses/{$clinic->id}/crm/consent-templates";
+    $fields = ['title' => 'Sentetik taslak', 'content' => 'Taslak metin'];
+    $this->actingAs($owner, 'sanctum');
+
+    config(['medloby.consent_template_preview' => false]);
+    $this->getJson($url)->assertNotFound();
+    $this->postJson($url, $fields)->assertNotFound();
+
+    config(['medloby.consent_template_preview' => true]);
+    $this->app->instance('env', 'production');
+    $this->getJson($url)->assertNotFound();
+    $this->postJson($url, $fields)->assertNotFound();
+
+    $this->assertDatabaseCount('consent_templates', 0);
+});
+
 test('an approved clinic owner can draft and edit reusable consent text without a patient record', function () {
     $clinic = Business::factory()->create();
     $other = Business::factory()->create();
