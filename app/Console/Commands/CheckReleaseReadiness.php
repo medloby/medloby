@@ -68,7 +68,9 @@ final class CheckReleaseReadiness extends Command
             ['Politika sayfaları yayın ayarı', $privacy->policiesArePublished(),
                 'Onaylı politika metinleri ve KVKK ayarları hazır olduğunda MEDLOBY_POLICIES_PUBLISHED değerini etkinleştirin.'],
             ['Arka plan kuyruğu ayarı', $this->probe($release->queueReady(...)),
-                'Kuyruk bağlantısını ve veritabanı kuyruğu kullanılıyorsa iş tablosunu doğrulayın.'],
+                'Kuyruk bağlantısını ve veritabanı kuyruğunun gerekli iş tablosu sütunlarını doğrulayın.'],
+            ['Başarısız kuyruk kayıtları', $this->probe($release->failedJobStorageReady(...)),
+                'QUEUE_FAILED_DRIVER ayarını ve başarısız işleri saklayacak özel dosyayı veya veritabanı tablosunu doğrulayın.'],
             ['SMTP ve gönderen ayarı', $this->probe($release->mailReady(...)),
                 'SMTP sunucusunu, portunu ve yetkili gönderen adresini ayarlayın.'],
         ];

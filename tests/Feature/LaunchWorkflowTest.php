@@ -27,7 +27,8 @@ test('a newly approved clinic and a verified patient can complete a private pack
         $this->withToken($token);
     };
     $drainQueue = function (): void {
-        $this->artisan('queue:work', ['--stop-when-empty' => true, '--sleep' => 0, '--tries' => 1])->assertSuccessful();
+        // The in-process worker shares memory with the test runner.
+        $this->artisan('queue:work', ['--stop-when-empty' => true, '--sleep' => 0, '--tries' => 1, '--memory' => 0])->assertSuccessful();
         $this->assertDatabaseCount('jobs', 0);
         $this->assertDatabaseCount('failed_jobs', 0);
     };

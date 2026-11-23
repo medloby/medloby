@@ -220,6 +220,14 @@ test('the dashboard reports only configured operational observations and catalog
         ->assertDontSee('Gizli sözleşme');
 });
 
+test('the operations dashboard flags a queue with disabled failure records', function () {
+    $admin = User::factory()->create(['is_admin' => true]);
+    config(['queue.default' => 'database', 'queue.connections.database.connection' => null, 'queue.failed.driver' => null]);
+
+    $this->actingAs($admin, 'sanctum')->getJson('/api/admin/operations')->assertOk()
+        ->assertJsonPath('data.queue_configuration', 'not_configured');
+});
+
 test('operation observations contain only timestamps and are recorded from successful SMTP sends', function () {
     $admin = User::factory()->create(['is_admin' => true]);
     $activity = app(PlatformOperationActivity::class);

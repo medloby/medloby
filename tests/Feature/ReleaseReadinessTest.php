@@ -3,11 +3,13 @@
 use App\Models\PlatformContract;
 use App\Models\User;
 use Illuminate\Console\Command;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 uses(RefreshDatabase::class);
@@ -50,6 +52,9 @@ beforeEach(function () {
         'queue.default' => 'database',
         'queue.connections.database.connection' => null,
         'queue.connections.database.table' => 'jobs',
+        'queue.failed.driver' => 'database-uuids',
+        'queue.failed.database' => config('database.default'),
+        'queue.failed.table' => 'failed_jobs',
         'mail.default' => 'smtp',
         'mail.mailers.smtp.scheme' => null,
         'mail.mailers.smtp.url' => null,
@@ -86,7 +91,7 @@ test('release readiness succeeds with an effective deployment configuration with
     expect(Artisan::call('medloby:release-check'))->toBe(Command::SUCCESS);
 
     expect(Artisan::output())
-        ->toContain('Hazır · Veritabanı şeması', 'Hazır · İlk platform yöneticisi', 'Hazır · Yürürlükteki klinik üyelik sözleşmesi')
+        ->toContain('Hazır · Veritabanı şeması', 'Hazır · İlk platform yöneticisi', 'Hazır · Yürürlükteki klinik üyelik sözleşmesi', 'Hazır · Başarısız kuyruk kayıtları')
         ->not->toContain('Eksik ·', 'Bekliyor ·', config('app.key'), config('mail.mailers.smtp.password'), $this->administrator->email, $this->releaseDirectory);
 
     $this->assertDatabaseCount('jobs', 0);
@@ -336,4 +341,59 @@ test('release readiness checks the public storage link, queue table and effectiv
 
     expect(Artisan::call('medloby:release-check'))->toBe(Command::FAILURE);
     expect(Artisan::output())->toContain('Eksik · SMTP ve gönderen ayarı');
+});
+
+test('release readiness rejects a database queue table with an incomplete schema', function () {
+    Schema::create('release_queue_fixture', fn (Blueprint $table) => $table->id());
+    config(['queue.connections.database.table' => 'release_queue_fixture']);
+
+    expect(Artisan::call('medloby:release-check'))->toBe(Command::FAILURE);
+    expect(Artisan::output())->toContain('Eksik · Arka plan kuyruğu ayarı', 'Hazır · Başarısız kuyruk kayıtları');
+});
+
+test('release readiness detects failed jobs that cannot be recorded or retried', function (array $settings) {
+    config($settings);
+
+    expect(Artisan::call('medloby:release-check'))->toBe(Command::FAILURE);
+    expect(Artisan::output())->toContain('Hazır · Arka plan kuyruğu ayarı', 'Eksik · Başarısız kuyruk kayıtları')
+        ->not->toContain('fixture_missing_failures');
+    $this->assertDatabaseCount('failed_jobs', 0);
+})->with([
+    'disabled' => [['queue.failed.driver' => null]],
+    'disabled by name' => [['queue.failed.driver' => 'null']],
+    'missing table' => [['queue.failed.table' => 'fixture_missing_failures']],
+    'missing columns' => [['queue.failed.table' => 'jobs']],
+    'wrong provider for mandatory UUID column' => [['queue.failed.driver' => 'database']],
+]);
+
+test('release readiness accepts a compatible legacy failure table', function () {
+    Schema::create('release_failures_fixture', function (Blueprint $table): void {
+        $table->id();
+        $table->string('connection');
+        $table->string('queue');
+        $table->text('payload');
+        $table->text('exception');
+        $table->timestamp('failed_at');
+    });
+    config(['queue.failed.driver' => 'database', 'queue.failed.table' => 'release_failures_fixture']);
+
+    expect(Artisan::call('medloby:release-check'))->toBe(Command::SUCCESS);
+    expect(Artisan::output())->toContain('Hazır · Başarısız kuyruk kayıtları');
+    $this->assertDatabaseCount('release_failures_fixture', 0);
+});
+
+test('release readiness checks the failed job file path without creating a file', function () {
+    $privateFile = $this->releaseDirectory.'/private/failures.json';
+    config(['queue.failed.driver' => 'file', 'queue.failed.path' => $privateFile]);
+
+    expect(Artisan::call('medloby:release-check'))->toBe(Command::SUCCESS);
+    expect(Artisan::output())->toContain('Hazır · Başarısız kuyruk kayıtları')->not->toContain($privateFile);
+    expect(File::exists($privateFile))->toBeFalse();
+
+    $publicFile = public_path('failures.json');
+    config(['queue.failed.path' => $publicFile]);
+
+    expect(Artisan::call('medloby:release-check'))->toBe(Command::FAILURE);
+    expect(Artisan::output())->toContain('Eksik · Başarısız kuyruk kayıtları')->not->toContain($publicFile);
+    expect(File::exists($publicFile))->toBeFalse();
 });

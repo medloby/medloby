@@ -49,6 +49,8 @@ php artisan medloby:release-check --no-interaction
 
 Komut mevcut ayarları, veritabanı bağlantısını ve migration kayıtlarını, yönetici hesabını ve yürürlükteki klinik üyelik sözleşmesini salt okunur biçimde kontrol eder. Yayın dosyalarının kontrolüne Vite bildirimi, bağlı CSS ve JavaScript dosyaları ile yerel yazı tipi bildirimi ve dosyaları dahildir. Özel depolama kontrolü, web dizinindeki sembolik bağlantılar üzerinden özel bir klasöre veya dosyaya ulaşılıp ulaşılmadığını da denetler. Her madde için **Hazır**, **Eksik** veya **Bekliyor** gösterir. Tüm maddeler hazırsa çıkış kodu `0`, eksik veya bekleyen madde varsa `1` olur.
 
+Kuyruk için iş tablosunun gerekli sütunları ve `QUEUE_FAILED_DRIVER` ile seçilen başarısız iş deposu ayrı denetlenir. Varsayılan `database-uuids` ayarı, yeniden deneme için `uuid` sütunu olan başarısız iş tablosunu kullanır. Dosya tabanlı depoda web üzerinden erişilemeyen yazılabilir bir hedef gerekir. Platform yönetimindeki kuyruk yapılandırması bu iki kontrolün sonucunu gösterir.
+
 Canlı HTTPS erişimini, SMTP teslimatını, kuyruk işçisini, zamanlayıcıyı ve yedekten geri yüklemeyi yukarıdaki adımlarla prova et. [Teknik kontrol testleri](tests/Feature/ReleaseReadinessTest.php)
 
 **Platform yönetimi → Sistem durumu** ekranı tamamlanan kuyruk işi, başarılı zamanlanmış görev, SMTP kabulü ve doğrulanan yedek oluşturma için son gözlenen saatleri gösterir. Zamanlayıcı, kuyruk işçisi ve web uygulaması aynı veritabanı önbelleği bağlantısını ve ön ekini kullanmalıdır. Önbellek temizlendiğinde saatler ilgili işlem yeniden başarıyla tamamlanınca görünür. SMTP kabulü sonrasında gerçek gelen kutusu teslimatı yayın provasında ayrıca sınanır.
