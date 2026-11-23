@@ -65,6 +65,13 @@ class CrmLead extends Model
     }
 
     #[Scope]
+    protected function forBranch(Builder $query, Branch $branch): Builder
+    {
+        return $query->where('crm_leads.business_id', $branch->business_id)
+            ->where('crm_leads.branch_id', $branch->id);
+    }
+
+    #[Scope]
     protected function openForFollowUp(Builder $query): Builder
     {
         return $query->whereNotIn('crm_leads.status', [self::CONVERTED, self::LEGACY_CONVERTED, self::LOST]);

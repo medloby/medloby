@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Middleware\EnsureClinicCrmAccess;
+use App\Http\Resources\CrmWorkResource;
 use App\Models\Branch;
 use App\Models\BusinessUser;
 use App\Models\CrmLead;
@@ -22,7 +23,7 @@ class CrmTaskController extends Controller
             ->where('business_id', $branch->business_id)
             ->where('branch_id', $branch->id)
             ->with([
-                'lead',
+                'lead' => CrmWorkResource::leadSummary($branch),
                 'assignedBusinessUser',
                 'createdByBusinessUser',
             ])
@@ -60,12 +61,12 @@ class CrmTaskController extends Controller
             $query->where(
                 'crm_lead_id',
                 $request->integer('crm_lead_id')
-            );
+            )->whereHas('lead', fn ($lead) => $lead->forBranch($branch));
         }
 
         return response()->json([
             'success' => true,
-            'data' => $query->get(),
+            'data' => CrmWorkResource::collection($query->get()),
         ]);
     }
 
@@ -206,11 +207,11 @@ class CrmTaskController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $task->fresh([
-                'lead',
+            'data' => new CrmWorkResource($task->fresh([
+                'lead' => CrmWorkResource::leadSummary($branch),
                 'assignedBusinessUser',
                 'createdByBusinessUser',
-            ]),
+            ])),
         ], 201);
     }
 
@@ -230,13 +231,13 @@ class CrmTaskController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $crmTask->load([
-                'lead',
+            'data' => new CrmWorkResource($crmTask->load([
+                'lead' => CrmWorkResource::leadSummary($branch),
                 'assignedBusinessUser',
                 'createdByBusinessUser',
                 'branch',
                 'business',
-            ]),
+            ])),
         ]);
     }
 
@@ -418,7 +419,7 @@ class CrmTaskController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $task->fresh(['lead', 'assignedBusinessUser', 'createdByBusinessUser']),
+                'data' => new CrmWorkResource($task->fresh(['lead' => CrmWorkResource::leadSummary($branch), 'assignedBusinessUser', 'createdByBusinessUser'])),
             ]);
         }, attempts: 3);
     }

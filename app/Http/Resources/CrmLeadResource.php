@@ -17,6 +17,7 @@ class CrmLeadResource extends JsonResource
         return [
             ...$this->resource->toArray(),
             'patient_profile_id' => $this->whenLoaded('patientProfile', fn ($patient) => $patient->id, null),
+            'patient_profile' => $this->whenLoaded('patientProfile', fn ($patient) => $patient->only('id', 'first_name', 'last_name'), null),
             'assigned_business_user_id' => $this->whenLoaded('assignedBusinessUser', fn ($member) => $member->id, null),
         ];
     }

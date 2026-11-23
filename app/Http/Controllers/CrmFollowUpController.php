@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\CrmWorkResource;
 use App\Models\Branch;
 use App\Models\BusinessUser;
 use App\Models\CrmFollowUp;
@@ -22,7 +23,7 @@ class CrmFollowUpController extends Controller
             ->where('business_id', $branch->business_id)
             ->where('branch_id', $branch->id)
             ->with([
-                'lead',
+                'lead' => CrmWorkResource::leadSummary($branch),
                 'assignedBusinessUser',
             ])
             ->orderBy('scheduled_at');
@@ -31,7 +32,7 @@ class CrmFollowUpController extends Controller
             $query->where(
                 'crm_lead_id',
                 $request->integer('crm_lead_id')
-            );
+            )->whereHas('lead', fn ($lead) => $lead->forBranch($branch));
         }
 
         if ($request->filled('assigned_business_user_id')) {
@@ -57,7 +58,7 @@ class CrmFollowUpController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $query->get(),
+            'data' => CrmWorkResource::collection($query->get()),
         ]);
     }
 
@@ -146,10 +147,10 @@ class CrmFollowUpController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $followUp->fresh([
-                'lead',
+            'data' => new CrmWorkResource($followUp->fresh([
+                'lead' => CrmWorkResource::leadSummary($branch),
                 'assignedBusinessUser',
-            ]),
+            ])),
         ], 201);
     }
 
@@ -169,12 +170,12 @@ class CrmFollowUpController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $crmFollowUp->load([
-                'lead',
+            'data' => new CrmWorkResource($crmFollowUp->load([
+                'lead' => CrmWorkResource::leadSummary($branch),
                 'assignedBusinessUser',
                 'branch',
                 'business',
-            ]),
+            ])),
         ]);
     }
 
@@ -287,10 +288,10 @@ class CrmFollowUpController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $crmFollowUp->fresh([
-                'lead',
+            'data' => new CrmWorkResource($crmFollowUp->fresh([
+                'lead' => CrmWorkResource::leadSummary($branch),
                 'assignedBusinessUser',
-            ]),
+            ])),
         ]);
     }
 
@@ -322,10 +323,10 @@ class CrmFollowUpController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $crmFollowUp->fresh([
-                'lead',
+            'data' => new CrmWorkResource($crmFollowUp->fresh([
+                'lead' => CrmWorkResource::leadSummary($branch),
                 'assignedBusinessUser',
-            ]),
+            ])),
         ]);
     }
 
@@ -357,10 +358,10 @@ class CrmFollowUpController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $crmFollowUp->fresh([
-                'lead',
+            'data' => new CrmWorkResource($crmFollowUp->fresh([
+                'lead' => CrmWorkResource::leadSummary($branch),
                 'assignedBusinessUser',
-            ]),
+            ])),
         ]);
     }
 

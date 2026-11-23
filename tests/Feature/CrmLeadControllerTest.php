@@ -5,9 +5,12 @@ use App\Models\Branch;
 use App\Models\Business;
 use App\Models\BusinessUser;
 use App\Models\Conversation;
+use App\Models\CrmActivity;
+use App\Models\CrmFollowUp;
 use App\Models\CrmLead;
 use App\Models\CrmPipelineStage;
 use App\Models\CrmPipelineStageHistory;
+use App\Models\CrmTask;
 use App\Models\PatientProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -369,6 +372,7 @@ test('crm links patients and staff only within the lead branch', function () {
     $patient = PatientProfile::create([
         'user_id' => User::factory()->create()->id,
         'first_name' => 'Branch', 'last_name' => 'Patient',
+        'phone' => '05550000000', 'birth_date' => '1992-01-01',
     ]);
     Conversation::create([
         'business_id' => $this->business->id,
@@ -417,7 +421,8 @@ test('crm links patients and staff only within the lead branch', function () {
         'changed_at' => $appointment->created_at,
     ]);
     $this->putJson($leadUrl, $links)->assertOk()
-        ->assertJsonPath('data.patient_profile.id', $patient->id)
+        ->assertJsonPath('data.patient_profile_id', $patient->id)
+        ->assertJsonPath('data.patient_profile', ['id' => $patient->id, 'first_name' => 'Branch', 'last_name' => 'Patient'])
         ->assertJsonPath('data.assigned_business_user.id', $staff->id);
     $conversation = Conversation::create([
         'business_id' => $this->business->id,
@@ -432,6 +437,52 @@ test('crm links patients and staff only within the lead branch', function () {
     $this->assertDatabaseHas('crm_leads', ['id' => $lead->id, ...$links]);
     $this->assertDatabaseHas('conversations', ['id' => $conversation->id, 'crm_lead_id' => $lead->id]);
 });
+
+test('CRM work only exposes candidate details within its own branch', function (string $collection, string $model) {
+    $staff = User::factory()->create();
+    $member = $this->business->memberships()->create(['user_id' => $staff->id, 'role' => 'staff', 'is_active' => true]);
+    $member->branches()->attach($this->branch->id, ['is_active' => true]);
+    $localLead = CrmLead::create([
+        'business_id' => $this->business->id, 'branch_id' => $this->branch->id,
+        'first_name' => 'Şube', 'last_name' => 'Adayı',
+    ]);
+    $foreignLead = CrmLead::create([
+        'business_id' => $this->business->id, 'branch_id' => $this->otherBranch->id,
+        'first_name' => 'Diğer şube', 'email' => 'other-branch@example.test',
+    ]);
+    $attributes = match ($collection) {
+        'activities' => ['business_user_id' => $member->id, 'occurred_at' => now()],
+        'follow-ups' => ['scheduled_at' => now()],
+        default => [],
+    };
+    $work = [
+        ...$attributes, 'business_id' => $this->business->id, 'branch_id' => $this->branch->id,
+        'type' => 'call', 'title' => 'Şube kaydı',
+    ];
+    $ordinary = $model::create([...$work, 'crm_lead_id' => $localLead->id]);
+    $legacy = $model::create([...$work, 'crm_lead_id' => $foreignLead->id]);
+    $path = "/api/branches/{$this->branch->id}/crm/{$collection}";
+
+    $this->actingAs($staff)->getJson("{$path}/{$legacy->id}")->assertOk()
+        ->assertJsonPath('data.crm_lead_id', null)->assertJsonPath('data.lead', null)
+        ->assertJsonMissing(['email' => 'other-branch@example.test']);
+    $this->getJson("{$path}/{$ordinary->id}")->assertOk()
+        ->assertJsonPath('data.crm_lead_id', $localLead->id)
+        ->assertJsonPath('data.lead', ['id' => $localLead->id, 'first_name' => 'Şube', 'last_name' => 'Adayı']);
+    $list = $this->getJson($path)->assertOk()->assertJsonMissing(['email' => 'other-branch@example.test']);
+    $legacySummary = collect($list->json('data'))->firstWhere('id', $legacy->id);
+    expect($legacySummary['crm_lead_id'])->toBeNull();
+    expect($legacySummary['lead'])->toBeNull();
+    $this->getJson($path.'?crm_lead_id='.$foreignLead->id)->assertOk()->assertJsonCount(0, 'data');
+    $this->getJson($path.'?crm_lead_id='.$localLead->id)->assertOk()->assertJsonPath('data.0.id', $ordinary->id);
+    $this->putJson("{$path}/{$legacy->id}", ['title' => 'Düzenlenen şube kaydı'])->assertOk()
+        ->assertJsonPath('data.crm_lead_id', null)->assertJsonPath('data.lead', null);
+    expect($legacy->refresh()->crm_lead_id)->toBe($foreignLead->id);
+})->with([
+    'task' => ['tasks', CrmTask::class],
+    'follow-up' => ['follow-ups', CrmFollowUp::class],
+    'activity' => ['activities', CrmActivity::class],
+]);
 
 test('can show crm lead', function () {
     $lead = CrmLead::create([

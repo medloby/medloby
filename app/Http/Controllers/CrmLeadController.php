@@ -516,7 +516,7 @@ class CrmLeadController extends Controller
     private function leadRelations(Branch $branch): array
     {
         return [
-            'patientProfile' => fn ($patient) => $patient->knownToBranch($branch),
+            'patientProfile' => fn ($patient) => $patient->knownToBranch($branch)->select('id', 'first_name', 'last_name'),
             'assignedBusinessUser' => fn ($member) => $member->activeForBranch($branch),
             'branch',
             'pipelineStage' => fn ($stage) => $stage->where('business_id', $branch->business_id),

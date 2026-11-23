@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Middleware\EnsureClinicCrmAccess;
+use App\Http\Resources\CrmWorkResource;
 use App\Models\Branch;
 use App\Models\CrmActivity;
 use App\Models\CrmLead;
@@ -21,7 +22,7 @@ class CrmActivityController extends Controller
             ->where('business_id', $branch->business_id)
             ->where('branch_id', $branch->id)
             ->with([
-                'lead',
+                'lead' => CrmWorkResource::leadSummary($branch),
                 'businessUser',
             ])
             ->latest('occurred_at');
@@ -30,7 +31,7 @@ class CrmActivityController extends Controller
             $query->where(
                 'crm_lead_id',
                 $request->integer('crm_lead_id')
-            );
+            )->whereHas('lead', fn ($lead) => $lead->forBranch($branch));
         }
 
         if ($request->filled('business_user_id')) {
@@ -49,7 +50,7 @@ class CrmActivityController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $query->get(),
+            'data' => CrmWorkResource::collection($query->get()),
         ]);
     }
 
@@ -119,10 +120,10 @@ class CrmActivityController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $activity->fresh([
-                'lead',
+            'data' => new CrmWorkResource($activity->fresh([
+                'lead' => CrmWorkResource::leadSummary($branch),
                 'businessUser',
-            ]),
+            ])),
         ], 201);
     }
 
@@ -142,12 +143,12 @@ class CrmActivityController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $crmActivity->load([
-                'lead',
+            'data' => new CrmWorkResource($crmActivity->load([
+                'lead' => CrmWorkResource::leadSummary($branch),
                 'businessUser',
                 'branch',
                 'business',
-            ]),
+            ])),
         ]);
     }
 
@@ -226,10 +227,10 @@ class CrmActivityController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $crmActivity->fresh([
-                'lead',
+            'data' => new CrmWorkResource($crmActivity->fresh([
+                'lead' => CrmWorkResource::leadSummary($branch),
                 'businessUser',
-            ]),
+            ])),
         ]);
     }
 
