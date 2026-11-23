@@ -378,6 +378,33 @@ test('admin can deactivate a published platform contract', function () {
         ->toBe($admin->id);
 });
 
+test('publication and removal retain their actual actors in the existing audit history', function () {
+    $publisher = createAdminUser();
+    $remover = createAdminUser();
+    $contract = createContract(['content' => 'Özel sözleşme metni']);
+    $path = '/api/admin/platform-contracts/'.$contract->id;
+
+    $this->travelTo(now()->startOfSecond());
+    $this->actingAs($publisher, 'sanctum')->postJson($path.'/publish', ['published_by_user_id' => $remover->id])->assertOk();
+    $this->getJson('/api/register/business/contract')->assertOk()->assertJsonMissingPath('data.published_by_user_id');
+
+    $this->travel(1)->minute();
+    $this->actingAs($remover, 'sanctum')->postJson($path.'/deactivate', ['deactivated_by_user_id' => $publisher->id])->assertOk();
+    $this->postJson($path.'/deactivate')->assertUnprocessable();
+    $this->assertDatabaseHas('platform_contracts', [
+        'id' => $contract->id, 'status' => 'inactive', 'published_by_user_id' => $publisher->id,
+        'deactivated_by_user_id' => $remover->id, 'deactivated_at' => now()->toDateTimeString(),
+    ]);
+
+    foreach (['/api/admin/audit?source=contract', '/api/admin/audit'] as $audit) {
+        $this->getJson($audit)->assertOk()->assertHeader('Cache-Control', 'no-store, private')->assertJsonPath('data.total', 2)
+            ->assertJsonPath('data.data.0.action', 'deactivated')->assertJsonPath('data.data.0.target_id', $contract->id)
+            ->assertJsonPath('data.data.0.actor_name', $remover->name)
+            ->assertJsonPath('data.data.1.action', 'published')->assertJsonPath('data.data.1.actor_name', $publisher->name)
+            ->assertDontSee($publisher->email)->assertDontSee('Özel sözleşme metni');
+    }
+});
+
 test('admin cannot deactivate a draft contract', function () {
     $admin = createAdminUser();
 

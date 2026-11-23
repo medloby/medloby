@@ -260,12 +260,13 @@ class AdminPlatformContractController extends Controller
                 ]);
             }
 
-            $platformContract->update([
+            $platformContract->forceFill([
                 'status' => 'published',
                 'published_at' => $now,
+                'published_by_user_id' => $request->user()->id,
                 'effective_at' => $effectiveAt,
                 'updated_by_user_id' => $request->user()->id,
-            ]);
+            ])->save();
 
             $platformContract->load([
                 'createdBy:id,name,email',
@@ -303,10 +304,12 @@ class AdminPlatformContractController extends Controller
                 ]);
             }
 
-            $platformContract->update([
+            $platformContract->forceFill([
                 'status' => 'inactive',
+                'deactivated_at' => now(),
+                'deactivated_by_user_id' => $request->user()->id,
                 'updated_by_user_id' => $request->user()->id,
-            ]);
+            ])->save();
 
             $platformContract->load([
                 'createdBy:id,name,email',

@@ -137,7 +137,8 @@ function renderOperations(panel, data) {
 const auditActions = {
     approved: 'Klinik başvurusu onaylandı', rejected: 'Klinik başvurusu reddedildi',
     suspended: 'Klinik askıya alındı', active: 'Klinik yeniden açıldı',
-    published: 'Sözleşme yayımlandı', replied: 'Destek talebine yanıt verildi',
+    published: 'Sözleşme yayımlandı', deactivated: 'Sözleşme yayından kaldırıldı',
+    replied: 'Destek talebine yanıt verildi',
     assigned: 'Destek talebine sorumlu atandı', unassigned: 'Destek talebinin sorumlusu kaldırıldı',
 };
 const auditTargets = { clinic_application: 'Klinik', clinic_status: 'Klinik', contract: 'Sözleşme', support: 'Talep' };

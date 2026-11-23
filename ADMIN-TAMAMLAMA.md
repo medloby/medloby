@@ -44,7 +44,7 @@ Platform yönetimi tek ekran olarak `/yonetim` adresinde açılır. Üyelik söz
 
 Kritik yetki geçişi onay bekliyor. Önerilen görev ayrımında tam yönetici platform işlemlerini kullanır. Destek görevlisi kendisine atanan talepleri görür ve yanıtlar. Atama, klinik hesabı, sözleşme ve finans işlemleri tam yöneticiye açık kalır. Onaylanan görevler API düzeyinde ve klinik üyeliği rollerinden bağımsız uygulanacak. Geçiş planı mevcut yöneticileri eşler, son tam yöneticiyi korur ve yetki değişikliklerini işlem geçmişine kaydeder.
 
-**İşlem geçmişi** başvuru kararlarını, klinik durum değişikliklerini, sözleşme yayımlama tarihlerini, destek yanıtlarını ve atamaları tek listede gösterir. İşlem türüne göre filtrelenebilir. Liste kayıt numarası, işlem tarihi ve kaynakta kesin olarak tutulmuşsa yönetici adını gösterir. Sözleşmelerde yönetici adı için yayımlama kaydındaki bilgi kullanılır. Ayrıntılı notlar ve mesajlar kendi yetkili ekranlarında kalır. Rol ve izin değişikliklerinin ortak denetimi yetki geçişiyle planlanır. [İşlem geçmişi sorgusu](app/Services/PlatformAdminAudit.php)
+**İşlem geçmişi** başvuru kararlarını, klinik durum değişikliklerini, sözleşme yayımlama ve yayından kaldırma işlemlerini, destek yanıtlarını ve atamaları tek listede gösterir. Sözleşmeyi yayımlayan ve yayından kaldıran yöneticiler ilgili işlem anında mevcut sözleşme kaydına yazılır. Eski yayımlama kayıtlarında tarih korunur ve işlemi yapan hesap kayıtlı değilse ekranda bu bilgi gösterilir. Ayrıntılı notlar ve mesajlar kendi yetkili ekranlarında kalır. Rol ve izin değişikliklerinin ortak denetimi yetki geçişiyle planlanır. [İşlem geçmişi sorgusu](app/Services/PlatformAdminAudit.php)
 
 ## ADMIN-G3 — Klinik ve hasta hesabı yönetimi
 
@@ -76,6 +76,8 @@ Doğrulanmış platform yöneticisi açık bir talebe doğrulanmış yönetici a
 
 Yerel provada veritabanı kuyruğundaki hasta doğrulama e-postası test SMTP alıcısına ulaştı. E-postadaki imzalı bağlantı hesabı doğruladı ve yönetim ekranındaki kuyruk ve SMTP ölçümleri güncellendi. SQLite ve PostgreSQL 17 yedekleri özel dosyalarıyla ayrı test ortamına geri yüklendi. [SQLite geri yükleme testi](tests/Feature/LocalBackupTest.php) · [PostgreSQL geri yükleme testi](tests/Feature/PostgresBackupTest.php) · [Canlı yayın provası](README.md#medloby-yayına-çıkmadan-önce)
 
+**Sistem durumu** KVKK aydınlatma yayını ayarı ile iletişim adreslerinin teknik durumunu gösterir. Yayın komutu da destek ve editör adreslerini ve girilmiş KVKK e-posta ve KEP adreslerini aynı kuralla doğrular. Yazılı başvuru kanalı işletmecinin posta adresidir. [Yayın kontrolü testleri](tests/Feature/ReleaseReadinessTest.php)
+
 ## ADMIN-G8 — Kabul
 
 | Teslim alanı | Doğrulanan sonuç |
@@ -90,6 +92,8 @@ Yerel provada veritabanı kuyruğundaki hasta doğrulama e-postası test SMTP al
 | COMMIT, PUSH STATUS ve NEXT GROUP | Özellik commit’leri `4045328` ve `7575533`. Son doğrulanan `origin/main` `2991bb1`. Gönderim onayı ve ürün kararları bekleniyor. |
 
 Destek ataması eklendikten sonra SQLite’ta **1.087**, PostgreSQL 17’de **1.090** test geçti. SQLite’ta atlanan üç PostgreSQL yedekleme testi PostgreSQL’de çalıştı. Vite ve Blade derlendi. Atama, kuyruk filtreleri ve hasta erişim sınırı masaüstü ve mobil Chromium’da doğrulandı.
+
+Sözleşme işlem geçmişi ve iletişim kontrollerinden sonra SQLite’ta **1.091**, PostgreSQL 17’de **1.094** test geçti. Nullable denetim alanlarını ekleyen migration iki veritabanında sınandı. Vite ve Blade derlendi. İşlem geçmişi ve iletişim durumu masaüstü ve mobil Chromium’da doğrulandı.
 
 ## PRODUCT_DECISIONS_REQUIRED
 

@@ -35,6 +35,7 @@ final class ReleaseConfiguration
             'backup_verification' => $observed[PlatformOperationActivity::BACKUP] ? 'observed' : 'unknown',
             'last_observed_at' => $observed,
             'privacy_publication' => $privacy->isPublished() ? 'ready' : 'not_configured',
+            'privacy_contact_configuration' => $privacy->contactSettingsReady() ? 'ready' : 'needs_attention',
             'release_version' => is_string($version) && preg_match('/\A(?:[a-f0-9]{7,40}|v?\d+\.\d+\.\d+(?:[-+][a-z0-9.-]{1,35})?)\z/i', $version) ? $version : null,
         ];
     }

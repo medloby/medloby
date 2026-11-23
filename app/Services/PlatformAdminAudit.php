@@ -17,10 +17,11 @@ final class PlatformAdminAudit
         $events = match ($source) {
             'clinic_application' => $this->clinicApplications(),
             'clinic_status' => $this->clinicStatuses(),
-            'contract' => $this->publications(),
+            'contract' => $this->publications()->unionAll($this->deactivations()),
             'support' => $this->supportReplies()->unionAll($this->supportAssignments()),
             default => $this->clinicApplications()->unionAll($this->clinicStatuses())
-                ->unionAll($this->publications())->unionAll($this->supportReplies())->unionAll($this->supportAssignments()),
+                ->unionAll($this->publications())->unionAll($this->deactivations())
+                ->unionAll($this->supportReplies())->unionAll($this->supportAssignments()),
         };
 
         return DB::query()->fromSub($events, 'audit_events')
@@ -55,9 +56,18 @@ final class PlatformAdminAudit
 
     private function publications(): Builder
     {
-        return DB::table('platform_contracts as entry')->whereNotNull('entry.published_at')
+        return DB::table('platform_contracts as entry')->leftJoin('users as actor', 'actor.id', '=', 'entry.published_by_user_id')
+            ->whereNotNull('entry.published_at')
             ->selectRaw("'contract' AS source, entry.id AS event_id, entry.id AS target_id,
-                NULL AS target_name, NULL AS actor_name, 'published' AS event_action, entry.published_at AS occurred_at");
+                NULL AS target_name, actor.name AS actor_name, 'published' AS event_action, entry.published_at AS occurred_at");
+    }
+
+    private function deactivations(): Builder
+    {
+        return DB::table('platform_contracts as entry')->leftJoin('users as actor', 'actor.id', '=', 'entry.deactivated_by_user_id')
+            ->whereNotNull('entry.deactivated_at')
+            ->selectRaw("'contract' AS source, entry.id AS event_id, entry.id AS target_id,
+                NULL AS target_name, actor.name AS actor_name, 'deactivated' AS event_action, entry.deactivated_at AS occurred_at");
     }
 
     private function supportReplies(): Builder

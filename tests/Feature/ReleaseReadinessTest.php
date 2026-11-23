@@ -116,6 +116,18 @@ test('release readiness reports incompatible settings and missing build files to
     );
 });
 
+test('release readiness flags an invalid configured privacy channel and allows written requests by post', function (string $channel) {
+    config(['medloby.operator.'.$channel => 'invalid-private-channel']);
+
+    expect(Artisan::call('medloby:release-check'))->toBe(Command::FAILURE);
+    expect(Artisan::output())
+        ->toContain('Eksik · İşletmeci iletişim bilgileri ve KVKK yayını')
+        ->not->toContain('invalid-private-channel');
+
+    config(['medloby.operator.'.$channel => null]);
+    expect(Artisan::call('medloby:release-check'))->toBe(Command::SUCCESS);
+})->with(['privacy_email', 'privacy_kep']);
+
 test('release readiness reports missing or invalid local font assets without exposing the file location', function (string $issue) {
     $path = public_path('build/fonts-manifest.json');
     $manifest = $this->fontManifest;

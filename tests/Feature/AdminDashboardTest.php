@@ -243,6 +243,27 @@ test('operation observations contain only timestamps and are recorded from succe
         ])->assertDontSee('never-displayed@example.test');
 });
 
+test('admin operations reports contact settings without exposing the configured addresses', function () {
+    $admin = User::factory()->create(['is_admin' => true]);
+    config([
+        'medloby.privacy_published' => true,
+        'medloby.operator.legal_name' => 'Test İşletmecisi',
+        'medloby.operator.postal_address' => 'Test Posta Adresi',
+        'medloby.operator.support_email' => 'support@example.test',
+        'medloby.operator.editor_email' => 'editor@example.test',
+        'medloby.operator.privacy_email' => 'bad-private-value',
+    ]);
+
+    $this->actingAs($admin, 'sanctum')->getJson('/api/admin/operations')->assertOk()
+        ->assertJsonPath('data.privacy_publication', 'ready')
+        ->assertJsonPath('data.privacy_contact_configuration', 'needs_attention')
+        ->assertDontSee('bad-private-value')->assertDontSee('support@example.test');
+
+    config(['medloby.operator.privacy_email' => 'privacy@example.test']);
+    $this->getJson('/api/admin/operations')->assertOk()
+        ->assertJsonPath('data.privacy_contact_configuration', 'ready')->assertDontSee('privacy@example.test');
+});
+
 test('the audit groups existing administrator actions without revealing messages or internal reasons', function () {
     $admin = User::factory()->create(['is_admin' => true, 'name' => 'İnceleyen Yönetici']);
     $patient = User::factory()->create(['name' => 'Gizli Hasta']);

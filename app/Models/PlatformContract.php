@@ -30,6 +30,7 @@ class PlatformContract extends Model
             'is_required' => 'boolean',
             'effective_at' => 'datetime',
             'published_at' => 'datetime',
+            'deactivated_at' => 'datetime',
             'expires_at' => 'datetime',
         ];
     }

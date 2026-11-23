@@ -48,9 +48,8 @@ final class CheckReleaseReadiness extends Command
             ['Yürürlükteki klinik üyelik sözleşmesi', $contractReady, $schemaReady
                 ? 'Onaylı sözleşme sürümünü platform yönetim ekranından yayımlayın.'
                 : 'Veritabanı şeması doğrulanınca kontrol edilir.'],
-            ['İşletmeci iletişim bilgileri ve KVKK yayını', $privacy->isPublished()
-                && $privacy->email('support_email') !== null && $privacy->email('editor_email') !== null,
-                'Onaylı işletmeci bilgilerini, iletişim adreslerini ve KVKK yayını ayarını doğrulayın.'],
+            ['İşletmeci iletişim bilgileri ve KVKK yayını', $privacy->isPublished() && $privacy->contactSettingsReady(),
+                'İşletmeci unvanını, posta adresini ve KVKK yayını ayarını doğrulayın. Destek ve editör adresleri ile girilmiş KVKK e-posta ve KEP adreslerini kontrol edin.'],
             ['Arka plan kuyruğu ayarı', $this->probe($release->queueReady(...)),
                 'Kuyruk bağlantısını ve veritabanı kuyruğu kullanılıyorsa iş tablosunu doğrulayın.'],
             ['SMTP ve gönderen ayarı', $this->probe($release->mailReady(...)),

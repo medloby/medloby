@@ -14,6 +14,7 @@
                 'email_delivery' => 'SMTP’nin kabul ettiği son gönderim',
                 'backup_verification' => 'Son başarılı yedek doğrulaması',
                 'privacy_publication' => 'KVKK aydınlatma yayını ayarı',
+                'privacy_contact_configuration' => 'Destek, editör ve KVKK elektronik adresleri',
                 'release_version' => 'Uygulama sürümü',
             ] as $key => $label)
                 <div class="flex flex-wrap justify-between gap-x-2 border-b border-slate-100 py-2 dark:border-slate-800">
