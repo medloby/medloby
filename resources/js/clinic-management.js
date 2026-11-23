@@ -1,4 +1,5 @@
 import { clinicAction, clinicPager, clinicRecordRow, clinicStatus, formatClinicAmount } from './clinic-records';
+import { mountClinicFinanceReports } from './clinic-finance-reports';
 
 const visitStates = { pending: 'Bekliyor', confirmed: 'Onaylı', completed: 'Tamamlandı', cancelled: 'İptal', no_show: 'Hasta gelmedi' };
 const taskStates = { pending: 'Bekliyor', open: 'Açık', in_progress: 'Devam ediyor', completed: 'Tamamlandı', cancelled: 'İptal' };
@@ -12,6 +13,7 @@ export function mountClinicManagement(panel, api, { openAppointment, openOverdue
     const form = find('form');
     const month = form.elements.namedItem('month');
     const status = find('status');
+    const reports = mountClinicFinanceReports(panel.querySelector('[data-finance-reports]'), api, formatClinicAmount, { clinicWide: true });
     let business;
     let pending = 0;
 
@@ -68,6 +70,8 @@ export function mountClinicManagement(panel, api, { openAppointment, openOverdue
         month.value = data.month;
         const branchNames = new Map(data.branches.map((branch) => [branch.id, branch.name]));
         const summary = data.summary;
+        reports.setScope(null, summary.finance_branch_count > 0 ? business : null, data.month);
+        reports.refresh();
         const hasAlerts = data.branches.some((branch) => branch.overdue_balances?.length || branch.low_stock_count > 0);
         clinicStatus(find('alert-date'), hasAlerts ? 'Vade ve stok uyarıları · ' + dateOnly.format(new Date(data.alerts_on + 'T00:00:00Z')) : '');
         find('summary').replaceChildren(clinicRecordRow(
@@ -151,6 +155,7 @@ export function mountClinicManagement(panel, api, { openAppointment, openOverdue
             }
             pending++;
             business = id;
+            reports.setScope(null, null);
             panel.open = false;
             panel.hidden = !id;
             form.reset();

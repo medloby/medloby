@@ -15,10 +15,17 @@ use Illuminate\Support\Collection as Rows;
 final class ClinicFinanceReports
 {
     /** @param Collection<int, Branch> $branches */
-    public function build(int $businessId, Collection $branches, ?CarbonImmutable $start, ?CarbonImmutable $end, bool $showMonths): array
+    public function build(int $businessId, Collection $branches, ?CarbonImmutable $start, ?CarbonImmutable $end, bool $showMonths, ?CarbonImmutable $previousStart): array
     {
         $branchIds = $branches->modelKeys();
-        $cash = $this->cash($businessId, $branchIds, $start, $end);
+        $cash = $this->cash($businessId, $branchIds, $previousStart ?? $start, $end);
+        $comparison = null;
+        if ($previousStart !== null && $start !== null) {
+            $firstMonth = $start->format('Y-m');
+            [$selected, $previous] = $cash->partition(fn (BranchLedgerEntry $row): bool => $row->month >= $firstMonth);
+            $cash = $selected;
+            $comparison = $this->comparison($cash, $previous, $previousStart, $start->subDay());
+        }
         $income = $cash->whereNotNull('doctor_id')->where('income', '>', 0)->groupBy('doctor_id');
         $visits = $this->doctorVisits($businessId, $branchIds, $start, $end)->groupBy('doctor_id');
         $branchTotals = $cash->groupBy('branch_id');
@@ -34,7 +41,57 @@ final class ClinicFinanceReports
             ])->all(),
             'months' => $monthTotals,
             'doctors' => $this->doctors($businessId, $visits, $income),
+            'comparison' => $comparison,
+            'treatment_income' => $this->treatmentIncome($cash),
         ];
+    }
+
+    private function comparison(Rows $selected, Rows $previous, CarbonImmutable $from, CarbonImmutable $through): array
+    {
+        $currentCurrencies = $selected->groupBy('currency');
+        $previousCurrencies = $previous->groupBy('currency');
+        $currencies = $currentCurrencies->keys()->merge($previousCurrencies->keys())->unique()->sort();
+
+        return [
+            'starts_on' => $from->toDateString(),
+            'ends_on' => $through->toDateString(),
+            'totals' => $currencies->map(function (string $currency) use ($currentCurrencies, $previousCurrencies): array {
+                $current = $currentCurrencies->get($currency, collect());
+                $prior = $previousCurrencies->get($currency, collect());
+                $income = (int) $current->sum('income');
+                $expense = (int) $current->sum('expense');
+                $priorIncome = (int) $prior->sum('income');
+                $priorExpense = (int) $prior->sum('expense');
+
+                return [
+                    'currency' => $currency,
+                    'selected' => BranchLedgerEntry::formatTotals($currency, $income, $expense),
+                    'previous' => BranchLedgerEntry::formatTotals($currency, $priorIncome, $priorExpense),
+                    'change' => BranchLedgerEntry::formatTotals($currency, $income - $priorIncome, $expense - $priorExpense),
+                ];
+            })->values()->all(),
+        ];
+    }
+
+    private function treatmentIncome(Rows $cash): array
+    {
+        return $cash->where('income', '>', 0)->groupBy('currency')->sortKeys()->map(function (Rows $rows, string $currency): array {
+            $unassigned = (int) $rows->whereNull('treatment_id')->sum('income');
+            $treatments = $rows->whereNotNull('treatment_id')->groupBy('treatment_id')->map(fn (Rows $items): array => [
+                'id' => $items->first()->treatment_id,
+                'name' => $items->first()->treatment_name,
+                'income_minor' => (int) $items->sum('income'),
+            ])->sortBy([['income_minor', 'desc'], ['name', 'asc'], ['id', 'asc']]);
+
+            return [
+                'currency' => $currency,
+                'unallocated' => BranchLedgerEntry::formatAmount($unassigned),
+                'treatments' => $treatments->map(fn (array $treatment): array => [
+                    'id' => $treatment['id'], 'name' => $treatment['name'],
+                    'income' => BranchLedgerEntry::formatAmount($treatment['income_minor']),
+                ])->values()->all(),
+            ];
+        })->values()->all();
     }
 
     private function totalCash(Rows $rows, bool $includeUnattributed = false): array
@@ -58,6 +115,7 @@ final class ClinicFinanceReports
                     ->on('appointments.branch_id', '=', 'branch_ledger_entries.branch_id')->where('appointments.business_id', $businessId);
             })
             ->leftJoin('doctors', 'doctors.id', '=', 'appointments.doctor_id')
+            ->leftJoin('treatments', 'treatments.id', '=', 'appointments.treatment_id')
             ->leftJoin('people', fn (JoinClause $join) => $join->on('people.id', '=', 'doctors.person_id')->where('people.business_id', $businessId));
         if ($start !== null && $end !== null) {
             $entries->recordedBetween($start, $end);
@@ -66,6 +124,7 @@ final class ClinicFinanceReports
 
         return $entries->selectRaw('SUBSTR(CAST(entry_date AS TEXT), 1, 7) AS month')
             ->selectRaw($doctor.' AS doctor_id')->groupByRaw($doctor)->groupBy('month')
+            ->addSelect(['treatments.id AS treatment_id', 'treatments.name AS treatment_name'])->groupBy('treatments.id', 'treatments.name')
             ->withAmountTotals(['branch_ledger_entries.branch_id', 'branch_ledger_entries.currency'])->orderBy('month')->get();
     }
 

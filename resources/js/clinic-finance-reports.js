@@ -1,3 +1,5 @@
+import { renderFinanceCharts } from './clinic-finance-charts';
+
 const dateLabel = new Intl.DateTimeFormat('tr-TR', { dateStyle: 'medium', timeZone: 'UTC' });
 const monthLabel = new Intl.DateTimeFormat('tr-TR', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 const countLabel = new Intl.NumberFormat('tr-TR');
@@ -13,7 +15,12 @@ function tableRow(values) {
     return row;
 }
 
-export function mountClinicFinanceReports(panel, api, formatAmount) {
+function dateRange(start, end) {
+    const on = (value) => dateLabel.format(new Date(value + 'T00:00:00Z'));
+    return on(start) + ' – ' + on(end);
+}
+
+export function mountClinicFinanceReports(panel, api, formatAmount, { clinicWide = false } = {}) {
     const find = (part, root = panel) => root.querySelector('[data-finance-' + part + ']');
     const form = find('form');
     const status = find('status');
@@ -42,9 +49,9 @@ export function mountClinicFinanceReports(panel, api, formatAmount) {
     }
 
     function render(data) {
-        const on = (value) => dateLabel.format(new Date(value + 'T00:00:00Z'));
-        const dates = data.starts_on ? on(data.starts_on) + ' – ' + on(data.ends_on) : 'Tüm dönemler';
+        const dates = data.starts_on ? dateRange(data.starts_on, data.ends_on) : 'Tüm dönemler';
         find('period').textContent = dates + ' · ' + (data.branches.length === 1 ? data.branches[0].name : data.branches.length + ' yetkili şube');
+        renderFinanceCharts(find, data, formatAmount, dateRange);
         find('cash-empty').hidden = data.totals.length > 0;
         find('cash').hidden = data.totals.length === 0;
         find('totals').replaceChildren(...data.totals.map((total) => tableRow([
@@ -128,11 +135,18 @@ export function mountClinicFinanceReports(panel, api, formatAmount) {
     });
 
     return {
-        setScope(branchId, businessId) {
+        setScope(branchId, businessId, defaultMonth = '') {
+            const path = businessId && (clinicWide || branchId) ? '/businesses/' + businessId + '/crm/finance/reports' : undefined;
+            panel.hidden = !path;
+            if (scope?.path === path && (!path || scope.branchId === branchId)) {
+                return;
+            }
             request++;
-            scope = branchId && businessId ? { branchId, path: '/businesses/' + businessId + '/crm/finance/reports' } : undefined;
+            scope = path ? { branchId, path } : undefined;
             panel.open = false;
             form.reset();
+            month.value = defaultMonth;
+            year.value = defaultMonth.slice(0, 4);
             syncPeriod();
             result.hidden = true;
             submit.disabled = false;

@@ -1,13 +1,16 @@
-<details class="mt-4 rounded-xl border border-slate-200 p-3 sm:p-4 dark:border-slate-700" data-finance-reports>
-    <summary class="cursor-pointer font-semibold">Finans raporları</summary>
+@php($financeReportId = $financeReportId ?? 'branch-finance')
+<details class="mt-4 min-w-0 rounded-xl border border-slate-200 p-3 sm:p-4 dark:border-slate-700" data-finance-reports hidden>
+    <summary class="cursor-pointer font-semibold">{{ ($clinicWide ?? false) ? 'Finans karşılaştırmaları' : 'Finans raporları' }}</summary>
     <form class="mt-4 flex flex-wrap items-end gap-3" data-finance-form>
-        <label class="offer-field">Şube kapsamı
-            <select class="offer-control" name="scope">
-                <option value="branch">Seçili şube</option>
-                <option value="all">Yetkili olduğum tüm şubeler</option>
-            </select>
-        </label>
-        <label class="offer-field">Dönem
+        @unless($clinicWide ?? false)
+            <label class="offer-field">Şube kapsamı
+                <select class="offer-control" name="scope">
+                    <option value="branch">Seçili şube</option>
+                    <option value="all">Yetkili olduğum tüm şubeler</option>
+                </select>
+            </label>
+        @endunless
+        <label class="offer-field">Finans dönemi
             <select class="offer-control" name="period">
                 <option value="month">Aylık</option>
                 <option value="year">Yıllık</option>
@@ -25,8 +28,20 @@
     <p class="mt-3 text-sm text-slate-600 dark:text-slate-300" data-finance-status role="status" hidden></p>
     <div class="mt-4 grid gap-5" data-finance-result hidden>
         <p class="text-sm text-slate-600 dark:text-slate-300" data-finance-period></p>
-        <section aria-labelledby="finance-summary-title">
-            <h4 id="finance-summary-title" class="font-semibold">Gelir, gider ve net fark</h4>
+        <section aria-labelledby="{{ $financeReportId }}-comparison-title" data-finance-comparison hidden>
+            <h4 id="{{ $financeReportId }}-comparison-title" class="font-semibold">Önceki dönemle karşılaştırma</h4>
+            <p class="mt-2 text-sm text-slate-600 dark:text-slate-300" data-finance-previous-period></p>
+            <p class="mt-2 text-sm text-slate-600 dark:text-slate-300" data-finance-comparison-empty hidden>Her iki dönemde de aktif gelir veya gider kaydı yok.</p>
+            <div class="mt-3 grid gap-3" data-finance-comparison-charts></div>
+        </section>
+        <section aria-labelledby="{{ $financeReportId }}-treatment-title">
+            <h4 id="{{ $financeReportId }}-treatment-title" class="font-semibold">Tedavi bazında gelir</h4>
+            <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">Randevuya bağlı tahsilatlar, ilgili tedaviye tahsilat tarihinde yazılır.</p>
+            <p class="mt-2 text-sm text-slate-600 dark:text-slate-300" data-finance-treatment-empty hidden>Bu dönemde tedaviye bağlı tahsilat kaydı yok.</p>
+            <div class="mt-3 grid gap-3 sm:grid-cols-2" data-finance-treatment-charts></div>
+        </section>
+        <section aria-labelledby="{{ $financeReportId }}-summary-title">
+            <h4 id="{{ $financeReportId }}-summary-title" class="font-semibold">Gelir, gider ve net fark</h4>
             <p class="mt-2 text-sm text-slate-600 dark:text-slate-300" data-finance-cash-empty hidden>Bu dönemde aktif gelir veya gider kaydı yok.</p>
             <div class="mt-2 overflow-x-auto" data-finance-cash>
                 <table class="w-full text-left text-sm">
@@ -37,8 +52,8 @@
                 </table>
             </div>
         </section>
-        <section aria-labelledby="finance-branch-title" data-finance-branches hidden>
-            <h4 id="finance-branch-title" class="font-semibold">Şube bazında toplamlar</h4>
+        <section aria-labelledby="{{ $financeReportId }}-branch-title" data-finance-branches hidden>
+            <h4 id="{{ $financeReportId }}-branch-title" class="font-semibold">Şube bazında toplamlar</h4>
             <div class="mt-2 overflow-x-auto">
                 <table class="w-full text-left text-sm">
                     <thead><tr class="border-b border-slate-200 dark:border-slate-700">
@@ -48,8 +63,8 @@
                 </table>
             </div>
         </section>
-        <section aria-labelledby="finance-months-title" data-finance-months hidden>
-            <h4 id="finance-months-title" class="font-semibold">Aylara göre dağılım</h4>
+        <section aria-labelledby="{{ $financeReportId }}-months-title" data-finance-months hidden>
+            <h4 id="{{ $financeReportId }}-months-title" class="font-semibold">Aylara göre dağılım</h4>
             <div class="mt-2 overflow-x-auto">
                 <table class="w-full text-left text-sm">
                     <thead><tr class="border-b border-slate-200 dark:border-slate-700">
@@ -59,8 +74,8 @@
                 </table>
             </div>
         </section>
-        <section aria-labelledby="finance-doctors-title">
-            <h4 id="finance-doctors-title" class="font-semibold">Hekim raporları</h4>
+        <section aria-labelledby="{{ $financeReportId }}-doctors-title">
+            <h4 id="{{ $financeReportId }}-doctors-title" class="font-semibold">Hekim raporları</h4>
             <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">Randevular seans tarihine, gelir ve giderler kayıt tarihine göre sayılır. Hekim geliri, randevuya bağlı tahsilatlardan oluşur.</p>
             <p class="mt-2 text-sm text-slate-600 dark:text-slate-300" data-finance-doctors-empty hidden>Bu dönemde hekime bağlı randevu veya tahsilat yok.</p>
             <ul class="mt-3 grid gap-3" data-finance-doctors></ul>

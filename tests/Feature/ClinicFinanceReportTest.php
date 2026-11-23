@@ -74,6 +74,15 @@ test('finance reports reconcile actual receipts by branch, currency and period a
             'scheduled' => 0, 'cancelled' => 1, 'no_show' => 1,
             'treatments' => [['name' => 'Örnek Muayene', 'total' => 3, 'completed' => 1]],
             'income' => [['currency' => 'EUR', 'amount' => '2.15'], ['currency' => 'TRY', 'amount' => '100.10']],
+        ])->assertJsonPath('data.comparison.starts_on', '2026-11-01')
+        ->assertJsonPath('data.comparison.ends_on', '2026-11-30')
+        ->assertJsonPath('data.comparison.totals.0.previous.income', '0.00')
+        ->assertJsonPath('data.comparison.totals.1.selected.net', '115.05')
+        ->assertJsonPath('data.comparison.totals.1.previous.net', '80.00')
+        ->assertJsonPath('data.comparison.totals.1.change.net', '35.05')
+        ->assertJsonPath('data.treatment_income', [
+            ['currency' => 'EUR', 'unallocated' => '0.00', 'treatments' => [['id' => $treatment->id, 'name' => $treatment->name, 'income' => '2.15']]],
+            ['currency' => 'TRY', 'unallocated' => '20.00', 'treatments' => [['id' => $treatment->id, 'name' => $treatment->name, 'income' => '100.10']]],
         ])->assertDontSee('private@example.test')->assertDontSee('Özel Hasta Adı');
     $this->getJson($path.'?period=year&year=2026')->assertOk()
         ->assertJsonCount(2, 'data.branches')->assertJsonCount(2, 'data.months')
@@ -81,9 +90,44 @@ test('finance reports reconcile actual receipts by branch, currency and period a
         ->assertJsonPath('data.doctors.0.total', 4)->assertJsonPath('data.doctors.0.scheduled', 1)
         ->assertJsonPath('data.months.0.month', '2026-11')->assertJsonPath('data.months.1.month', '2026-12');
     $this->getJson($path.'?period=all')->assertOk()->assertJsonPath('data.totals.1.income', '280.30')
-        ->assertJsonPath('data.doctors.0.income.1.amount', '130.10')->assertJsonCount(3, 'data.months');
+        ->assertJsonPath('data.doctors.0.income.1.amount', '130.10')->assertJsonCount(3, 'data.months')
+        ->assertJsonPath('data.comparison', null);
     $this->getJson($path.'?period=month&month=2027-01')->assertOk()->assertJsonPath('data.doctors.0.total', 0)
-        ->assertJsonPath('data.doctors.0.income.0.amount', '30.00');
+        ->assertJsonPath('data.doctors.0.income.0.amount', '30.00')
+        ->assertJsonPath('data.comparison.starts_on', '2026-12-01')
+        ->assertJsonPath('data.comparison.totals.1.change.income', '-140.30');
+});
+
+test('annual graphs compare complete calendar years and add only visit-linked receipts per treatment', function () {
+    [$branch, $owner, $path] = financeReportClinic();
+    $other = Branch::factory()->for($branch->business)->create();
+    $treatment = Treatment::create([
+        'treatment_category_id' => TreatmentCategory::factory()->create()->id,
+        'name' => 'Kontrol Muayenesi', 'slug' => 'kontrol-muayenesi', 'is_active' => true,
+    ]);
+    $visit = financeReportVisit($branch, ['treatment_id' => $treatment->id, 'doctor_id' => null]);
+    BranchLedgerEntry::factory()->for($branch)->create(['entry_date' => '2025-12-31', 'amount_minor' => 7010, 'appointment_id' => $visit->id]);
+    BranchLedgerEntry::factory()->for($branch)->create(['entry_date' => '2025-01-01', 'amount_minor' => 1500, 'currency' => 'EUR']);
+    BranchLedgerEntry::factory()->for($branch)->create(['entry_date' => '2026-01-01', 'amount_minor' => 1025, 'appointment_id' => $visit->id]);
+    BranchLedgerEntry::factory()->for($branch)->create(['entry_date' => '2026-03-01', 'amount_minor' => 1000, 'appointment_id' => $visit->id]);
+    BranchLedgerEntry::factory()->for($branch)->create(['entry_date' => '2026-12-31', 'amount_minor' => 5000, 'kind' => 'expense']);
+    BranchLedgerEntry::factory()->for($other)->create(['entry_date' => '2025-12-31', 'amount_minor' => 50000]);
+    BranchLedgerEntry::factory()->for($other)->create(['entry_date' => '2026-12-31', 'amount_minor' => 80000]);
+
+    $this->actingAs($owner, 'sanctum')->getJson($path.'?period=year&year=2026&branch_id='.$branch->id)
+        ->assertOk()->assertJsonPath('data.comparison.starts_on', '2025-01-01')
+        ->assertJsonPath('data.comparison.ends_on', '2025-12-31')
+        ->assertJsonPath('data.comparison.totals.0.currency', 'EUR')
+        ->assertJsonPath('data.comparison.totals.0.selected.income', '0.00')
+        ->assertJsonPath('data.comparison.totals.0.change.income', '-15.00')
+        ->assertJsonPath('data.comparison.totals.1.selected.net', '-29.75')
+        ->assertJsonPath('data.comparison.totals.1.previous.net', '70.10')
+        ->assertJsonPath('data.comparison.totals.1.change.net', '-99.85')
+        ->assertJsonPath('data.treatment_income.0.treatments', [
+            ['id' => $treatment->id, 'name' => $treatment->name, 'income' => '20.25'],
+        ])->assertJsonCount(1, 'data.treatment_income');
+
+    $this->getJson($path.'?period=year&year=0001')->assertOk()->assertJsonPath('data.comparison', null);
 });
 
 test('business-wide reports use the same active branch finance permissions as the ledger', function () {
@@ -93,13 +137,16 @@ test('business-wide reports use the same active branch finance permissions as th
     $membership = $branch->business->memberships()->create(['user_id' => $staff->id, 'role' => 'staff', 'is_active' => true]);
     $membership->branches()->attach($branch, ['is_active' => true, 'permission_names' => ['finance.view']]);
     $membership->branches()->attach($other, ['is_active' => true]);
-    BranchLedgerEntry::factory()->for($branch)->create(['amount_minor' => 7000]);
-    BranchLedgerEntry::factory()->for($other)->create(['amount_minor' => 9000]);
+    BranchLedgerEntry::factory()->for($branch)->create(['amount_minor' => 7000, 'entry_date' => '2026-12-01']);
+    BranchLedgerEntry::factory()->for($other)->create(['amount_minor' => 9000, 'entry_date' => '2026-11-01']);
 
     $this->getJson($path)->assertUnauthorized();
     $this->actingAs(User::factory()->create(['is_admin' => true]), 'sanctum')->getJson($path)->assertForbidden();
     $this->actingAs($staff, 'sanctum')->getJson($path.'?period=all')->assertOk()
         ->assertJsonCount(1, 'data.branches')->assertJsonPath('data.branches.0.id', $branch->id)->assertJsonPath('data.totals.0.income', '70.00');
+    $this->getJson($path.'?period=month&month=2026-12')->assertOk()
+        ->assertJsonPath('data.comparison.totals.0.previous.income', '0.00')
+        ->assertJsonPath('data.treatment_income.0.unallocated', '70.00');
     $this->getJson($path.'?branch_id='.$other->id)->assertForbidden();
     $this->getJson($path.'?period=year&year=0000')->assertUnprocessable()->assertJsonValidationErrors('year');
     $this->getJson($path.'?period=month&month=2026-13')->assertUnprocessable()->assertJsonValidationErrors('month');
@@ -138,7 +185,9 @@ test('ledger income accepts one verified reference in the branch and preserves l
         ->assertJsonPath('data.appointment_id', null)->assertJsonPath('data.offer_id', $offer->id);
     $this->assertDatabaseCount('branch_ledger_entries', 1);
     $this->getJson($reportPath.'?period=month&month=2026-12')->assertOk()
-        ->assertJsonPath('data.totals.0.unattributed_income', '100.00');
+        ->assertJsonPath('data.totals.0.unattributed_income', '100.00')
+        ->assertJsonPath('data.treatment_income.0.unallocated', '100.00')
+        ->assertJsonCount(0, 'data.treatment_income.0.treatments');
     $this->putJson($path.'/'.$entry.'/status', ['status' => 'voided', 'revision' => 3])->assertOk();
     $this->getJson($reportPath.'?period=month&month=2026-12')->assertOk()->assertJsonCount(0, 'data.totals');
 });

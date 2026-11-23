@@ -8,6 +8,7 @@
     </form>
     <p class="mt-3 text-sm text-slate-600 dark:text-slate-300" role="status" data-management-status hidden></p>
     <div class="mt-4 grid min-w-0 gap-6" data-management-results hidden>
+        @include('clinic-finance-reports', ['financeReportId' => 'management-finance', 'clinicWide' => true])
         <section aria-labelledby="management-branches-title">
             <h3 id="management-branches-title" class="font-semibold">Şubeler ve hasta dönüşümü</h3>
             <ul class="mt-2 text-sm" data-management-summary></ul>

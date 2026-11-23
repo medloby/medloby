@@ -38,6 +38,14 @@ class ClinicFinanceReportController extends Controller
             default => CarbonImmutable::createFromFormat('!Y-m', $filters['month'] ?? $today->format('Y-m')),
         };
         $end = $period === 'year' ? $start->endOfYear() : $start?->endOfMonth();
+        $previousStart = match ($period) {
+            'year' => $start->subYear(),
+            'month' => $start->subMonth(),
+            default => null,
+        };
+        if ($previousStart !== null && $previousStart->year < 1) {
+            $previousStart = null;
+        }
 
         return response()->json([
             'success' => true,
@@ -46,7 +54,7 @@ class ClinicFinanceReportController extends Controller
                 'starts_on' => $start?->toDateString(),
                 'ends_on' => $end?->toDateString(),
                 'today' => $today->toDateString(),
-                ...$reports->build($business->id, $branches, $start, $end, $period !== 'month'),
+                ...$reports->build($business->id, $branches, $start, $end, $period !== 'month', $previousStart),
             ],
         ])->header('Cache-Control', 'private, no-store');
     }
