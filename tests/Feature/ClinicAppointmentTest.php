@@ -1043,6 +1043,62 @@ test('crm lead appointments show only the linked patient in the authorized branc
     $this->getJson($leadPath.'/'.$lead)->assertOk()->assertJsonPath('data.status', 'new');
 });
 
+test('branch staff can link an online booking patient to a lead without booking permissions', function () {
+    [$business, $owner, $branch, $other, , , $calendar] = clinicAppointmentFixture();
+    $staff = User::factory()->create();
+    $member = $business->memberships()->create(['user_id' => $staff->id, 'role' => 'staff', 'is_active' => true]);
+    $member->branches()->attach($branch->id, ['is_active' => true]);
+    $visits = [];
+
+    foreach ([
+        'available' => [$branch, 'Deneme Hasta', true],
+        'outside' => [$other, 'Deneme Hasta', true],
+        'unverified' => [$branch, 'Deneme Kaydı', false],
+        'second' => [$branch, 'Farklı Hasta', true],
+    ] as $key => [$location, $name, $bookedByPatient]) {
+        [$firstName, $lastName] = explode(' ', $name);
+        $patient = User::factory()->create()->patientProfile()->create([
+            'first_name' => $firstName, 'last_name' => $lastName, 'phone' => '05550000000',
+        ]);
+        $appointment = Appointment::create([
+            'business_id' => $business->id, 'branch_id' => $location->id, 'patient_profile_id' => $patient->id,
+            'starts_at' => now()->addDay(), 'ends_at' => now()->addDay()->addHour(), 'status' => 'confirmed',
+        ]);
+        $appointment->statusHistories()->create([
+            'new_status' => 'confirmed', 'changed_by_user_id' => $bookedByPatient ? $patient->user_id : $owner->id,
+            'changed_at' => now(),
+        ]);
+        $visits[$key] = $appointment;
+    }
+
+    $leadBase = "/api/branches/{$branch->id}/crm/leads";
+    $lead = $this->actingAs($staff, 'sanctum')->postJson($leadBase, ['first_name' => 'Aday'])->assertCreated()->json('data.id');
+    $path = "{$leadBase}/{$lead}/patients";
+    $patientId = $visits['available']->patient_profile_id;
+
+    $this->getJson($calendar.'/patients?search=Deneme')->assertForbidden();
+    $this->getJson($path.'?search=Deneme')->assertOk()->assertHeader('Cache-Control', 'no-store, private')
+        ->assertJsonPath('data', [['id' => $patientId, 'name' => 'Deneme Hasta']]);
+    foreach (['outside', 'unverified'] as $key) {
+        $this->postJson($path, ['patient_profile_id' => $visits[$key]->patient_profile_id])
+            ->assertUnprocessable()->assertJsonValidationErrors('patient_profile_id');
+    }
+
+    $this->postJson($path, ['patient_profile_id' => $patientId])->assertOk()->assertJsonPath('data.id', $patientId);
+    $this->postJson($path, ['patient_profile_id' => $patientId])->assertOk();
+    $this->postJson($path, ['patient_profile_id' => $visits['second']->patient_profile_id])->assertConflict();
+    $this->getJson("{$leadBase}/{$lead}/appointments")->assertOk()
+        ->assertJsonPath('data.can_book', false)
+        ->assertJsonPath('data.appointments.data.0.id', $visits['available']->id);
+    $this->assertDatabaseCount('appointments', 4);
+    $this->assertDatabaseCount('conversations', 0);
+
+    $this->getJson("/api/branches/{$other->id}/crm/leads/{$lead}/patients?search=Deneme")->assertForbidden();
+    $member->branches()->updateExistingPivot($branch->id, ['is_active' => false]);
+    $this->postJson($path, ['patient_profile_id' => $patientId])->assertForbidden();
+    $this->actingAs($owner, 'sanctum')->getJson("/api/branches/{$other->id}/crm/leads/{$lead}/patients?search=Deneme")->assertNotFound();
+});
+
 test('calendar actions enforce branch access, individual permission and clinic approval', function () {
     $this->travelTo(now()->setDate(2026, 12, 1)->startOfDay());
     [$business, $owner, $branch, , $doctor, $treatment, $calendar, $otherCalendar] = clinicAppointmentFixture();

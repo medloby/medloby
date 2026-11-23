@@ -47,6 +47,7 @@ export function mountCrmLeads(section, { api, onChanged, openAppointment, bookFo
         api,
         openAppointment: (appointment) => goToCalendar(() => openAppointment(appointment)),
         bookForPatient: (patient) => goToCalendar(() => bookForPatient(patient)),
+        linkPatient: () => leadWork.openPatientSearch(),
     });
     const leadWork = mountCrmLeadWork(find('work'), {
         api,

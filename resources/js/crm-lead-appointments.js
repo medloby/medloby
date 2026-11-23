@@ -1,9 +1,10 @@
 import { appointmentStatuses, dateLabel, timeLabel } from './clinic-calendar';
 
-export function mountCrmLeadAppointments(panel, { api, openAppointment, bookForPatient }) {
+export function mountCrmLeadAppointments(panel, { api, openAppointment, bookForPatient, linkPatient }) {
     const find = (part, root = panel) => root.querySelector('[data-lead-appointment-' + part + ']');
     const list = find('list');
     const book = find('book');
+    const link = find('link');
     const pages = find('pages');
     const previous = find('previous');
     const next = find('next');
@@ -35,6 +36,7 @@ export function mountCrmLeadAppointments(panel, { api, openAppointment, bookForP
 
         const pending = ++request;
         book.hidden = true;
+        link.hidden = true;
         pages.hidden = true;
         list.replaceChildren();
         showStatus('Randevular yükleniyor…');
@@ -46,7 +48,8 @@ export function mountCrmLeadAppointments(panel, { api, openAppointment, bookForP
 
             patient = data.patient;
             if (!patient) {
-                showStatus('Randevuları görmek için adayın hasta profilini bu şubedeki görüşmeden bağlayın.');
+                link.hidden = false;
+                showStatus('Randevuları görmek için adayın hasta hesabını bağlayın.');
                 return;
             }
 
@@ -74,6 +77,7 @@ export function mountCrmLeadAppointments(panel, { api, openAppointment, bookForP
     previous.addEventListener('click', () => load(page - 1));
     next.addEventListener('click', () => load(page + 1));
     book.addEventListener('click', () => bookForPatient(patient));
+    link.addEventListener('click', linkPatient);
 
     return {
         refresh() {
@@ -87,6 +91,7 @@ export function mountCrmLeadAppointments(panel, { api, openAppointment, bookForP
             panel.open = false;
             panel.hidden = !path;
             book.hidden = true;
+            link.hidden = true;
             pages.hidden = true;
             list.replaceChildren();
             showStatus();

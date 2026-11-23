@@ -10,6 +10,7 @@ use App\Models\Offer;
 use App\Models\PatientProfile;
 use App\Services\AppointmentService;
 use App\Services\AppointmentSlotAvailabilityService;
+use App\Services\BranchPatientSearch;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -56,21 +57,12 @@ class ClinicAppointmentController extends Controller
         return $this->data(['doctors' => $doctors]);
     }
 
-    public function patients(Request $request, Branch $branch): JsonResponse
+    public function patients(Request $request, Branch $branch, BranchPatientSearch $patients): JsonResponse
     {
         $this->authorizeCreation($request, $branch);
         $search = $request->validate(['search' => ['required', 'string', 'min:2', 'max:80']])['search'];
-        $patients = PatientProfile::query()->knownToBranch($branch);
 
-        foreach (preg_split('/\s+/u', $search, flags: PREG_SPLIT_NO_EMPTY) as $word) {
-            $patients->where(fn (Builder $name) => $name
-                ->whereLike('first_name', '%'.$word.'%')->orWhereLike('last_name', '%'.$word.'%'));
-        }
-
-        return $this->data($patients->orderBy('first_name')->orderBy('last_name')->orderBy('id')->limit(25)
-            ->get(['id', 'first_name', 'last_name'])->map(fn (PatientProfile $patient) => [
-                'id' => $patient->id, 'name' => trim($patient->first_name.' '.$patient->last_name),
-            ])->all());
+        return $this->data($patients->search($branch, $search));
     }
 
     public function packages(Request $request, Branch $branch): JsonResponse

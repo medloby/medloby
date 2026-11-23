@@ -50,6 +50,29 @@
             </section>
         @endforeach
 
+        <section class="grid gap-2 border-t border-slate-200 pt-4 dark:border-slate-700" data-work-patient-link hidden>
+            <h4 class="font-semibold">Hasta hesabı bağla</h4>
+            <form data-work-patient-search>
+                <fieldset class="flex flex-wrap items-end gap-2">
+                    <label class="offer-field min-w-0 flex-1">
+                        Hasta adı veya soyadı
+                        <input class="offer-control" type="search" name="search" minlength="2" maxlength="80" required>
+                    </label>
+                    <button class="offer-button offer-button-secondary" type="submit">Hasta ara</button>
+                </fieldset>
+            </form>
+            <p class="text-slate-600 dark:text-slate-300" data-work-patient-status role="status" hidden></p>
+            <form data-work-patient-results hidden>
+                <fieldset class="grid min-w-0 gap-2">
+                    <label class="offer-field">
+                        Şubede kayıtlı hasta
+                        <select class="offer-control" name="patient_profile_id" required></select>
+                    </label>
+                    <button class="offer-button justify-self-start" type="submit">Hastayı bağla</button>
+                </fieldset>
+            </form>
+        </section>
+
         <section class="grid gap-2 border-t border-slate-200 pt-4 dark:border-slate-700">
             <h4 class="font-semibold">Bağlı görüşmeler</h4>
             <p class="text-slate-600 dark:text-slate-300" data-work-no-conversations>Bu adaya bağlı görüşme yok.</p>

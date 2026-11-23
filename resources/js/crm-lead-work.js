@@ -35,14 +35,65 @@ export function mountCrmLeadWork(panel, { api, onChanged, openConversation }) {
     const linkFields = linkForm.querySelector('fieldset');
     const conversation = linkForm.elements.namedItem('conversation');
     const clearPatient = find('clear-patient');
+    const patientLink = find('patient-link');
+    const patientSearch = find('patient-search');
+    const patientQuery = patientSearch.elements.namedItem('search');
+    const patientResults = find('patient-results');
+    const patientChoice = patientResults.elements.namedItem('patient_profile_id');
+    const patientStatus = find('patient-status');
     const content = find('content');
     const status = find('status');
     let lead = null;
     let editing = null;
+    let patientRequest = 0;
 
     function showStatus(text = '') {
         status.textContent = text;
         status.hidden = !text;
+    }
+
+    function showPatientStatus(text = '') {
+        patientStatus.textContent = text;
+        patientStatus.hidden = !text;
+    }
+
+    function clearPatientResults() {
+        patientRequest++;
+        patientChoice.replaceChildren();
+        patientResults.hidden = true;
+        showPatientStatus();
+    }
+
+    async function searchPatients(event) {
+        event.preventDefault();
+        const current = lead;
+        if (!current || current.hasPatient || current.saving) {
+            return;
+        }
+
+        clearPatientResults();
+        const search = patientQuery.value.trim();
+        if (search.length < 2) {
+            showPatientStatus('Aramak için en az iki karakter yazın.');
+            return;
+        }
+        const pending = patientRequest;
+        const isCurrent = () => lead === current && pending === patientRequest && !current.hasPatient;
+        showPatientStatus('Hastalar aranıyor…');
+        try {
+            const patients = await api(current.path + '/patients?' + new URLSearchParams({ search }));
+            if (isCurrent()) {
+                const placeholder = new Option('Hasta seçin', '', true, true);
+                placeholder.disabled = true;
+                patientChoice.replaceChildren(placeholder, ...patients.map((patient) => new Option(patient.name + ' · #' + patient.id, patient.id)));
+                patientResults.hidden = patients.length === 0;
+                showPatientStatus(patients.length ? '' : 'Bu şubede eşleşen hasta bulunamadı.');
+            }
+        } catch (error) {
+            if (isCurrent()) {
+                showPatientStatus(error.message);
+            }
+        }
     }
 
     function syncFields(assignedId = '') {
@@ -218,6 +269,7 @@ export function mountCrmLeadWork(panel, { api, onChanged, openConversation }) {
         find('no-options').hidden = options.length > 0;
         find('link-button').textContent = current.hasPatient ? 'Görüşmeyi bağla' : 'Hastayı ve görüşmeyi bağla';
         clearPatient.hidden = !current.hasPatient || linked.length > 0;
+        patientLink.hidden = current.hasPatient;
     }
 
     async function load(current, confirmation = '') {
@@ -237,6 +289,10 @@ export function mountCrmLeadWork(panel, { api, onChanged, openConversation }) {
             renderConversations(current, records.at(-1));
             current.loaded = true;
             content.hidden = false;
+            if (current.focusPatientSearch && !current.hasPatient) {
+                current.focusPatientSearch = false;
+                patientQuery.focus();
+            }
             if (current.followUpId) {
                 panel.querySelector('[data-follow-up-id="' + current.followUpId + '"]')?.focus();
                 current.followUpId = null;
@@ -254,6 +310,8 @@ export function mountCrmLeadWork(panel, { api, onChanged, openConversation }) {
     function setBusy(busy) {
         fields.disabled = busy;
         linkFields.disabled = busy;
+        patientSearch.querySelector('fieldset').disabled = busy;
+        patientResults.querySelector('fieldset').disabled = busy;
         clearPatient.disabled = busy;
         for (const button of panel.querySelectorAll('[data-work-row-actions] button, [data-work-conversations] button')) {
             button.disabled = busy;
@@ -295,6 +353,20 @@ export function mountCrmLeadWork(panel, { api, onChanged, openConversation }) {
     });
     input('kind').addEventListener('change', () => syncFields(assignee.value));
     find('discard').addEventListener('click', resetForm);
+    patientQuery.addEventListener('input', clearPatientResults);
+    patientSearch.addEventListener('submit', searchPatients);
+    patientResults.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const current = lead;
+        if (!current || current.hasPatient || current.openingConversation || !patientChoice.value) {
+            return;
+        }
+        write(current, current.path + '/patients', { patient_profile_id: Number(patientChoice.value) }, 'POST', 'Hasta hesabı adaya bağlandı.', () => {
+            current.hasPatient = true;
+            patientSearch.reset();
+            clearPatientResults();
+        });
+    });
 
     form.addEventListener('submit', (event) => {
         event.preventDefault();
@@ -325,6 +397,8 @@ export function mountCrmLeadWork(panel, { api, onChanged, openConversation }) {
         const current = lead;
         write(current, current.conversationPath + '/' + conversation.value + '/attach', { link_patient: !current.hasPatient }, 'POST', 'Görüşme adaya bağlandı.', () => {
             current.hasPatient = true;
+            patientSearch.reset();
+            clearPatientResults();
         });
     });
 
@@ -341,6 +415,20 @@ export function mountCrmLeadWork(panel, { api, onChanged, openConversation }) {
     });
 
     return {
+        openPatientSearch() {
+            if (!lead || lead.hasPatient) {
+                return;
+            }
+            panel.open = true;
+            if (lead.loaded) {
+                patientQuery.focus();
+            } else {
+                lead.focusPatientSearch = true;
+                if (!lead.loading) {
+                    load(lead);
+                }
+            }
+        },
         setLead(detail, { branchCrm = '', members = [], followUpId = null, openWork = false } = {}) {
             const path = detail && branchCrm + '/leads/' + detail.id;
             lead = detail ? {
@@ -355,6 +443,8 @@ export function mountCrmLeadWork(panel, { api, onChanged, openConversation }) {
                 list.replaceChildren();
             }
             conversation.replaceChildren();
+            patientSearch.reset();
+            clearPatientResults();
             setBusy(false);
             showStatus();
             if (lead && openWork) {

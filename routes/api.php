@@ -49,6 +49,7 @@ use App\Http\Controllers\ClinicCalendarController;
 use App\Http\Controllers\ClinicCrmWorkspaceController;
 
 use App\Http\Controllers\CrmLeadController;
+use App\Http\Controllers\CrmLeadPatientController;
 
 use App\Http\Controllers\CrmLeadAppointmentController;
 
@@ -1055,6 +1056,8 @@ Route::middleware(['auth:sanctum', 'verified', EnsureClinicCrmAccess::class])
             ]);
 
             Route::get('/{crmLead}/appointments', CrmLeadAppointmentController::class);
+            Route::get('/{crmLead}/patients', [CrmLeadPatientController::class, 'index']);
+            Route::post('/{crmLead}/patients', [CrmLeadPatientController::class, 'store']);
 
             Route::put('/{crmLead}', [
                 CrmLeadController::class,
