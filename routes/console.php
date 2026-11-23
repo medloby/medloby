@@ -49,7 +49,7 @@ Artisan::command('medloby:backup {destination}', function (LocalBackup $backup, 
     $this->info('Yedek doğrulandı ve kaydedildi. '.$path);
 
     return Command::SUCCESS;
-})->purpose('SQLite ve yerel özel dosyaların yedeğini oluştur');
+})->purpose('SQLite veya PostgreSQL veritabanı ile yerel özel dosyaların yedeğini oluştur');
 
 Artisan::command('medloby:restore {backup} {destination}', function (LocalBackup $localBackup, string $backup, string $destination): int {
     try {
@@ -60,7 +60,7 @@ Artisan::command('medloby:restore {backup} {destination}', function (LocalBackup
         return Command::FAILURE;
     }
 
-    $this->info('Yedek yeni dizine geri yüklendi ve doğrulandı. '.$path);
+    $this->info('Yedek dosyaları yeni dizine çıkarıldı ve doğrulandı. '.$path);
 
     return Command::SUCCESS;
-})->purpose('Yerel yedeği yeni ve boş bir dizine geri yükle');
+})->purpose('Yedeği doğrula ve dosyaları yeni bir dizine çıkar');

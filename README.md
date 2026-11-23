@@ -66,31 +66,24 @@ php artisan test --compact tests/Feature/LocalBackupTest.php
 
 ### PostgreSQL ve özel dosya yedekleme provası
 
-Bu prova PostgreSQL 17 ve varsayılan `storage/app/private` dizinini kullanır. PostgreSQL ile aynı ana sürümdeki `pg_dump` ve `pg_restore` komutlarını kullan. Kaynak ve geri yükleme bağlantılarını kendi ortamlarında yetkili test hesaplarıyla yapılandır. `encrypted_backup_root` değerini erişimi kısıtlı ve şifreli bir yedek dizinine, `source_db` değerini kaynak test veritabanına ve `source_storage` değerini kaynak uygulamanın `storage` yoluna ayarla. Yedekleme sırasında veritabanı ile özel dosyaların aynı durumu yansıtması için kaynak uygulamanın ve kuyruk işçilerinin yazmalarını durdur.
+Uygulamanın etkin bağlantısını Medloby’ye ayrılmış PostgreSQL veritabanına yönelt. Aynı ana sürümdeki `pg_dump` ve `pg_restore` araçları terminalin `PATH` ayarında bulunmalı. `encrypted_backup_root` erişimi kısıtlı, şifreli bir dizin olmalı. Veritabanı ve özel dosyaların aynı durumu yansıtması için yedek boyunca uygulamanın, kuyruk işçilerinin ve zamanlayıcının yazmalarını durdur.
 
 ```bash
-set -e
-umask 077
-backup_directory=$(mktemp -d "$encrypted_backup_root/medloby.XXXXXX")
-pg_dump --format=custom --file="$backup_directory/database.dump" --dbname="$source_db"
-tar -cf "$backup_directory/private.tar" -C "$source_storage/app" private
-(cd "$backup_directory" && sha256sum database.dump private.tar > SHA256SUMS)
+backup_root=$(mktemp -d "$encrypted_backup_root/medloby.XXXXXX")
+php artisan medloby:backup "$backup_root/backup" --no-interaction
+php artisan medloby:restore "$backup_root/backup" "$backup_root/restored" --no-interaction
 ```
 
-Geri yükleme bağlantısını ayrı test ortamına yönelt. `restore_db` için boş bir PostgreSQL veritabanı oluştur. `backup_directory` değerini doğrulanacak yedek dizinine ayarla.
+Yedek `database.dump`, `storage/app/private` ve SHA-256 toplamlarını içeren `manifest.json` dosyasını içerir. Komut, görüşmelere bağlı özel dosyaların bulunduğunu kontrol eder. `medloby:restore`, doğrulanan veritabanı yedeği ve özel dosyaları yeni dizine çıkarır.
+
+Prova için ayrı ve boş bir PostgreSQL veritabanı oluştur. Yetkili test hesabının bağlantı ayarlarını kullan ve `restore_db` değerini bu test veritabanına yönelt. Ardından doğrulanmış yedeği içe aktar.
 
 ```bash
-set -e
-umask 077
-(cd "$backup_directory" && sha256sum -c SHA256SUMS)
-restore_storage=$(mktemp -d)
-mkdir "$restore_storage/app"
 pg_restore --exit-on-error --single-transaction --no-owner --no-privileges \
-  --dbname="$restore_db" "$backup_directory/database.dump"
-tar -xf "$backup_directory/private.tar" -C "$restore_storage/app"
+  --dbname="$restore_db" "$backup_root/restored/database.dump"
 ```
 
-Test uygulamasında `DB_DATABASE` değerini `restore_db` ile açılan veritabanına, `LARAVEL_STORAGE_PATH` değerini `restore_storage` dizinine yönelt. Kaynak uygulamanın anahtarını güvenli saklama yerinden kullan. `php artisan migrate:status` ile şemayı kontrol et. Bir deneme görüşmesi ekini yetkili hasta hesabıyla aç ve başka bir hesabın aynı dosyaya erişiminin reddedildiğini doğrula. Geri yüklenen kopyada son migration’ı geri al, yeniden uygula ve dosyayı tekrar aç.
+Test uygulamasında `DB_DATABASE` değerini bu veritabanına, `LARAVEL_STORAGE_PATH` değerini `$backup_root/restored/storage` dizinine yönelt. Kaynak uygulamanın anahtarını güvenli saklama yerinden kullan. `php artisan migrate:status` ile şemayı kontrol et. Bir deneme görüşmesi ekini yetkili hasta hesabıyla aç ve başka bir hesabın aynı dosyaya erişiminin reddedildiğini doğrula. Geri yüklenen kopyada son migration’ı geri al, yeniden uygula ve dosyayı tekrar aç. [PostgreSQL yedekleme testleri](tests/Feature/PostgresBackupTest.php)
 
 ### PostgreSQL randevu provası
 

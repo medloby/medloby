@@ -73,6 +73,16 @@ jobs:
       - name: Run the SQLite test suite
         run: php artisan test --compact
 
+      - name: Install PostgreSQL 17 client tools
+        run: |
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc -o "$RUNNER_TEMP/medloby-postgresql.asc"
+          sudo install -D -m 0644 "$RUNNER_TEMP/medloby-postgresql.asc" /etc/apt/keyrings/medloby-postgresql.asc
+          . /etc/os-release
+          printf '%s\n' "deb [signed-by=/etc/apt/keyrings/medloby-postgresql.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" | sudo tee /etc/apt/sources.list.d/medloby-postgresql.list
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends postgresql-client-17
+          printf '%s\n' /usr/lib/postgresql/17/bin >> "$GITHUB_PATH"
+
       - name: Run the PostgreSQL 17 test suite
         env:
           DB_CONNECTION: pgsql
