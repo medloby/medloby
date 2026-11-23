@@ -6,6 +6,7 @@ use App\Models\AppointmentStatusHistory;
 use App\Models\Branch;
 use App\Models\BranchAppointmentSetting;
 use App\Models\Business;
+use App\Models\CrmLead;
 use App\Models\Doctor;
 use App\Models\DoctorWorkingHour;
 use App\Models\Permission;
@@ -922,8 +923,14 @@ test('clinic appointment card includes the saved notes and is available only in 
         ...$payload, 'patient_profile_id' => $patient->id, 'notes' => $notes,
     ])->assertCreated()->json('data.id');
     $manual = $this->postJson($calendar.'/appointments', [
-        ...$payload, 'patient_name' => 'Şubeye gelen hasta', 'starts_at' => '2026-12-04 10:30:00',
+        ...$payload, 'patient_name' => 'Deneme Hasta', 'starts_at' => '2026-12-04 10:30:00',
     ])->assertCreated()->json('data.id');
+    $sameName = User::factory()->create()->patientProfile()->create(['first_name' => 'Deneme', 'last_name' => 'Hasta']);
+    $candidate = ['business_id' => $business->id, 'branch_id' => $branch->id, 'patient_profile_id' => $patient->id];
+    CrmLead::create([...$candidate, 'branch_id' => $other->id, 'first_name' => 'Diğer şube']);
+    CrmLead::create([...$candidate, 'patient_profile_id' => $sameName->id, 'first_name' => 'Deneme', 'last_name' => 'Hasta']);
+    $firstLead = CrmLead::create([...$candidate, 'first_name' => 'Önceki aday', 'status' => 'completed']);
+    $latestLead = CrmLead::create([...$candidate, 'first_name' => 'Güncel aday', 'status' => 'contacted']);
     $card = $calendar.'/appointments/'.$linked;
     $this->getJson($calendar.'?date=2026-12-04')->assertOk()->assertJsonPath('data.appointments.0.patient', 'Deneme Hasta')
         ->assertDontSee('+90 555 123 45 67')->assertDontSee('hasta@example.test')->assertJsonMissingPath('data.appointments.0.notes');
@@ -934,14 +941,18 @@ test('clinic appointment card includes the saved notes and is available only in 
             'name' => 'Deneme Hasta', 'phone' => '+90 555 123 45 67', 'email' => 'hasta@example.test',
             'doctor' => trim($doctor->person->first_name.' '.$doctor->person->last_name), 'treatment' => $treatment->name,
             'starts_at' => '2026-12-04 10:00:00', 'ends_at' => '2026-12-04 10:30:00', 'status' => 'pending', 'notes' => $notes,
+            'crm_leads' => [
+                ['id' => $latestLead->id, 'name' => 'Güncel aday', 'status' => 'contacted'],
+                ['id' => $firstLead->id, 'name' => 'Önceki aday', 'status' => 'converted'],
+            ],
         ],
     ]);
     $this->getJson($card.'/contact')->assertOk()->assertExactJson([
         'success' => true, 'data' => ['name' => 'Deneme Hasta', 'phone' => '+90 555 123 45 67', 'email' => 'hasta@example.test'],
     ]);
     $this->getJson($calendar.'/appointments/'.$manual)->assertOk()
-        ->assertJsonPath('data.name', 'Şubeye gelen hasta')->assertJsonPath('data.phone', null)
-        ->assertJsonPath('data.email', null)->assertJsonPath('data.notes', null);
+        ->assertJsonPath('data.name', 'Deneme Hasta')->assertJsonPath('data.phone', null)
+        ->assertJsonPath('data.email', null)->assertJsonPath('data.notes', null)->assertJsonPath('data.crm_leads', []);
     $this->getJson($otherCalendar.'/appointments/'.$linked)->assertNotFound();
 
     $staff = User::factory()->create();
@@ -949,7 +960,8 @@ test('clinic appointment card includes the saved notes and is available only in 
     $membership->branches()->attach($other->id, ['is_active' => true]);
     $this->actingAs($staff, 'sanctum')->getJson($card)->assertForbidden();
     $membership->branches()->attach($branch->id, ['is_active' => true]);
-    $this->getJson($card)->assertOk()->assertJsonPath('data.email', 'hasta@example.test');
+    $this->getJson($card)->assertOk()->assertJsonPath('data.email', 'hasta@example.test')
+        ->assertJsonPath('data.crm_leads.0.id', $latestLead->id);
     $this->actingAs($patientUser, 'sanctum')->getJson($card)->assertForbidden();
     $business->update(['status' => 'suspended']);
     $this->actingAs($owner, 'sanctum')->getJson($card)->assertForbidden();

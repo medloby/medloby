@@ -38,13 +38,13 @@ export function timeLabel(start, end) {
         : dateLabel(start) + ' ' + times[0] + ' – ' + dateLabel(end) + ' ' + times[1];
 }
 
-export function mountClinicCalendar(panel, api, { openBookingDialog, openAppointmentAction, appointmentActionLabels }) {
+export function mountClinicCalendar(panel, api, { openBookingDialog, openAppointmentAction, appointmentActionLabels, openLead }) {
     const find = (part, root = panel) => root.querySelector('[data-calendar-' + part + ']');
     const day = find('day');
     const management = find('management');
     const ruleForm = find('rule-form');
     const doctor = find('doctor');
-    const appointmentCard = mountAppointmentCard(find('appointment-card'), { api, dateLabel, timeLabel, appointmentStatuses });
+    const appointmentCard = mountAppointmentCard(find('appointment-card'), { api, dateLabel, timeLabel, appointmentStatuses, openLead });
     const appointmentSettings = mountClinicCalendarSettings(find('appointment-settings'), api, () => load(scope));
     const forms = Object.fromEntries(Array.from(panel.querySelectorAll('[data-calendar-form]'))
         .map((form) => [form.dataset.calendarForm, form]));

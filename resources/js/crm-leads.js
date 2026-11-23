@@ -1,14 +1,7 @@
 import { mountCrmLeadAppointments } from './crm-lead-appointments';
+import { crmLeadStatusLabels as statusLabels } from './crm-lead-status';
 import { mountCrmLeadWork } from './crm-lead-work';
 
-const statusLabels = new Map([
-    ['new', 'Yeni'],
-    ['contacted', 'Görüşüldü'],
-    ['offer', 'Teklif aşamasında'],
-    ['appointment', 'Randevu aşamasında'],
-    ['converted', 'Başarılı'],
-    ['lost', 'Sonuçsuz'],
-]);
 const leadDate = new Intl.DateTimeFormat('tr-TR', { dateStyle: 'medium', timeZone: 'Europe/Istanbul' });
 const historyDate = new Intl.DateTimeFormat('tr-TR', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Istanbul' });
 

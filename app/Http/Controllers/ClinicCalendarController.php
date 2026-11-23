@@ -6,7 +6,9 @@ use App\Http\Middleware\EnsureClinicCrmAccess;
 use App\Models\Appointment;
 use App\Models\Branch;
 use App\Models\CalendarBlock;
+use App\Models\CrmLead;
 use App\Models\Doctor;
+use App\Models\PatientProfile;
 use App\Services\BookingCalendarService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -91,15 +93,23 @@ class ClinicCalendarController extends Controller
 
     public function contact(Branch $branch, Appointment $appointment): JsonResponse
     {
+        $patient = $this->appointmentPatient($branch, $appointment);
+
         return response()->json([
             'success' => true,
-            'data' => $this->appointmentContact($branch, $appointment),
+            'data' => $this->appointmentContact($appointment, $patient),
         ])->header('Cache-Control', 'private, no-store');
     }
 
     public function appointment(Branch $branch, Appointment $appointment): JsonResponse
     {
-        $contact = $this->appointmentContact($branch, $appointment);
+        $patient = $this->appointmentPatient($branch, $appointment);
+        $contact = $this->appointmentContact($appointment, $patient);
+        $leads = $patient === null ? [] : CrmLead::query()->forBranch($branch)
+            ->where('patient_profile_id', $patient->id)->latest('id')->get(['id', 'first_name', 'last_name', 'status'])
+            ->map(fn (CrmLead $lead) => [
+                'id' => $lead->id, 'name' => trim($lead->first_name.' '.$lead->last_name), 'status' => $lead->status,
+            ]);
         $appointment->load([
             'doctor.person' => fn ($people) => $people->where('business_id', $branch->business_id)
                 ->select('id', 'first_name', 'last_name'),
@@ -119,6 +129,7 @@ class ClinicCalendarController extends Controller
                 'doctor' => $this->doctorName($appointment->doctor),
                 'treatment' => $appointment->treatment?->name,
                 'notes' => $appointment->notes,
+                'crm_leads' => $leads,
             ],
         ])->header('Cache-Control', 'private, no-store');
     }
@@ -140,14 +151,17 @@ class ClinicCalendarController extends Controller
         ])->header('Cache-Control', 'private, no-store');
     }
 
-    /** @return array{name: ?string, phone: ?string, email: ?string} */
-    private function appointmentContact(Branch $branch, Appointment $appointment): array
+    private function appointmentPatient(Branch $branch, Appointment $appointment): ?PatientProfile
     {
         abort_unless($appointment->branch_id === $branch->id && $appointment->business_id === $branch->business_id, 404);
 
-        $patient = $appointment->patientProfile()->knownToBranch($branch)
+        return $appointment->patientProfile()->knownToBranch($branch)
             ->with('user:id,email')->first(['id', 'user_id', 'first_name', 'last_name', 'phone']);
+    }
 
+    /** @return array{name: ?string, phone: ?string, email: ?string} */
+    private function appointmentContact(Appointment $appointment, ?PatientProfile $patient): array
+    {
         return [
             'name' => $patient ? trim($patient->first_name.' '.$patient->last_name) : $appointment->patient_name,
             'phone' => filled($appointment->patient_phone) ? $appointment->patient_phone : $patient?->phone,

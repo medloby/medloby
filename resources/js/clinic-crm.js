@@ -40,7 +40,9 @@ export function mountClinicCrm(section, api, { openConversation, ...appointmentD
     const treatmentPrices = mountClinicTreatmentPrices(find('prices'), api);
     const socialLinks = mountClinicSocialLinks(find('social-links'), api);
     const ledger = mountClinicLedger(find('ledger'), api);
-    const calendar = mountClinicCalendar(find('calendar'), api, appointmentDialogs);
+    const calendar = mountClinicCalendar(find('calendar'), api, {
+        ...appointmentDialogs, openLead: (id) => leads.openLead(id),
+    });
     const leads = mountCrmLeads(find('leads'), {
         api, onChanged: refreshDashboard,
         openConversation: (item, leadId) => openConversation(item, {

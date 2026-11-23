@@ -19,6 +19,10 @@
             <h4 class="font-semibold">Randevu açıklaması</h4>
             <p class="mt-1 whitespace-pre-wrap break-words" data-card-notes></p>
         </div>
+        <section class="grid gap-2 border-t border-slate-200 pt-3 dark:border-slate-700" aria-labelledby="appointment-card-leads-title" data-card-leads hidden>
+            <h4 class="text-sm font-semibold" id="appointment-card-leads-title">Bağlı CRM adayları</h4>
+            <ul class="grid gap-2" data-card-lead-list></ul>
+        </section>
         <button type="button" class="offer-button justify-self-start" data-card-download>PDF indir</button>
     </div>
     <template data-card-field>
@@ -26,5 +30,14 @@
             <dt class="text-slate-600 dark:text-slate-300"></dt>
             <dd class="break-words font-medium"></dd>
         </div>
+    </template>
+    <template data-card-lead>
+        <li class="flex flex-wrap items-center justify-between gap-2 text-sm">
+            <div class="min-w-0 break-words">
+                <p class="font-semibold" data-card-lead-name></p>
+                <p class="text-slate-600 dark:text-slate-300" data-card-lead-meta></p>
+            </div>
+            <button type="button" class="offer-button offer-button-secondary">Adayı aç</button>
+        </li>
     </template>
 </dialog>
