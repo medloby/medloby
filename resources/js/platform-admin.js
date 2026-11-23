@@ -159,13 +159,13 @@ function mountDashboard(root, api, account, endSession) {
 
     function showAlerts(data) {
         const alerts = [];
-        const add = (label, target) => {
+        const add = (label, target, open = () => action(target).click()) => {
             const item = document.createElement('li');
             const message = textElement(target ? 'button' : 'span', label,
                 target ? 'text-left text-sm font-medium underline decoration-teal-600 underline-offset-4' : 'text-sm');
             if (target) {
                 message.type = 'button';
-                message.addEventListener('click', () => action(target).click());
+                message.addEventListener('click', open);
             }
             item.append(message);
             alerts.push(item);
@@ -173,7 +173,9 @@ function mountDashboard(root, api, account, endSession) {
         if (data.summary.pending_applications > 0) {
             add(number.format(data.summary.pending_applications) + ' klinik başvurusu inceleme bekliyor', 'clinic-review');
         }
-        if (data.summary.open_tickets > 0) {
+        if (data.summary.awaiting_support_reply > 0) {
+            add(number.format(data.summary.awaiting_support_reply) + ' destek talebi yanıt bekliyor', 'support-tickets', support.openAwaitingReply);
+        } else if (data.summary.open_tickets > 0) {
             add(number.format(data.summary.open_tickets) + ' destek talebi açık', 'support-tickets');
         }
         if (data.alerts.membership_contract_missing) {

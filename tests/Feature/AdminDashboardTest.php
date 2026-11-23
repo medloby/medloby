@@ -112,7 +112,8 @@ test('dashboard counts use Istanbul calendar boundaries and report aggregates wi
             'valid_until' => $deadline,
         ]);
     }
-    SupportTicket::factory()->for($patient, 'requester')->create(['subject' => 'Gizli destek konusu']);
+    $ticket = SupportTicket::factory()->for($patient, 'requester')->create(['subject' => 'Gizli destek konusu']);
+    $ticket->messages()->create(['from_support' => false, 'body' => 'Gizli destek mesajı']);
     SupportTicket::factory()->for($owner, 'requester')->create(['closed_at' => now()]);
     DB::table('failed_jobs')->insert([
         'uuid' => (string) Str::uuid(), 'connection' => 'database', 'queue' => 'default',
@@ -125,7 +126,7 @@ test('dashboard counts use Istanbul calendar boundaries and report aggregates wi
         ->assertJsonPath('data.summary', [
             'clinics' => 3, 'active_clinics' => 1, 'suspended_clinics' => 1, 'pending_applications' => 1, 'patient_accounts' => 1,
             'new_users' => ['today' => 1, 'month' => 2], 'appointments' => ['today' => 2, 'week' => 3, 'month' => 5],
-            'pending_offers' => 2, 'open_tickets' => 1, 'active_branches' => 1,
+            'pending_offers' => 2, 'open_tickets' => 1, 'awaiting_support_reply' => 1, 'active_branches' => 1,
         ])
         ->assertJsonPath('data.trends.clinics.28', ['date' => '2026-12-06', 'count' => 1])
         ->assertJsonPath('data.trends.clinics.29', ['date' => '2026-12-07', 'count' => 1])

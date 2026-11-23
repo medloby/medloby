@@ -64,6 +64,8 @@ Platform finansı **BLOCKED**. İleride finansal hareketler platformun kendi öd
 
 **PARTIAL.** Mevcut destek kuyruğunda hesap bağlantısı, ilk yanıt ve son kapanışa kadar geçen süre gösterilir. Süreler talep ve mesaj zamanlarından hesaplanır. Panel aktif tedavisi olan pasif kategorileri ve yayımdaki zorunlu klinik sözleşmesinin bitiş tarihini bildirir. İşlemler mevcut katalog ve sözleşme ekranlarında yapılır. Destek kategorileri, öncelikleri, atama ve denetim süreleri açık. Hukuki içerik onayı yayımdan önce yapılacak. [Destek](app/Http/Controllers/SupportTicketController.php) · [Panel uyarıları](app/Services/AdminDashboardMetrics.php)
 
+**Yanıt bekliyor** filtresi açık ve son mesajı başvurandan gelen talepleri gösterir. Genel bakıştaki sayaç aynı kuyruğu açar. Yönetici talep numarası veya konuyla arayabilir. Hesaba bağlı destek geçmişinde arama ilgili hesabın kayıtlarıyla sınırlıdır. [Kuyruk testleri](tests/Feature/SupportTicketTest.php)
+
 ## ADMIN-G7 — Sistem durumu
 
 **PARTIAL.** Sistem ekranı uygulama erişimini, veritabanı ve şema durumunu, kuyruk ve e-posta yapılandırmasını ve varsa belirtilen yayın sürümünü gösterir. Yayın komutuyla aynı teknik denetimleri kullanır. İşçi, zamanlayıcı, teslimat ve son yedek doğrulaması için canlı ölçüm bulunmadığında **Bilinmiyor** gösterilir. Veritabanı kesintisi yönetici oturumunun doğrulanmasını da engelliyorsa dış erişim kontrolü `/up` üzerinden yapılır. [Sistem ölçümleri](app/Services/ReleaseConfiguration.php) · [Yayın kontrolü](app/Console/Commands/CheckReleaseReadiness.php)

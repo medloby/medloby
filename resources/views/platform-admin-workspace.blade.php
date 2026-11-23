@@ -48,7 +48,7 @@
                         'clinics' => ['Kayıtlı klinik', ['active_clinics' => 'Aktif', 'suspended_clinics' => 'Askıda', 'pending_applications' => 'Başvuru bekliyor', 'active_branches' => 'Aktif şube']],
                         'patient_accounts' => ['Hasta hesabı', ['new_today' => 'Bugün yeni kullanıcı', 'new_month' => 'Bu ay yeni kullanıcı']],
                         'visits_today' => ['Bugün randevu', ['visits_week' => 'Bu takvim haftası', 'visits_month' => 'Bu takvim ayı']],
-                        'open_tickets' => ['Açık destek talebi', ['pending_offers' => 'Yanıt bekleyen teklif']],
+                        'open_tickets' => ['Açık destek talebi', ['awaiting_support_reply' => 'Destek yanıtı bekleyen', 'pending_offers' => 'Yanıt bekleyen teklif']],
                     ] as $metric => [$label, $details])
                         <article class="grid min-w-0 content-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 dark:border-slate-800 dark:bg-slate-900">
                             <h2 class="text-sm font-medium text-slate-600 dark:text-slate-300">{{ $label }}</h2>

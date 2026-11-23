@@ -65,6 +65,7 @@ final class AdminDashboardMetrics
                 'appointments' => $periodVisits,
                 'pending_offers' => $pendingOffers,
                 'open_tickets' => $openTickets,
+                'awaiting_support_reply' => SupportTicket::query()->awaitingSupportReply()->count(),
                 'active_branches' => Branch::query()->where('status', 'active')
                     ->whereHas('business', fn (Builder $business) => $business->where('type', 'clinic')
                         ->where('status', 'active')->where('is_verified', true))->count(),

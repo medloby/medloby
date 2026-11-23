@@ -13,6 +13,7 @@
                     <select class="offer-control" data-support-filter>
                         <option value="">Tümü</option>
                         <option value="open">Açık</option>
+                        <option value="awaiting_reply" data-support-awaiting-option hidden disabled>Yanıt bekliyor</option>
                         <option value="closed">Kapalı</option>
                     </select>
                 </label>
@@ -21,6 +22,12 @@
                     <button type="button" class="offer-button" data-support-create>Yeni talep</button>
                 </div>
             </div>
+            <form class="flex flex-wrap items-end gap-2" data-support-search-form hidden>
+                <label class="offer-field min-w-0 flex-1">Talep numarası veya konusu
+                    <input class="offer-control" type="search" name="search" maxlength="120">
+                </label>
+                <button type="submit" class="offer-button offer-button-secondary">Ara</button>
+            </form>
             <ul class="grid gap-2" data-support-list></ul>
             <nav class="flex flex-wrap items-center justify-between gap-2" aria-label="Talep sayfaları" data-support-list-pages hidden>
                 <button type="button" class="offer-button offer-button-secondary" data-support-list-previous>Önceki</button>

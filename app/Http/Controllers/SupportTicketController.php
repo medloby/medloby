@@ -11,6 +11,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Validation\Rule;
 
 class SupportTicketController extends Controller
 {
@@ -19,21 +20,32 @@ class SupportTicketController extends Controller
     public function index(Request $request): JsonResponse
     {
         $admin = $this->isAdminInbox($request);
-        $filters = $request->validate(['status' => ['sometimes', 'required', 'in:open,closed']]
-            + ($admin ? ['requester_id' => ['sometimes', 'required', 'integer', 'min:1']] : []));
-        $status = $filters['status'] ?? null;
+        $statuses = $admin ? ['open', 'closed', 'awaiting_reply'] : ['open', 'closed'];
+        $filters = $request->validate(['status' => ['sometimes', 'required', Rule::in($statuses)]]
+            + ($admin ? ['requester_id' => ['sometimes', 'required', 'integer', 'min:1'], 'search' => ['nullable', 'string', 'max:120']] : []));
         $tickets = $this->tickets($request);
         if (isset($filters['requester_id'])) {
             $tickets->where('requester_id', $filters['requester_id']);
         }
         if ($admin) {
-            $tickets->withMin(['messages as first_support_reply_at' => fn (Builder $messages) => $messages->where('from_support', true)], 'created_at');
+            $tickets->withLastMessageDirection()
+                ->withMin(['messages as first_support_reply_at' => fn (Builder $messages) => $messages->where('from_support', true)], 'created_at');
         }
-        if ($status === 'open') {
-            $tickets->whereNull('closed_at');
-        } elseif ($status === 'closed') {
-            $tickets->whereNotNull('closed_at');
+        $search = trim($filters['search'] ?? '');
+        if ($search !== '') {
+            $id = filter_var(ltrim($search, '#'), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+            if ($id === false) {
+                $tickets->whereLike('subject', '%'.$search.'%');
+            } else {
+                $tickets->whereKey($id);
+            }
         }
+        match ($filters['status'] ?? null) {
+            'open' => $tickets->whereNull('closed_at'),
+            'closed' => $tickets->whereNotNull('closed_at'),
+            'awaiting_reply' => $tickets->awaitingSupportReply(),
+            default => null,
+        };
 
         $page = $tickets->latest('updated_at')->latest('id')->paginate(20)
             ->through(fn (SupportTicket $item): array => $this->summary($item, $admin));
@@ -148,6 +160,9 @@ class SupportTicketController extends Controller
         ];
         if ($admin) {
             $data['requester_name'] = $ticket->requester->name;
+            if (array_key_exists('last_message_from_support', $ticket->getAttributes())) {
+                $data['awaiting_reply'] = $ticket->closed_at === null && $ticket->last_message_from_support === false;
+            }
             if (array_key_exists('first_support_reply_at', $ticket->getAttributes())) {
                 $firstReply = $ticket->first_support_reply_at;
                 $data['first_response_seconds'] = $ticket->created_at && $firstReply

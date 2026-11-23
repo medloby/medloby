@@ -34,10 +34,13 @@ test('an account and platform support can exchange messages and use private in-a
     $this->actingAs($admin, 'sanctum')->getJson('/api/admin/support-tickets?status=open')->assertOk()
         ->assertJsonPath('data.data.0.requester_name', $requester->name)->assertJsonMissingPath('data.data.0.requester_id')
         ->assertJsonMissingPath('data.data.0.messages');
+    $queue = '/api/admin/support-tickets?status=awaiting_reply';
+    $this->getJson($queue)->assertOk()->assertJsonPath('data.data.0.awaiting_reply', true);
     $adminUrl = "/api/admin/support-tickets/{$ticket}";
     $answer = 'Hesabınızdan Paket teklifleri bölümünü açabilirsiniz.';
     $this->postJson($adminUrl.'/messages', ['body' => $answer])->assertCreated()
         ->assertJsonPath('data.messages.data.0.body', $answer)->assertJsonPath('data.messages.data.0.from_support', true);
+    $this->getJson($queue)->assertOk()->assertJsonPath('data.total', 0);
     expect($requester->notifications()->sole()->data)->toMatchArray([
         'support_ticket_id' => $ticket, 'title' => 'Destek talebinize yanıt geldi',
     ]);
@@ -47,8 +50,35 @@ test('an account and platform support can exchange messages and use private in-a
         ->assertJsonPath('data.messages.data.0.body', $answer)->assertJsonMissingPath('data.requester_name');
     $this->postJson($url.'/messages', ['body' => 'Ekranı buldum, teşekkürler.'])->assertCreated()
         ->assertJsonPath('data.messages.data.0.from_support', false);
+    $this->actingAs($admin, 'sanctum')->getJson($queue)->assertOk()->assertJsonPath('data.data.0.id', $ticket);
     expect($admin->notifications()->count())->toBe(2);
     $this->assertDatabaseCount('support_ticket_messages', 3);
+});
+
+test('the admin reply queue combines ticket search and requester scope without changing the personal inbox', function () {
+    $requester = User::factory()->create();
+    $admin = User::factory()->create(['is_admin' => true]);
+    $awaiting = SupportTicket::factory()->for($requester, 'requester')->create(['subject' => 'Takvim sorusu']);
+    $closed = SupportTicket::factory()->for($requester, 'requester')->create(['subject' => 'Takvim kapali', 'closed_at' => now()]);
+    $empty = SupportTicket::factory()->for($requester, 'requester')->create(['subject' => 'Takvim eski kayit']);
+    $other = SupportTicket::factory()->create(['subject' => 'Takvim baska hesap']);
+    foreach ([$awaiting, $closed, $other] as $ticket) {
+        SupportTicketMessage::factory()->for($ticket)->create();
+    }
+
+    $path = '/api/admin/support-tickets';
+    $this->actingAs($admin, 'sanctum')->getJson($path.'?status=awaiting_reply&search=takvim&requester_id='.$requester->id)
+        ->assertOk()->assertJsonPath('data.total', 1)->assertJsonPath('data.data.0.id', $awaiting->id);
+    $this->getJson($path.'?search=%23'.$closed->id)->assertOk()
+        ->assertJsonPath('data.data.0.id', $closed->id)->assertJsonPath('data.data.0.awaiting_reply', false);
+    $this->getJson($path.'?search='.$empty->id)->assertOk()
+        ->assertJsonPath('data.data.0.id', $empty->id)->assertJsonPath('data.data.0.awaiting_reply', false);
+    $this->getJson($path.'?search=%23'.$other->id.'&requester_id='.$requester->id)->assertOk()->assertJsonPath('data.total', 0);
+
+    $this->actingAs($requester, 'sanctum')->getJson($path.'?search='.$other->id)->assertForbidden();
+    $this->getJson('/api/support-tickets?search='.$other->id)
+        ->assertOk()->assertJsonPath('data.total', 3)->assertJsonMissingPath('data.data.0.awaiting_reply');
+    $this->getJson('/api/support-tickets?status=awaiting_reply')->assertUnprocessable()->assertJsonValidationErrors('status');
 });
 
 test('support tickets stay private and the inbox requires platform administration', function () {

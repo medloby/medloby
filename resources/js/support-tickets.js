@@ -15,6 +15,8 @@ export function mountSupportTickets(dialog, trigger, { api, timeLabel }) {
     const compose = find('compose');
     const thread = find('thread');
     const filter = find('filter');
+    const searchForm = find('search-form');
+    const awaitingOption = find('awaiting-option');
     const list = find('list');
     const messages = find('messages');
     const subject = find('subject');
@@ -25,6 +27,7 @@ export function mountSupportTickets(dialog, trigger, { api, timeLabel }) {
     let admin;
     let ticket;
     let requester;
+    let search = '';
     let listPage = 1;
     let messagePage = 1;
     let request = 0;
@@ -72,7 +75,10 @@ export function mountSupportTickets(dialog, trigger, { api, timeLabel }) {
     function ticketSummary(item) {
         const response = Number.isFinite(item.first_response_seconds) ? 'İlk yanıt ' + elapsed(item.first_response_seconds) : '';
         const resolution = Number.isFinite(item.resolution_seconds) ? 'Son kapanışa kadar ' + elapsed(item.resolution_seconds) : '';
-        return [statusLabels[item.status], item.requester_name, timeLabel(item.updated_at), response, resolution].filter(Boolean).join(' · ');
+        return [
+            admin && 'Talep #' + item.id, item.awaiting_reply ? 'Yanıt bekliyor' : statusLabels[item.status],
+            item.requester_name, timeLabel(item.updated_at), response, resolution,
+        ].filter(Boolean).join(' · ');
     }
 
     function ticketRow(item) {
@@ -98,6 +104,9 @@ export function mountSupportTickets(dialog, trigger, { api, timeLabel }) {
         }
         if (requester) {
             query.set('requester_id', requester.id);
+        }
+        if (search) {
+            query.set('search', search);
         }
         showView(overview);
         const result = await run('Destek talepleri yükleniyor…', () => api(endpoint + '?' + query));
@@ -150,6 +159,7 @@ export function mountSupportTickets(dialog, trigger, { api, timeLabel }) {
         request++;
         ticket = undefined;
         requester = undefined;
+        search = '';
         find('requester').textContent = '';
         find('requester').hidden = true;
         listPage = 1;
@@ -162,12 +172,13 @@ export function mountSupportTickets(dialog, trigger, { api, timeLabel }) {
         subject.textContent = '';
         find('summary').textContent = '';
         compose.reset();
+        searchForm.reset();
         reply.reset();
         showStatus();
         showView(overview);
     }
 
-    function open(item = null, { relatedAccount = null, ticketId = null } = {}) {
+    function open(item = null, { relatedAccount = null, ticketId = null, status: initialStatus } = {}) {
         if (!endpoint || dialog.open) {
             return;
         }
@@ -175,7 +186,7 @@ export function mountSupportTickets(dialog, trigger, { api, timeLabel }) {
         requester = admin ? relatedAccount : null;
         find('requester').textContent = requester ? requester.name + ' · Hesap #' + requester.id : '';
         find('requester').hidden = !requester;
-        filter.value = admin && !requester ? 'open' : '';
+        filter.value = initialStatus ?? (admin && !requester ? 'open' : '');
         dialog.showModal();
         if (item) {
             renderTicket(item);
@@ -227,10 +238,19 @@ export function mountSupportTickets(dialog, trigger, { api, timeLabel }) {
         }
     });
 
-    filter.addEventListener('change', () => {
+    function reloadList() {
         list.replaceChildren();
         find('list-pages').hidden = true;
         loadList();
+    }
+
+    filter.addEventListener('change', reloadList);
+    searchForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        if (admin) {
+            search = searchForm.elements.namedItem('search').value.trim();
+            reloadList();
+        }
     });
     find('refresh-list').addEventListener('click', () => loadList(listPage));
     find('list-previous').addEventListener('click', () => loadList(listPage - 1));
@@ -243,6 +263,7 @@ export function mountSupportTickets(dialog, trigger, { api, timeLabel }) {
         open,
         openForAccount: (account) => open(null, { relatedAccount: account }),
         openTicket: (ticketId) => open(null, { ticketId }),
+        openAwaitingReply: () => open(null, { status: 'awaiting_reply' }),
         fetchTicket,
         start({ administrator = false } = {}) {
             admin = administrator;
@@ -250,6 +271,9 @@ export function mountSupportTickets(dialog, trigger, { api, timeLabel }) {
             trigger.textContent = admin ? 'Destek talepleri' : 'Destek taleplerim';
             find('heading').textContent = trigger.textContent;
             find('create').hidden = admin;
+            searchForm.hidden = !admin;
+            awaitingOption.hidden = !admin;
+            awaitingOption.disabled = !admin;
             trigger.hidden = false;
         },
         stop() {
