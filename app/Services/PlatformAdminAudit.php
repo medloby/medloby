@@ -4,13 +4,14 @@ namespace App\Services;
 
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Database\Query\JoinClause;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use stdClass;
 
 final class PlatformAdminAudit
 {
-    public const array SOURCES = ['clinic_application', 'clinic_status', 'contract', 'support', 'platform_role'];
+    public const array SOURCES = ['clinic_application', 'clinic_status', 'contract', 'support', 'platform_role', 'clinic_membership'];
 
     public function recent(?string $source): LengthAwarePaginator
     {
@@ -20,13 +21,21 @@ final class PlatformAdminAudit
             'contract' => $this->publications()->unionAll($this->deactivations()),
             'support' => $this->supportReplies()->unionAll($this->supportAssignments()),
             'platform_role' => $this->roleChanges(),
+            'clinic_membership' => $this->clinicMembershipChanges(),
             default => $this->clinicApplications()->unionAll($this->clinicStatuses())
                 ->unionAll($this->publications())->unionAll($this->deactivations())
-                ->unionAll($this->supportReplies())->unionAll($this->supportAssignments())->unionAll($this->roleChanges()),
+                ->unionAll($this->supportReplies())->unionAll($this->supportAssignments())->unionAll($this->roleChanges())
+                ->unionAll($this->clinicMembershipChanges()),
         };
 
         return DB::query()->fromSub($events, 'audit_events')
-            ->orderByDesc('occurred_at')->orderBy('source')->orderByDesc('event_id')->orderBy('event_action')->paginate(20)
+            ->leftJoin('clinic_membership_changes as membership_change', fn (JoinClause $join) => $join
+                ->on('audit_events.event_id', '=', 'membership_change.id')->where('audit_events.source', 'clinic_membership'))
+            ->leftJoin('permissions as permission', 'permission.id', '=', 'membership_change.permission_id')
+            ->select('audit_events.*', 'membership_change.business_id', 'membership_change.previous_value',
+                'membership_change.new_value', 'permission.display_name as permission_name')
+            ->orderByDesc('audit_events.occurred_at')->orderBy('audit_events.source')
+            ->orderByDesc('audit_events.event_id')->orderBy('audit_events.event_action')->paginate(20)
             ->through(fn (stdClass $event): array => [
                 'source' => $event->source,
                 'action' => $event->event_action,
@@ -34,6 +43,12 @@ final class PlatformAdminAudit
                 'target_name' => $event->target_name,
                 'actor_name' => $event->actor_name,
                 'occurred_at' => CarbonImmutable::parse($event->occurred_at)->toIso8601String(),
+                ...($event->source === 'clinic_membership' ? ['change' => [
+                    'business_id' => (int) $event->business_id,
+                    'previous_value' => $event->previous_value,
+                    'new_value' => $event->new_value,
+                    'permission_name' => $event->permission_name,
+                ]] : []),
             ]);
     }
 
@@ -91,6 +106,14 @@ final class PlatformAdminAudit
         return DB::table('platform_role_changes as entry')->join('users as target', 'target.id', '=', 'entry.user_id')
             ->leftJoin('users as actor', 'actor.id', '=', 'entry.actor_user_id')
             ->selectRaw("'platform_role' AS source, entry.id AS event_id, entry.user_id AS target_id,
+                target.name AS target_name, actor.name AS actor_name, entry.action AS event_action, entry.created_at AS occurred_at");
+    }
+
+    private function clinicMembershipChanges(): Builder
+    {
+        return DB::table('clinic_membership_changes as entry')->join('users as target', 'target.id', '=', 'entry.user_id')
+            ->leftJoin('users as actor', 'actor.id', '=', 'entry.actor_user_id')
+            ->selectRaw("'clinic_membership' AS source, entry.id AS event_id, entry.business_user_id AS target_id,
                 target.name AS target_name, actor.name AS actor_name, entry.action AS event_action, entry.created_at AS occurred_at");
     }
 }

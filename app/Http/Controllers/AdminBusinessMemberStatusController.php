@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Business;
 use App\Models\BusinessUser;
+use App\Services\ClinicMembershipAudit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,7 +17,8 @@ class AdminBusinessMemberStatusController extends Controller
     public function update(
         Request $request,
         Business $business,
-        BusinessUser $businessUser
+        BusinessUser $businessUser,
+        ClinicMembershipAudit $audit,
     ): JsonResponse {
         abort_unless(
             $businessUser->business_id === $business->id,
@@ -24,15 +26,19 @@ class AdminBusinessMemberStatusController extends Controller
         );
 
         $validated = $request->validate(['is_active' => ['sometimes', 'required', 'boolean']]);
+        $actorId = $request->user()->id;
 
-        [$businessUser, $oldStatus] = DB::transaction(function () use ($business, $businessUser, $validated): array {
-            $member = $business->memberships()->lockForUpdate()->findOrFail($businessUser->id);
+        [$businessUser, $oldStatus] = DB::transaction(function () use ($business, $businessUser, $validated, $audit, $actorId): array {
+            $member = $audit->lockMember($business, $businessUser->id);
             $oldStatus = $member->is_active;
             $member->update(['is_active' => (bool) ($validated['is_active'] ?? ! $oldStatus)]);
 
             if (! $member->is_active && $member->user?->staff_business_id === $business->id) {
                 $member->user()->lockForUpdate()->firstOrFail()->tokens()->delete();
             }
+
+            $audit->record($member, $actorId, 'member_status_changed',
+                $oldStatus ? 'active' : 'inactive', $member->is_active ? 'active' : 'inactive');
 
             return [$member, $oldStatus];
         }, attempts: 3);
@@ -43,7 +49,7 @@ class AdminBusinessMemberStatusController extends Controller
                 ? 'Üye başarıyla aktifleştirildi.'
                 : 'Üye başarıyla pasifleştirildi.',
             'data' => [
-                'membership' => $businessUser->fresh([
+                'membership' => $businessUser->load([
                     'user:id,name,email',
                     'business:id,name,slug,status',
                 ]),

@@ -2,6 +2,7 @@
 
 use App\Models\Branch;
 use App\Models\Business;
+use App\Models\Permission;
 use App\Models\PlatformContract;
 use App\Models\SupportTicket;
 use App\Models\Treatment;
@@ -310,4 +311,50 @@ test('the audit groups existing administrator actions without revealing messages
     $this->getJson($path.'?source=clinic_application')->assertOk()->assertJsonPath('data.total', 1)
         ->assertJsonPath('data.data.0.action', 'approved');
     $this->getJson($path.'?source=invalid')->assertUnprocessable()->assertJsonValidationErrors('source');
+});
+
+test('the admin audit records effective clinic membership changes once and hides account details', function () {
+    $admin = User::factory()->create(['is_admin' => true]);
+    $operator = User::factory()->create(['platform_role' => User::PLATFORM_SUPPORT_ROLE]);
+    $memberAccount = User::factory()->create();
+    $clinic = Business::factory()->create();
+    $otherClinic = Business::factory()->create();
+    $member = $clinic->memberships()->create(['user_id' => $memberAccount->id, 'role' => 'staff', 'is_active' => true]);
+    $permission = Permission::create([
+        'name' => 'appointments.manage', 'display_name' => 'Randevu yönetimi', 'module' => 'appointments', 'is_active' => true,
+    ]);
+    $memberPath = "/api/admin/businesses/{$clinic->id}/members/{$member->id}";
+    $permissionPath = $memberPath.'/permissions/'.$permission->id;
+    $auditPath = '/api/admin/audit?source=clinic_membership';
+
+    $this->actingAs($operator, 'sanctum')->putJson($memberPath.'/role', ['role' => 'manager'])->assertForbidden();
+    $this->getJson($auditPath)->assertForbidden();
+    $this->actingAs($admin, 'sanctum')
+        ->putJson("/api/admin/businesses/{$otherClinic->id}/members/{$member->id}/status", ['is_active' => false])->assertNotFound();
+    $this->putJson($memberPath.'/role', ['role' => 'manager'])->assertOk();
+    $this->putJson($memberPath.'/role', ['role' => 'manager'])->assertUnprocessable();
+    $this->putJson($memberPath.'/status', ['is_active' => false])->assertOk();
+    $this->putJson($memberPath.'/status', ['is_active' => false])->assertOk();
+    $this->putJson($permissionPath, ['is_allowed' => true])->assertOk();
+    $this->putJson($permissionPath, ['is_allowed' => true])->assertOk();
+    $this->putJson($permissionPath, ['is_allowed' => false])->assertOk();
+    $this->deleteJson($permissionPath)->assertOk();
+    $this->deleteJson($permissionPath)->assertOk();
+
+    $this->getJson($auditPath)->assertOk()->assertHeader('Cache-Control', 'no-store, private')
+        ->assertJsonPath('data.total', 5)
+        ->assertJsonPath('data.data.0.action', 'member_permission_changed')
+        ->assertJsonPath('data.data.0.change', [
+            'business_id' => $clinic->id, 'previous_value' => 'denied', 'new_value' => null,
+            'permission_name' => $permission->display_name,
+        ])
+        ->assertJsonPath('data.data.3.action', 'member_status_changed')
+        ->assertJsonPath('data.data.3.change.new_value', 'inactive')
+        ->assertJsonPath('data.data.4.action', 'member_role_changed')
+        ->assertJsonPath('data.data.4.change.previous_value', 'staff')
+        ->assertJsonPath('data.data.4.change.new_value', 'manager')
+        ->assertJsonPath('data.data.4.target_id', $member->id)
+        ->assertJsonPath('data.data.4.actor_name', $admin->name)
+        ->assertDontSee($memberAccount->email)
+        ->assertDontSee($admin->email);
 });

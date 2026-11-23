@@ -4,10 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\Business;
 use App\Models\BusinessUser;
-use App\Models\BusinessUserPermission;
 use App\Models\Permission;
+use App\Services\ClinicMembershipAudit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class AdminBusinessMemberPermissionController extends Controller
 {
@@ -18,7 +19,8 @@ class AdminBusinessMemberPermissionController extends Controller
         Request $request,
         Business $business,
         BusinessUser $businessUser,
-        Permission $permission
+        Permission $permission,
+        ClinicMembershipAudit $audit,
     ): JsonResponse {
         abort_unless(
             $businessUser->business_id === $business->id,
@@ -33,18 +35,20 @@ class AdminBusinessMemberPermissionController extends Controller
         ]);
 
         $isAllowed = (bool) $validated['is_allowed'];
+        $actorId = $request->user()->id;
 
-        $businessUserPermission = BusinessUserPermission::updateOrCreate(
-            [
-                'business_id' => $business->id,
-                'user_id' => $businessUser->user_id,
+        [$businessUser, $businessUserPermission] = DB::transaction(function () use ($business, $businessUser, $permission, $audit, $actorId, $isAllowed): array {
+            $member = $audit->lockMember($business, $businessUser->id);
+            $assignment = $business->permissions()->firstOrNew([
+                'user_id' => $member->user_id,
                 'permission_id' => $permission->id,
-            ],
-            [
-                'granted_by_user_id' => $request->user()->id,
-                'is_allowed' => $isAllowed,
-            ]
-        );
+            ]);
+            $previous = $assignment->exists ? $this->permissionValue($assignment->is_allowed) : null;
+            $assignment->fill(['granted_by_user_id' => $actorId, 'is_allowed' => $isAllowed])->save();
+            $audit->record($member, $actorId, 'member_permission_changed', $previous, $this->permissionValue($isAllowed), $permission->id);
+
+            return [$member, $assignment];
+        }, attempts: 3);
 
         return response()->json([
             'success' => true,
@@ -79,11 +83,31 @@ class AdminBusinessMemberPermissionController extends Controller
         ]);
     }
 
-    public function destroy(Business $business, BusinessUser $businessUser, Permission $permission): JsonResponse
-    {
+    public function destroy(
+        Request $request,
+        Business $business,
+        BusinessUser $businessUser,
+        Permission $permission,
+        ClinicMembershipAudit $audit,
+    ): JsonResponse {
         abort_unless($businessUser->business_id === $business->id, 404);
-        $business->permissions()->where('user_id', $businessUser->user_id)->where('permission_id', $permission->id)->delete();
+        $actorId = $request->user()->id;
+        DB::transaction(function () use ($business, $businessUser, $permission, $audit, $actorId): void {
+            $member = $audit->lockMember($business, $businessUser->id);
+            $assignment = $business->permissions()->where('user_id', $member->user_id)->where('permission_id', $permission->id)->first();
+            if ($assignment === null) {
+                return;
+            }
+
+            $assignment->delete();
+            $audit->record($member, $actorId, 'member_permission_changed', $this->permissionValue($assignment->is_allowed), null, $permission->id);
+        }, attempts: 3);
 
         return response()->json(['success' => true, 'message' => 'İzin varsayılan ayarına döndürüldü.', 'data' => null]);
+    }
+
+    private function permissionValue(bool $allowed): string
+    {
+        return $allowed ? 'allowed' : 'denied';
     }
 }

@@ -141,8 +141,17 @@ const auditActions = {
     replied: 'Destek talebine yanıt verildi',
     assigned: 'Destek talebine sorumlu atandı', unassigned: 'Destek talebinin sorumlusu kaldırıldı',
     support_granted: 'Destek görevlisi yetkisi verildi', support_revoked: 'Destek görevlisi yetkisi kaldırıldı',
+    member_role_changed: 'Klinik üyesinin rolü değiştirildi', member_status_changed: 'Klinik üyesinin durumu değiştirildi',
+    member_permission_changed: 'Klinik üyesinin özel yetkisi değiştirildi',
 };
-const auditTargets = { clinic_application: 'Klinik', clinic_status: 'Klinik', contract: 'Sözleşme', support: 'Talep', platform_role: 'Hesap' };
+const auditTargets = {
+    clinic_application: 'Klinik', clinic_status: 'Klinik', contract: 'Sözleşme', support: 'Talep',
+    platform_role: 'Hesap', clinic_membership: 'Üyelik',
+};
+const membershipAuditValues = {
+    business_owner: 'Klinik sahibi', manager: 'Yönetici', staff: 'Personel',
+    active: 'Aktif', inactive: 'Pasif', allowed: 'İzinli', denied: 'Engelli',
+};
 
 function mountAudit(panel, link, api, endSession) {
     const source = panel.querySelector('[data-audit-source]');
@@ -160,6 +169,12 @@ function mountAudit(panel, link, api, endSession) {
             const item = textElement('li', '', 'grid gap-1 rounded-xl border border-slate-200 p-3 text-sm dark:border-slate-800');
             const target = auditTargets[event.source] + ' #' + event.target_id;
             const details = [time.format(new Date(event.occurred_at)), event.actor_name ?? 'İşlemi yapan hesap kayıtlı değil', target, event.target_name];
+            if (event.change) {
+                const { business_id, permission_name, previous_value, new_value } = event.change;
+                const before = previous_value === null ? 'Varsayılan' : membershipAuditValues[previous_value] ?? previous_value;
+                const after = new_value === null ? 'Varsayılan' : membershipAuditValues[new_value] ?? new_value;
+                details.push('Klinik #' + business_id, permission_name, before + ' → ' + after);
+            }
             item.append(textElement('strong', auditActions[event.action] ?? 'Klinik durumu güncellendi', 'break-words'));
             item.append(textElement('span', details.filter(Boolean).join(' · '), 'break-words text-slate-700 dark:text-slate-300'));
             return item;
