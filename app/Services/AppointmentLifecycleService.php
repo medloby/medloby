@@ -377,6 +377,7 @@ class AppointmentLifecycleService
                     'Randevu tarihini değiştirmek için doktor ve tedavi bilgisi gereklidir.'
                 );
             }
+            $newStartsAt = Appointment::calendarDateTime($newStartsAt);
             if ($newStartsAt->equalTo($appointment->starts_at)) {
                 throw new AppointmentRuleViolation('Randevu için farklı bir tarih veya saat seçin.');
             }

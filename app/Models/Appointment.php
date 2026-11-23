@@ -119,6 +119,12 @@ class Appointment extends Model
         return Carbon::now('Europe/Istanbul')->shiftTimezone(config('app.timezone'));
     }
 
+    public static function calendarDateTime(Carbon $dateTime): Carbon
+    {
+        // Randevu takvimi yerel gün ve saat değerini saniye hassasiyetinde saklar.
+        return $dateTime->copy()->shiftTimezone(config('app.timezone'))->startOfSecond();
+    }
+
     public function business(): BelongsTo
     {
         return $this->belongsTo(Business::class);

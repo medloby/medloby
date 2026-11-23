@@ -72,7 +72,7 @@ class AppointmentAvailabilityService
         bool $requireOnlineBookable = true
     ): bool {
         $now = Appointment::clinicLocalNow();
-        $startsAt = $startsAt->copy()->shiftTimezone($now->getTimezone());
+        $startsAt = Appointment::calendarDateTime($startsAt);
         if ($doctor->status !== 'active' || $startsAt->lte($now)) {
             return false;
         }

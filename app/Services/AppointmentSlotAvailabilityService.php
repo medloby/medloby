@@ -43,6 +43,7 @@ class AppointmentSlotAvailabilityService
         ?int $ignoreAppointmentId = null,
         ?int $patientProfileId = null,
     ): array {
+        $date = Appointment::calendarDateTime($date);
         $settings = BranchAppointmentSetting::query()
             ->where('branch_id', $branchId)
             ->where('is_active', true)

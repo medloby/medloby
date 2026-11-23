@@ -25,7 +25,7 @@ class AppointmentService
     public function createAppointment(array $data): Appointment
     {
         return $this->availabilityService->runBookingTransaction(function () use ($data) {
-            $startsAt = Carbon::parse($data['starts_at']);
+            $startsAt = Appointment::calendarDateTime(Carbon::parse($data['starts_at']));
             $source = $data['source'] ?? 'medloby';
             $requireOnlineBookable = $data['require_online_bookable'] ?? true;
 

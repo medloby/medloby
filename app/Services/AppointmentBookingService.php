@@ -89,7 +89,7 @@ class AppointmentBookingService
             $requireOnlineBookable
         );
 
-        $startsAt = $startsAt->copy();
+        $startsAt = Appointment::calendarDateTime($startsAt);
 
         $durationMinutes = $this->availabilityService
             ->getDurationMinutes(

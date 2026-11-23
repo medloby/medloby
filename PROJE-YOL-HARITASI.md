@@ -9,7 +9,7 @@
 Envanter, Git'in izlediği 529 dosyayı kapsadı. Depoda 173 uygulama dosyası, 74 migration, 53 model, 17 servis ve 90 Feature test dosyası bulunuyor. Laravel rota listesinde 257 API ucu ve 13 web veya sistem rotası var. [API rotaları](routes/api.php)
 
 - 419 PHP dosyasının sözdizimi, Blade önbelleği ve Vite derlemesi doğrulandı.
-- SQLite üzerinde **983 test**, PostgreSQL 17.12 üzerinde **986 test** geçti. PostgreSQL’e özel üç yedekleme senaryosu PostgreSQL aşamasında çalıştı.
+- SQLite üzerinde **984 test**, PostgreSQL 17.12 üzerinde **987 test** geçti. PostgreSQL’e özel üç yedekleme senaryosu PostgreSQL aşamasında çalıştı.
 - Klinik üyeliği için `0.2-draft` hazırlandı. Başvuru formu, geçerli ve yayımlanmış zorunlu sözleşme olduğunda açılır.
 - Kilit dosyalarının önceki npm taramasında ve 133 PHP paket sürümü için GitHub Advisory Database taramasında eşleşen bildirim bulunmadı.
 
@@ -131,6 +131,8 @@ Kabul senaryosu e-posta doğrulama ve klinik onayıyla başlar. Klinik sahibi ya
 20. **3.20 Randevu geçmişi ve kayıt hataları doğrulandı.** Eski tarih değişikliği kaydı farklı bir teklife bağlıysa hastanın önceki randevusu geçmişte görünür. Randevu kuralları kullanıcıya işlemin neden durduğunu bildirir. Beklenmedik veritabanı hataları genel sunucu hata yanıtını kullanır. İkinci paket seansı kaydedilemediğinde işlemin geri alındığı ve durum geçmişi yazılamadığında randevunun beklemede kaldığı sınandı. [Randevu testleri](tests/Feature/ClinicAppointmentTest.php)
 
 21. **3.21 Hasta hesabındaki randevu çakışmaları engellendi.** Tekil randevu, paket seansı ve tarih değişikliği aynı hastanın bekleyen ve onaylı randevularını kontrol eder. Hastanın saat seçenekleri ve bekleme listesi bildirimi bu uygunluğu kullanır. Klinik, çakışmada genel bir uygunluk uyarısı görür. Farklı hekimler için eşzamanlı kayıt, çakışan paket seansında tüm paketin geri alınması ve sınırda art arda gelen randevular test edildi. [Randevu testleri](tests/Feature/ClinicAppointmentTest.php) · [Eşzamanlı kayıt testi](tests/Feature/AppointmentConcurrencyTest.php)
+
+22. **3.22 Randevu saati karşılaştırmaları Türkiye takvimiyle uyumlu.** Uygunluk, kayıt ve tarih değişikliği aynı yerel gün ve saat değerini saniye hassasiyetinde kullanır. Eski API’nin kabul ettiği zaman dilimi eki ve saniye kesri içeren biçimlerle mevcut saatin tanınması ve farklı bir saatin randevu kartında doğru görünmesi test edildi. [Randevu testleri](tests/Feature/ClinicAppointmentTest.php)
 
 Kabul senaryosu şubede hekim ve uygunluk hazırlığından başlayıp hastanın birkaç seansı seçmesi ve kliniğin randevuyu yönetmesiyle tamamlanır.
 

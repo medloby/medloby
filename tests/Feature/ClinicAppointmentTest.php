@@ -785,6 +785,36 @@ test('clinic calendar books a patient known to the branch and prevents the same 
     $this->assertDatabaseCount('appointments', 2);
 });
 
+test('legacy rescheduling compares the same calendar time across accepted timestamp formats', function () {
+    $this->travelTo(Carbon::parse('2026-12-03 21:30:00', 'UTC'));
+    [$business, $owner, $branch, , $doctor, $treatment, $calendar] = clinicAppointmentFixture();
+    $doctor->workingHours()->where('branch_id', $branch->id)->update(['end_time' => '14:00']);
+    $permission = Permission::create(['name' => 'appointments.reschedule', 'display_name' => 'Randevu tarihini değiştir', 'module' => 'appointments']);
+    $owner->permissions()->attach($permission->id, ['business_id' => $business->id, 'is_allowed' => true]);
+
+    $id = $this->actingAs($owner, 'sanctum')->postJson($calendar.'/appointments', [
+        'patient_name' => 'Örnek Hasta', 'doctor_id' => $doctor->id, 'treatment_id' => $treatment->id,
+        'starts_at' => '2026-12-04 09:00:00',
+    ])->assertCreated()->json('data.id');
+    $reschedule = '/api/appointments/'.$id.'/reschedule';
+
+    foreach (['2026-12-04T09:00:00+03:00', '2026-12-04T09:00:00.750Z'] as $sameTime) {
+        $this->postJson($reschedule, ['starts_at' => $sameTime])->assertUnprocessable()
+            ->assertJsonPath('message', 'Randevu için farklı bir tarih veya saat seçin.');
+    }
+    $this->assertDatabaseCount('appointments', 1);
+    $this->assertDatabaseCount('appointment_status_histories', 1);
+    $this->assertDatabaseHas('appointments', ['id' => $id, 'status' => 'pending']);
+
+    $moved = $this->postJson($reschedule, ['starts_at' => '2026-12-04T12:00:00+03:00'])
+        ->assertOk()->json('data.id');
+    $this->getJson($calendar.'/appointments/'.$moved)->assertOk()
+        ->assertJsonPath('data.starts_at', '2026-12-04 12:00:00')
+        ->assertJsonPath('data.ends_at', '2026-12-04 12:30:00');
+    $this->assertDatabaseHas('appointments', ['id' => $moved, 'rescheduled_from_appointment_id' => $id, 'starts_at' => '2026-12-04 12:00:00']);
+    $this->assertDatabaseHas('appointments', ['id' => $id, 'status' => 'rescheduled']);
+});
+
 test('clinic appointment card includes the saved notes and is available only in an authorized branch', function () {
     $this->travelTo(now()->setDate(2026, 12, 1)->startOfDay());
     [$business, $owner, $branch, $other, $doctor, $treatment, $calendar, $otherCalendar] = clinicAppointmentFixture();
