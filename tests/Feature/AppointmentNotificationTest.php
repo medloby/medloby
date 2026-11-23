@@ -261,6 +261,64 @@ test('online booking and both in-app notifications survive an email outage', fun
     $this->assertDatabaseCount('notifications', 2);
 })->with(['database', 'sync']);
 
+test('queued creation emails are skipped when the original appointment is no longer upcoming', function (string $change) {
+    config(['queue.default' => 'database', 'mail.default' => 'array']);
+    $this->travelTo(now()->setDate(2026, 12, 1)->startOfDay());
+    $data = createAppointmentNotificationTestData();
+    $appointment = app(AppointmentBookingService::class)->book(
+        $data['business']->id, $data['branch']->id, $data['patientProfile'],
+        $data['doctor'], $data['treatment'], now()->addDay()->setTime(10, 0),
+    );
+    $this->assertDatabaseCount('jobs', 2);
+
+    $this->actingAs($data['businessUser'], 'sanctum');
+    $url = "/api/branches/{$data['branch']->id}/clinic-calendar/appointments/{$appointment->id}";
+    match ($change) {
+        'cancelled' => $this->postJson($url.'/cancel', ['cancellation_reason' => 'Deneme iptali.'])->assertOk(),
+        'rescheduled' => $this->postJson($url.'/reschedule', ['starts_at' => now()->addDay()->setTime(11, 0)->toDateTimeString()])->assertOk(),
+        'started' => $this->travel(2)->days(),
+        'suspended business' => $data['business']->update(['status' => 'suspended']),
+        'inactive branch' => $data['branch']->update(['status' => 'inactive']),
+    };
+
+    $this->artisan('queue:work', ['--stop-when-empty' => true, '--sleep' => 0, '--tries' => 1])->assertSuccessful();
+
+    expect(Mail::mailer('array')->getSymfonyTransport()->messages())->toBeEmpty();
+    $this->assertModelExists($appointment);
+    $this->assertDatabaseCount('jobs', 0);
+    $this->assertDatabaseCount('failed_jobs', 0);
+})->with(['cancelled', 'rescheduled', 'started', 'suspended business', 'inactive branch']);
+
+test('queued booking emails use current recipient eligibility', function (string $change, string $recipient) {
+    config(['queue.default' => 'database', 'mail.default' => 'array']);
+    $this->travelTo(now()->setDate(2026, 12, 1)->startOfDay());
+    $data = createAppointmentNotificationTestData();
+    app(AppointmentBookingService::class)->book(
+        $data['business']->id, $data['branch']->id, $data['patientProfile'],
+        $data['doctor'], $data['treatment'], now()->addDay()->setTime(10, 0),
+    );
+    $this->assertDatabaseCount('jobs', 2);
+
+    match ($change) {
+        'patient address changed' => $data['patientUser']->update(['email' => 'new-patient@example.test']),
+        'patient unverified' => $data['patientUser']->forceFill(['email_verified_at' => null])->save(),
+        'clinic address changed' => $data['business']->update(['email' => 'new-clinic@example.test']),
+        'clinic email disabled' => app(BusinessNotificationPreferenceService::class)->update($data['business'], NotificationType::NEW_APPOINTMENT, true, false),
+    };
+
+    $this->artisan('queue:work', ['--stop-when-empty' => true, '--sleep' => 0, '--tries' => 1])->assertSuccessful();
+
+    $message = Mail::mailer('array')->getSymfonyTransport()->messages()->sole()->getOriginalMessage();
+    expect($message->getTo()[0]->getAddress())->toBe($data[$recipient]->email);
+    $this->assertDatabaseCount('jobs', 0);
+    $this->assertDatabaseCount('failed_jobs', 0);
+})->with([
+    'patient address changed' => ['patient address changed', 'business'],
+    'patient unverified' => ['patient unverified', 'business'],
+    'clinic address changed' => ['clinic address changed', 'patientUser'],
+    'clinic email disabled' => ['clinic email disabled', 'patientUser'],
+]);
+
 test('new appointment queues email to business email address', function () {
     Mail::fake();
 

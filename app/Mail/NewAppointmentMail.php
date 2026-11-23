@@ -3,22 +3,20 @@
 namespace App\Mail;
 
 use App\Models\Appointment;
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldBeEncrypted;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Mail\Mailable;
+use App\Notifications\NotificationType;
+use App\Services\BusinessNotificationPreferenceService;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
-use Illuminate\Queue\Attributes\WithoutRelations;
-use Illuminate\Queue\SerializesModels;
 
-class NewAppointmentMail extends Mailable implements ShouldBeEncrypted, ShouldQueue
+class NewAppointmentMail extends AppointmentCreatedMail
 {
-    use Queueable, SerializesModels;
+    protected function shouldSendToRecipient(Appointment $appointment): bool
+    {
+        $business = $appointment->business;
 
-    public function __construct(
-        #[WithoutRelations] public Appointment $appointment
-    ) {}
+        return filled($business->email) && $this->hasTo($business->email)
+            && app(BusinessNotificationPreferenceService::class)->isEmailEnabled($business, NotificationType::NEW_APPOINTMENT);
+    }
 
     public function envelope(): Envelope
     {

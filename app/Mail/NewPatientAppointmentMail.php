@@ -3,22 +3,17 @@
 namespace App\Mail;
 
 use App\Models\Appointment;
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldBeEncrypted;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
-use Illuminate\Queue\Attributes\WithoutRelations;
-use Illuminate\Queue\SerializesModels;
 
-class NewPatientAppointmentMail extends Mailable implements ShouldBeEncrypted, ShouldQueue
+class NewPatientAppointmentMail extends AppointmentCreatedMail
 {
-    use Queueable, SerializesModels;
+    protected function shouldSendToRecipient(Appointment $appointment): bool
+    {
+        $patient = $appointment->patientProfile?->user;
 
-    public function __construct(
-        #[WithoutRelations] public Appointment $appointment
-    ) {}
+        return $patient?->hasVerifiedEmail() && filled($patient->email) && $this->hasTo($patient->email);
+    }
 
     public function envelope(): Envelope
     {
