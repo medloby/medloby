@@ -9,6 +9,7 @@ use App\Models\CrmLead;
 use App\Models\CrmPipelineStage;
 use App\Models\CrmTask;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -151,6 +152,14 @@ test('crm dashboard returns pipeline lead counts', function () {
         'pipeline_stage_id' => $stageContacted->id,
         'first_name' => 'Ayşe',
         'last_name' => 'Demir',
+        'status' => 'new',
+    ]);
+
+    CrmLead::create([
+        'business_id' => $this->business->id,
+        'branch_id' => $this->otherBranch->id,
+        'pipeline_stage_id' => $stageNew->id,
+        'first_name' => 'Diğer şube adayı',
         'status' => 'new',
     ]);
 
@@ -379,6 +388,30 @@ test('crm dashboard returns todays activity count', function () {
         );
 });
 
+test('daily follow-up and activity totals use midnight in Turkey', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-11-22T21:30:00Z'));
+    $lead = CrmLead::create([
+        'business_id' => $this->business->id, 'branch_id' => $this->branch->id,
+        'first_name' => 'Deneme', 'status' => 'new',
+    ]);
+    $details = ['business_id' => $lead->business_id, 'branch_id' => $lead->branch_id, 'type' => 'call', 'title' => 'Görüşme'];
+
+    foreach (['2026-11-22 20:59:59', '2026-11-22 21:00:00', '2026-11-23 10:00:00', '2026-11-23 20:59:59', '2026-11-23 21:00:00'] as $time) {
+        $lead->followUps()->create([...$details, 'scheduled_at' => $time, 'status' => 'pending']);
+        $lead->activities()->create([...$details, 'business_user_id' => $this->businessUser->id, 'occurred_at' => $time]);
+    }
+
+    $path = "/api/branches/{$this->branch->id}/crm/dashboard";
+    $this->getJson($path)->assertOk()
+        ->assertJsonPath('data.summary.today_follow_ups', 3)
+        ->assertJsonPath('data.summary.today_activities', 3);
+
+    $this->travelTo(CarbonImmutable::parse('2026-11-22T20:59:59Z'));
+    $this->getJson($path)->assertOk()
+        ->assertJsonPath('data.summary.today_follow_ups', 1)
+        ->assertJsonPath('data.summary.today_activities', 1);
+});
+
 test('crm dashboard returns staff performance', function () {
     $lead = CrmLead::create([
         'business_id' => $this->business->id,
@@ -437,6 +470,43 @@ test('crm dashboard returns staff performance', function () {
         );
 });
 
+test('the clinic owner is counted for assignments in the selected branch without a branch membership', function () {
+    $owner = $this->business->memberships()->create([
+        'user_id' => User::factory()->create()->id,
+        'role' => 'business_owner',
+        'is_active' => true,
+    ]);
+    foreach ([$this->branch, $this->otherBranch] as $branch) {
+        $assignment = [
+            'business_id' => $branch->business_id,
+            'branch_id' => $branch->id,
+            'assigned_business_user_id' => $owner->id,
+        ];
+        $lead = CrmLead::create([...$assignment, 'first_name' => 'Deneme', 'status' => 'new']);
+        CrmTask::create([...$assignment, 'title' => 'Arama görevi', 'status' => 'completed']);
+        $lead->followUps()->create([...$assignment, 'title' => 'Geri arama', 'type' => 'call', 'scheduled_at' => now(), 'status' => 'pending']);
+    }
+    CrmTask::create([
+        'business_id' => $this->business->id,
+        'branch_id' => $this->branch->id,
+        'assigned_business_user_id' => $owner->id,
+        'title' => 'Açık görev',
+        'status' => 'in_progress',
+    ]);
+
+    $response = $this->getJson("/api/branches/{$this->branch->id}/crm/dashboard")->assertOk();
+    $row = collect($response->json('data.staff_performance'))->firstWhere('business_user_id', $owner->id);
+    expect($row)->toBe([
+        'business_user_id' => $owner->id,
+        'user_id' => $owner->user_id,
+        'role' => 'business_owner',
+        'lead_count' => 1,
+        'task_count' => 2,
+        'completed_task_count' => 1,
+        'pending_follow_up_count' => 1,
+    ]);
+});
+
 test('crm dashboard excludes data belonging to another branch', function () {
     $otherUser = User::factory()->create();
 
@@ -489,6 +559,7 @@ test('crm dashboard excludes data belonging to another branch', function () {
 
     $response
         ->assertSuccessful()
+        ->assertJsonCount(1, 'data.staff_performance')
         ->assertJsonPath(
             'data.summary.total_leads',
             0

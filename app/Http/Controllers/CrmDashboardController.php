@@ -10,6 +10,7 @@ use App\Models\CrmLead;
 use App\Models\CrmPipelineStage;
 use App\Models\CrmTask;
 use App\Services\CatalogManagementAccess;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -23,6 +24,16 @@ class CrmDashboardController extends Controller
         $baseLeadQuery = CrmLead::query()
             ->where('business_id', $branch->business_id)
             ->where('branch_id', $branch->id);
+        $baseFollowUpQuery = CrmFollowUp::query()
+            ->where('business_id', $branch->business_id)
+            ->where('branch_id', $branch->id);
+        $baseTaskQuery = CrmTask::query()
+            ->where('business_id', $branch->business_id)
+            ->where('branch_id', $branch->id);
+
+        $localDay = CarbonImmutable::today('Europe/Istanbul');
+        $dayStart = $localDay->utc();
+        $nextDayStart = $localDay->addDay()->utc();
 
         $totalLeads = (clone $baseLeadQuery)->count();
 
@@ -42,76 +53,49 @@ class CrmDashboardController extends Controller
          * CRM pipeline stages are business-level.
          * Lead ownership remains branch-level.
          */
-        $pipelineStages = CrmPipelineStage::query()
+        $pipeline = CrmPipelineStage::query()
             ->where('business_id', $branch->business_id)
             ->orderBy('sort_order')
-            ->get([
+            ->select([
                 'id',
                 'name',
                 'slug',
                 'color',
                 'sort_order',
                 'is_active',
-            ]);
+            ])
+            ->withCount(['leads as lead_count' => fn ($leads) => $leads
+                ->where('business_id', $branch->business_id)->where('branch_id', $branch->id)])
+            ->get();
 
-        $pipeline = $pipelineStages->map(function (
-            CrmPipelineStage $stage
-        ) use ($branch) {
-            $count = CrmLead::query()
-                ->where('business_id', $branch->business_id)
-                ->where('branch_id', $branch->id)
-                ->where('pipeline_stage_id', $stage->id)
-                ->count();
+        $pendingFollowUpQuery = (clone $baseFollowUpQuery)->where('status', 'pending');
+        $pendingFollowUps = (clone $pendingFollowUpQuery)->count();
 
-            return [
-                'id' => $stage->id,
-                'name' => $stage->name,
-                'slug' => $stage->slug,
-                'color' => $stage->color,
-                'sort_order' => $stage->sort_order,
-                'is_active' => $stage->is_active,
-                'lead_count' => $count,
-            ];
-        })->values();
-
-        $pendingFollowUps = CrmFollowUp::query()
-            ->where('business_id', $branch->business_id)
-            ->where('branch_id', $branch->id)
-            ->where('status', 'pending')
+        $todayFollowUps = (clone $pendingFollowUpQuery)
+            ->where('scheduled_at', '>=', $dayStart)
+            ->where('scheduled_at', '<', $nextDayStart)
             ->count();
 
-        $todayFollowUps = CrmFollowUp::query()
-            ->where('business_id', $branch->business_id)
-            ->where('branch_id', $branch->id)
-            ->where('status', 'pending')
-            ->whereDate('scheduled_at', today())
-            ->count();
-
-        $completedFollowUps = CrmFollowUp::query()
-            ->where('business_id', $branch->business_id)
-            ->where('branch_id', $branch->id)
+        $completedFollowUps = (clone $baseFollowUpQuery)
             ->where('status', 'completed')
             ->count();
 
-        $openTasks = CrmTask::query()
-            ->where('business_id', $branch->business_id)
-            ->where('branch_id', $branch->id)
+        $openTasks = (clone $baseTaskQuery)
             ->whereNotIn('status', [
                 'completed',
                 'cancelled',
             ])
             ->count();
 
-        $completedTasks = CrmTask::query()
-            ->where('business_id', $branch->business_id)
-            ->where('branch_id', $branch->id)
+        $completedTasks = (clone $baseTaskQuery)
             ->where('status', 'completed')
             ->count();
 
         $todayActivities = CrmActivity::query()
             ->where('business_id', $branch->business_id)
             ->where('branch_id', $branch->id)
-            ->whereDate('occurred_at', today())
+            ->where('occurred_at', '>=', $dayStart)
+            ->where('occurred_at', '<', $nextDayStart)
             ->count();
 
         $leadSources = (clone $baseLeadQuery)
@@ -125,68 +109,28 @@ class CrmDashboardController extends Controller
             ])
             ->values();
 
-        $staffPerformance = BusinessUser::query()
-            ->where('business_id', $branch->business_id)
-            ->where('is_active', true)
-            ->whereHas('branches', function ($query) use ($branch) {
-                $query
-                    ->where('branches.id', $branch->id)
-                    ->where(
-                        'business_user_branch.is_active',
-                        true
-                    );
-            })
-            ->get()
-            ->map(function (BusinessUser $staff) use ($branch) {
-                $leadCount = CrmLead::query()
-                    ->where('business_id', $branch->business_id)
-                    ->where('branch_id', $branch->id)
-                    ->where(
-                        'assigned_business_user_id',
-                        $staff->id
-                    )
-                    ->count();
+        $leadCounts = $baseLeadQuery->toBase()->whereNotNull('assigned_business_user_id')
+            ->groupBy('assigned_business_user_id')->selectRaw('assigned_business_user_id, COUNT(*) AS lead_count')
+            ->pluck('lead_count', 'assigned_business_user_id');
+        $taskCounts = $baseTaskQuery->toBase()->whereNotNull('assigned_business_user_id')
+            ->groupBy('assigned_business_user_id')->selectRaw('assigned_business_user_id, COUNT(*) AS task_count')
+            ->selectRaw('COUNT(CASE WHEN status = ? THEN 1 END) AS completed_task_count', ['completed'])
+            ->get()->keyBy('assigned_business_user_id');
+        $followUpCounts = $pendingFollowUpQuery->toBase()->whereNotNull('assigned_business_user_id')
+            ->groupBy('assigned_business_user_id')->selectRaw('assigned_business_user_id, COUNT(*) AS follow_up_count')
+            ->pluck('follow_up_count', 'assigned_business_user_id');
 
-                $taskCount = CrmTask::query()
-                    ->where('business_id', $branch->business_id)
-                    ->where('branch_id', $branch->id)
-                    ->where(
-                        'assigned_business_user_id',
-                        $staff->id
-                    )
-                    ->count();
-
-                $completedTaskCount = CrmTask::query()
-                    ->where('business_id', $branch->business_id)
-                    ->where('branch_id', $branch->id)
-                    ->where(
-                        'assigned_business_user_id',
-                        $staff->id
-                    )
-                    ->where('status', 'completed')
-                    ->count();
-
-                $followUpCount = CrmFollowUp::query()
-                    ->where('business_id', $branch->business_id)
-                    ->where('branch_id', $branch->id)
-                    ->where(
-                        'assigned_business_user_id',
-                        $staff->id
-                    )
-                    ->where('status', 'pending')
-                    ->count();
-
-                return [
-                    'business_user_id' => $staff->id,
-                    'user_id' => $staff->user_id,
-                    'role' => $staff->role,
-                    'lead_count' => $leadCount,
-                    'task_count' => $taskCount,
-                    'completed_task_count' => $completedTaskCount,
-                    'pending_follow_up_count' => $followUpCount,
-                ];
-            })
-            ->values();
+        $staffPerformance = BusinessUser::query()->activeForBranch($branch)->orderBy('id')
+            ->get(['id', 'user_id', 'role'])
+            ->map(fn (BusinessUser $member) => [
+                'business_user_id' => $member->id,
+                'user_id' => $member->user_id,
+                'role' => $member->role,
+                'lead_count' => (int) ($leadCounts[$member->id] ?? 0),
+                'task_count' => (int) ($taskCounts[$member->id]->task_count ?? 0),
+                'completed_task_count' => (int) ($taskCounts[$member->id]->completed_task_count ?? 0),
+                'pending_follow_up_count' => (int) ($followUpCounts[$member->id] ?? 0),
+            ]);
 
         return response()->json([
             'success' => true,
