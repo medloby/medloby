@@ -49,6 +49,7 @@ beforeEach(function () {
         'session.secure' => true,
         'session.http_only' => true,
         'sanctum.expiration' => 60,
+        'cache.default' => 'database',
         'cache.limiter' => 'database',
         'filesystems.disks.private.driver' => 'local',
         'filesystems.disks.private.root' => $this->releaseDirectory.'/private',
@@ -98,6 +99,38 @@ test('release readiness succeeds with an effective deployment configuration with
         ->not->toContain('Eksik ·', 'Bekliyor ·', config('app.key'), config('mail.mailers.smtp.password'), $this->administrator->email, $this->releaseDirectory);
 
     $this->assertDatabaseCount('jobs', 0);
+});
+
+test('release readiness rejects cache stores that cannot support their configured work', function (array $settings, array $expected) {
+    config($settings);
+
+    expect(Artisan::call('medloby:release-check'))->toBe(Command::FAILURE);
+    expect(Artisan::output())->toContain(...$expected)->not->toContain('missing_cache_locks');
+})->with([
+    'incompatible limiter table' => [
+        ['cache.stores.database.table' => 'jobs'],
+        ['Eksik · İstek sınırlandırma deposu', 'Eksik · Zamanlayıcı ve işletim önbelleği'],
+    ],
+    'in-memory scheduler with a persistent limiter' => [
+        ['cache.default' => 'array'],
+        ['Hazır · İstek sınırlandırma deposu', 'Eksik · Zamanlayıcı ve işletim önbelleği'],
+    ],
+    'missing database lock table' => [
+        ['cache.stores.database.lock_table' => 'missing_cache_locks'],
+        ['Hazır · İstek sınırlandırma deposu', 'Eksik · Zamanlayıcı ve işletim önbelleği'],
+    ],
+]);
+
+test('release readiness rejects a lock table whose keys are not unique', function () {
+    Schema::create('unconstrained_cache_locks', function (Blueprint $table) {
+        $table->string('key');
+        $table->string('owner');
+        $table->bigInteger('expiration');
+    });
+    config(['cache.stores.database.lock_table' => 'unconstrained_cache_locks']);
+
+    expect(Artisan::call('medloby:release-check'))->toBe(Command::FAILURE);
+    expect(Artisan::output())->toContain('Hazır · İstek sınırlandırma deposu', 'Eksik · Zamanlayıcı ve işletim önbelleği');
 });
 
 test('release readiness rejects unusable session storage', function (array $settings) {

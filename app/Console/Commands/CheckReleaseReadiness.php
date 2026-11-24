@@ -51,6 +51,8 @@ final class CheckReleaseReadiness extends Command
                 'MEDLOBY_TRUSTED_PROXIES değeri için yalnızca vekil sunucunun IP adreslerini veya CIDR aralıklarını kullanın.'],
             ['İstek sınırlandırma deposu', $this->probe($release->limiterReady(...)),
                 'CACHE_LIMITER veya CACHE_STORE için kalıcı bir depo kullanın. Birden fazla sunucuda aynı depoyu ve ön eki kullanın.'],
+            ['Zamanlayıcı ve işletim önbelleği', $this->probe($release->operationsCacheReady(...)),
+                'Zamanlayıcı için kalıcı bir CACHE_STORE kullanın ve işletim göstergelerinin veritabanı önbellek ve kilit tablolarını doğrulayın.'],
             ['Uygulama anahtarı', $this->probe(fn (): bool => app(Encrypter::class) instanceof Encrypter),
                 'Dağıtım ortamındaki APP_KEY değerini doğrulayın.'],
             ['Derlenmiş arayüz dosyaları', $this->probe(fn (): bool => $this->assetsReady($vite)),

@@ -124,16 +124,44 @@ final class ReleaseConfiguration
 
     public function limiterReady(): bool
     {
-        $store = config('cache.limiter') ?: config('cache.default');
-        $driver = config('cache.stores.'.$store.'.driver');
+        return $this->cacheStoreReady(config('cache.limiter') ?: config('cache.default'));
+    }
 
-        return match ($driver) {
-            'database' => Schema::connection(config('cache.stores.'.$store.'.connection') ?? config('database.default'))
-                ->hasTable(config('cache.stores.'.$store.'.table', 'cache')),
-            'file' => is_writable(config('cache.stores.'.$store.'.path', '')),
+    public function operationsCacheReady(): bool
+    {
+        $schedulerStore = config('cache.default');
+
+        return $this->cacheStoreReady('database', needsLocks: true)
+            && ($schedulerStore === 'database' || $this->cacheStoreReady($schedulerStore, needsLocks: true));
+    }
+
+    private function cacheStoreReady(string $name, bool $needsLocks = false): bool
+    {
+        $store = config('cache.stores.'.$name, []);
+        $path = $store['path'] ?? '';
+        $lockPath = $store['lock_path'] ?? $path;
+        $connection = $store['connection'] ?? null;
+
+        return match ($store['driver'] ?? null) {
+            'database' => $this->cacheTableReady($connection, $store['table'] ?? null, ['key', 'value', 'expiration'])
+                && (! $needsLocks || $this->cacheTableReady($store['lock_connection'] ?? $connection,
+                    $store['lock_table'] ?? 'cache_locks', ['key', 'owner', 'expiration'])),
+            'file' => is_dir($path) && is_writable($path)
+                && (! $needsLocks || (is_dir($lockPath) && is_writable($lockPath))),
             'redis', 'memcached', 'dynamodb' => true,
             default => false,
         };
+    }
+
+    private function cacheTableReady(?string $connection, ?string $table, array $columns): bool
+    {
+        if (blank($table)) {
+            return false;
+        }
+
+        $schema = Schema::connection($connection);
+
+        return $schema->hasColumns($table, $columns) && $schema->hasIndex($table, ['key'], 'unique');
     }
 
     public function sessionStorageReady(): bool

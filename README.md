@@ -27,6 +27,8 @@ Yerel geliştirmede `MEDLOBY_POLICY_PREVIEW=true` ile Politika ve KVKK sayfalar�
 
 Güvenlik, performans, SEO ve yayın kabulü denetimleri tek envanterde izlenir. [Güvenlik ve yayın envanteri](GUVENLIK-YAYIN-ENVANTERI.md)
 
+Yerel hazırlık sonuçları ve canlı ortamda tamamlanacak işler toplu kabul kaydında yer alır. [Toplu yayın hazırlığı](MEDLOBY-TAMAMLAMA-ENVANTERI.md#13-toplu-yayın-hazırlığı-ve-kabul)
+
 - [ ] **Yayın ortamını hazırla.** Alan adını, HTTPS’i, uygulama sunucusunu ve veritabanını belirle. Web sunucusunun kökünü `public` dizinine yönelt. Üretim bağımlılıklarını `composer install --no-dev` ile kur ve arayüzü derle. Yayın ayarlarını ve gizli anahtarları sunucudan yönet. Şema güncellemelerini önce deneme veritabanında uygula ve `medloby:release-check` çıktısını doğrula. [Teknik kontrol](#yayın-öncesi-teknik-kontrol)
 - [ ] **İşletmeci ve iletişim bilgilerini doğrula.** Resmî unvanı ve yazılı KVKK başvurularının gönderileceği posta adresini `MEDLOBY_OPERATOR_LEGAL_NAME` ve `MEDLOBY_OPERATOR_POSTAL_ADDRESS` ayarlarına gir. Elektronik başvuru için kullanılacak e-posta ve KEP adreslerini `MEDLOBY_PRIVACY_EMAIL` ve `MEDLOBY_PRIVACY_KEP` ayarlarına gir. Destek ve içerik editörü adreslerini `MEDLOBY_SUPPORT_EMAIL` ve `MEDLOBY_EDITOR_EMAIL` ayarlarına gir. Yayın kontrolü girilen elektronik adreslerin biçimini doğrular.
 - [ ] **Veri saklama ve işleme kurallarını onayla.** Kayıt gruplarının kesin saklama sürelerini ve sağlık verilerinin hangi şartlarla işleneceğini belirle. [Veri işleme ve saklama planı](resources/contracts/medloby-veri-isleme-ve-saklama-taslagi.md)
@@ -40,7 +42,7 @@ Güvenlik, performans, SEO ve yayın kabulü denetimleri tek envanterde izlenir.
 - [ ] **Görüşme eki yükleme sınırını doğrula.** Web isteklerini işleyen PHP’de `file_uploads=On` ve `upload_max_filesize` için en az `10M` kullan. Dosya, mesaj ve form bilgilerine yer kalması için `post_max_size` ve varsa web sunucusu veya ters vekilin istek boyutu sınırı en az 12 MB olsun. PHP uyarılarının sayfa yanıtını bozmaması için web PHP’de `display_errors=Off` ve `log_errors=On` ayarlarını doğrula. HTTPS üzerinden yaklaşık 10 MB’lık sentetik bir PDF’yi deneme görüşmesine ekle. Yetkili hesabın dosyayı açabildiğini ve 10 MB’ı aşan ekin uyarıyla durdurulduğunu kontrol et. [Görüşme testleri](tests/Feature/ConversationTest.php) · [Ek erişimi testleri](tests/Feature/MessageAttachmentTest.php)
 - [ ] **Uygulama ve veritabanı erişimini izle.** HTTPS üzerinden `GET /up` adresini kontrol et. `Accept: application/json` başlığıyla uygulama erişilebiliyorsa ve veritabanı sorgusu başarılıysa `200` ve `{"status":"up"}` döner. Veritabanı bağlantı hatasında `500` ve `{"status":"down"}` döner. Ayrıntılar uygulama kayıtlarında incelenebilir. Yayın ortamında `APP_DEBUG=false` ayarını ve kullanılan izleme aracının kesintiyi algıladığını doğrula. [Erişim kontrolü testi](tests/Feature/ApplicationHealthTest.php)
 - [ ] **CRM ve randevu hatırlatma zamanlayıcısını çalıştır.** Üretim veritabanı şemasını güncelledikten sonra `php artisan schedule:run` komutunu Medloby dizininden her dakika çalıştır. Saati gelen deneme takibinin yetkili personele, son 24 saate giren onaylı randevunun ilgili hastaya bildirim gönderdiğini doğrula. İki bildirimin de kendi kaydını açtığını ve art arda zamanlayıcı çalıştırıldığında birer kez oluştuğunu kontrol et. Aynı senaryo yerel SQLite ve veritabanı önbelleğiyle otomatik olarak sınanıyor. [Zamanlayıcı provası](tests/Feature/ReminderScheduleTest.php)
-- [ ] **Bekleme listesi bildirimini prova et.** Deneme hasta hesabıyla dolu bir gün için bildirim iste. Uygun bir saat açıldığında beş dakikada bir çalışan zamanlayıcının tek bildirim gönderdiğini ve bildirimin seçilen günü açtığını doğrula. [Bekleme listesi testi](tests/Feature/AppointmentWaitingListTest.php)
+- [ ] **Bekleme listesi bildirimini prova et.** Deneme hasta hesabıyla dolu bir gün için bildirim iste. Uygun bir saat açıldığında beş dakikada bir çalışan zamanlayıcının tek bildirim gönderdiğini ve bildirimin seçilen günü açtığını doğrula. [PostgreSQL ve HTTPS provası](GUVENLIK-YAYIN-ENVANTERI.md#24-kasım-2026-zamanlayıcı-ve-bekleme-listesi-provası) · [Bekleme listesi testi](tests/Feature/AppointmentWaitingListTest.php)
 - [ ] **Teklif süresinin zamanlayıcıyla kapandığını doğrula.** Geçerlilik süresi geçen, yanıt bekleyen örnek bir teklifin zamanlayıcı çalışınca süresi dolmuş olarak kaydedildiğini ve hasta ekranında aynı durumun gösterildiğini kontrol et. [Zamanlayıcı provası](tests/Feature/ReminderScheduleTest.php) · [Teklif testleri](tests/Feature/OfferTest.php)
 
 ### Yayın öncesi teknik kontrol
@@ -55,7 +57,11 @@ Komut mevcut ayarları, veritabanı bağlantısını ve migration kayıtlarını
 
 Oturum deposu istekler arasında korunabilmelidir. Veritabanı oturumlarında gerekli tablo sütunları kontrol edilir. Dosya tabanlı oturum dizini yazılabilir olmalı ve web kökünün dışında kalmalıdır.
 
+İstek sınırlandırması için seçilen depo, zamanlayıcının kilitleri ve yönetim panelinin işletim göstergeleri denetlenir. Veritabanı önbellek tablolarında gerekli sütunlar ve benzersiz anahtar bulunmalıdır. Yönetim panelinin göstergeleri, zamanlayıcı başka bir kalıcı depo kullandığında da veritabanı önbelleğine yazılır.
+
 Kuyruk için iş tablosunun gerekli sütunları ve `QUEUE_FAILED_DRIVER` ile seçilen başarısız iş deposu ayrı denetlenir. Varsayılan `database-uuids` ayarı, yeniden deneme için `uuid` sütunu olan başarısız iş tablosunu kullanır. Dosya tabanlı depoda web üzerinden erişilemeyen yazılabilir bir hedef gerekir. Platform yönetimindeki kuyruk yapılandırması bu iki kontrolün sonucunu gösterir.
+
+Yayın provasında bir test SMTP hatasının kuyrukta yeniden denendiğini doğrula. Deneme hakkı tükenen işi `php artisan queue:failed` ile bul. Taşıyıcı düzeldikten sonra yalnızca deneme işinin UUID’sini `php artisan queue:retry <uuid>` ile yeniden sıraya al ve test gelen kutusunda tek gönderim olduğunu kontrol et. [SMTP ve kuyruk kurtarma provası](GUVENLIK-YAYIN-ENVANTERI.md#24-kasım-2026-smtp-ve-kuyruk-kurtarma-provası)
 
 Canlı HTTPS erişimini, SMTP teslimatını, kuyruk işçisini, zamanlayıcıyı ve yedekten geri yüklemeyi yukarıdaki adımlarla prova et. [Teknik kontrol testleri](tests/Feature/ReleaseReadinessTest.php)
 
@@ -111,6 +117,8 @@ pg_restore --exit-on-error --single-transaction --no-owner --no-privileges \
 ```
 
 Test uygulamasında `DB_DATABASE` değerini bu veritabanına, `LARAVEL_STORAGE_PATH` değerini `$backup_root/restored/storage` dizinine yönelt. Kaynak uygulamanın anahtarını güvenli saklama yerinden kullan. `php artisan migrate:status` ile şemayı kontrol et. Bir deneme görüşmesi ekini yetkili hasta hesabıyla aç ve başka bir hesabın aynı dosyaya erişiminin reddedildiğini doğrula. Geri yüklenen kopyada son migration’ı geri al, yeniden uygula ve dosyayı tekrar aç. [PostgreSQL yedekleme testleri](tests/Feature/PostgresBackupTest.php)
+
+Geri yüklenen kopyayı kullanıma açmadan önce o kopyadaki eski oturumları, API erişim belirteçlerini ve şifre sıfırlama kayıtlarını geçersiz kıl. Yedek anındaki kayıtlar, yedekten sonra kapatılan bir oturumu geri getirebilir. Eski API belirtecinin HTTP 401 döndürdüğünü ve yeniden giriş yapan yetkili hesabın dosyaya erişebildiğini prova et. [Özel dosya ve geri yükleme provası](GUVENLIK-YAYIN-ENVANTERI.md#24-kasım-2026-özel-dosya-ve-geri-yükleme-provası)
 
 ### PostgreSQL randevu provası
 

@@ -2,7 +2,7 @@
 
 ## 1. Yönetim özeti
 
-Güncel GitHub teslimi, Actions sonucu ve üretim kabulü kapsamı 12. bölümde izlenir. Bu belgedeki önceki Git ve test sayıları ilgili inceleme adımının kayıtlarıdır.
+GitHub teslimi ve Actions sonucu 12. bölümde, son yerel provalar ve canlı kabul için kalan işler 13. bölümde yer alır. Bu belgedeki önceki Git ve test sayıları ilgili inceleme adımının kayıtlarıdır.
 
 | Alan | Durum |
 | --- | --- |
@@ -372,3 +372,25 @@ Composer ve npm denetimleri ayrı GitHub Actions adımlarında izleniyor. 98 num
 | Hukuk ve gizlilik | `LEGAL_APPROVAL_REQUIRED`. İşletmeci, KVKK kanalları, veri saklama ve yayımlanacak metinler doğrulanacak. |
 | Hostinger satın alma ve kurulum | `DEFERRED BY OWNER`. |
 | Clinic AI Premium | `DEFERRED`. |
+
+## 13. Toplu yayın hazırlığı ve kabul
+
+24 Kasım 2026’da yayın listesi, mevcut kod ve önceki prova sonuçları birlikte karşılaştırıldı. Yayın kontrolündeki iki eksik giderildi. İstek sınırlandırma deposunun şeması doğrulanıyor. Zamanlayıcı ve işletim göstergeleri için kalıcı önbellek ile kilit tablosu kontrol ediliyor. [Yayın kontrolü](app/Console/Commands/CheckReleaseReadiness.php) · [Dört yeni test senaryosu](tests/Feature/ReleaseReadinessTest.php)
+
+| Yayın konusu | Yerel kabul sonucu |
+| --- | --- |
+| Temiz kurulum | Kilitli üretim PHP bağımlılıkları, temiz Vite derlemesi, PostgreSQL 17 migration’ları, Laravel önbellekleri ve HTTPS çalıştı. Sentetik hazır yapılandırma yayın kontrolünden geçti. |
+| Hesap ve e-posta | Önceki klinik kabul ve test SMTP kuyruk kurtarma provalarına şifre yenileme eklendi. HTTPS formu, test SMTP teslimatı, tek kullanımlık bağlantı ve önceki oturum iptali doğrulandı. [E-posta ve kuyruk provası](GUVENLIK-YAYIN-ENVANTERI.md#24-kasım-2026-smtp-ve-kuyruk-kurtarma-provası) |
+| Dosya ve kurtarma | Önceki 10 MB sınırı, yetkili erişim, ayrı PostgreSQL veritabanına geri dönüş ve eski oturumları kapatma provası kayda alındı. [Dosya ve geri yükleme kanıtı](GUVENLIK-YAYIN-ENVANTERI.md#24-kasım-2026-özel-dosya-ve-geri-yükleme-provası) |
+| Klinik ve hasta işlemleri | Önceki hatırlatma, bekleme listesi, teklif süresi, iki seanslı paket, aynı saat yarışı ve veritabanı kesintisi sonuçları geçerli. [Zamanlayıcı provası](GUVENLIK-YAYIN-ENVANTERI.md#24-kasım-2026-zamanlayıcı-ve-bekleme-listesi-provası) · [Randevu ve sağlık kontrolü](GUVENLIK-YAYIN-ENVANTERI.md#24-kasım-2026-paket-randevusu-ve-sağlık-kontrolü-provası) |
+| Politika ve SEO | Yerel HTTPS’te indeksleme kapalıyken `robots.txt`, taslak politikalar ve kapalı KVKK aydınlatması doğrulandı. Sentetik yayın koşulunda HTTPS canonical URL’ler ve site haritası sınandı. Askıdaki klinik ve yönetim alanı haritaya girmedi. |
+| Son regresyon | SQLite 1.156 başarılı test ve 7.250 doğrulama. PostgreSQL 17, üç ek yedekleme senaryosuyla 1.159 başarılı test ve 7.273 doğrulama. Dört Node testi, Vite, PHP ve JS sözdizimi geçti. npm ve 133 kilitli Composer sürümünde güvenlik duyurusu eşleşmesi bulunmadı. Gitleaks geçmiş, kaynak ve derlemede bulgu üretmedi. |
+
+| Canlı kabul için gereken girdi | Devam eden iş |
+| --- | --- |
+| Yetkili sunucu ve alan adı | DNS/TLS, gerçek web kökü ve vekil başlıkları, CDN ve sıkıştırma, canlı DB/özel disk, ilk yönetici, yedek şifreleme ve ayrı hedefe geri yükleme. |
+| Gerçek SMTP ve işletim | Yetkili gönderen, alıcıya gerçek teslimat, çalışan kuyruk ve dakika tetiklemesi, izleme ve olay alıcıları. |
+| Hukuk ve işletmeci bilgileri | Resmî bilgiler, KVKK kanalları, veri işleme ve saklama, yayımlanacak sözleşmeler, klinik ve içerik onayı. |
+| Yönetici ve yayın kararları | MFA ve hesap geçişi, genişletilmiş rol matrisi, izleme sahipliği ve seçilirse arama konsolu veya ölçüm ayarları. |
+
+Canlı kabul `PRODUCTION_ACCEPTANCE_PENDING`. GitHub Actions #99, önceki GitHub teslim sürümü `5258e5a` için başarılı. Bu toplu çalışmanın uygulama değişiklikleri ve kanıtları yerel olarak doğrulandı. [GitHub Actions](https://github.com/medloby/medloby/actions/runs/45278960253)

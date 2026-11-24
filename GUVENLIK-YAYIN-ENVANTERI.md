@@ -160,3 +160,33 @@ Yayın kontrolü artık istekler arasında oturum koruyamayan sürücüleri, uyu
 Yerel regresyon SQLite’ta 1.151 başarılı test ve 7.234 doğrulama, PostgreSQL 17.12’de 1.154 başarılı test ve 7.257 doğrulama verdi. PostgreSQL üç ek yedekleme senaryosunu çalıştırdı. Semgrep Community Edition 1.186.0, 352 hedefi kısmi ayrıştırma uyarısı olmadan taradı. SQL bağlamaları, sabit ifadeler ve yetkili Blade HTML aktarımı incelendi. Git, kaynak, derleme ve yerel günlükte maskeli sır bulgusu 0. Packagist 403 sınırı sürüyor. GitHub Advisory Database 133 kilitli Composer sürümünde ve npm denetimi npm bağımlılıklarında eşleşme göstermedi. [Son teknik kanıt ve Git envanteri](MEDLOBY-TAMAMLAMA-ENVANTERI.md#11-24-kasım-2026-git-uzlaştırması-ve-yeniden-kabul)
 
 Canlı güvenlik, gizlilik ve dağıtım kabulü bekliyor. Yönetici MFA yöntemi, kayıt ve kurtarma akışı ile daha geniş platform rol matrisi işletim kararına bağlı. Üretim yedek kurtarma, e-posta teslimatı, yeni migration’lar ve canlı oturum doğrulaması yetkili deneme ortamında yürütülecek.
+
+## 24 Kasım 2026 özel dosya ve geri yükleme provası
+
+Teslim sürümü `5258e5a` ile izole PostgreSQL 17, üretim PHP bağımlılıkları ve yerel HTTPS vekili kullanıldı. Tam 10.485.760 baytlık sentetik PDF görüşmeye yüklendi. Bir bayt büyük PDF hem PHP yükleme sınırında hem uygulama kuralında reddedildi. Başarısız yüklemeler ek dosya veya mesaj kaydı üretmedi. Hasta ve görüşmenin bağlı olduğu klinik dosyayı açabildi. Başka hasta için erişim reddedildi ve herkese açık depolama yolunda dosya bulunamadı.
+
+Yedek ayrı bir PostgreSQL veritabanına açıldı. PDF’nin SHA-256 değeri ve erişim sınırları korundu. Yedek alındıktan sonra kapatılan bir API oturumu geri yüklenen kopyada yeniden geçerliydi. Deneme kopyasında eski oturum, erişim belirteci ve şifre sıfırlama kayıtları temizlendi. Eski belirteç HTTP 401 döndürdü. Yeni girişten sonra yetkili hasta aynı PDF’yi açabildi. [Geri yükleme adımları](README.md#postgresql-ve-özel-dosya-yedekleme-provası)
+
+## 24 Kasım 2026 SMTP ve kuyruk kurtarma provası
+
+Teslim sürümü `5258e5a` iki sentetik klinik başvurusuyla yerel HTTPS, PostgreSQL 17 ve test SMTP sunucusunda çalıştırıldı. Test sunucusu ilk gönderimlere geçici 451 hatası döndürdü. Deneme hakkı kalan iş otomatik olarak yeniden çalıştı. Deneme sınırını dolduran iş başarısız iş kaydına geçti ve taşıyıcı düzelince kendi UUID’siyle yeniden sıraya alındı. Her iki klinik birer e-posta aldı ve klinik sahibi geçici şifresini değiştirerek CRM’i açtı.
+
+Başarısız işin kayıtlı yükü şifreliydi. Geçici şifre ve SMTP yanıt ayrıntısı uygulama günlüğünde ve işçi çıktısında yer almadı. Başarılı gönderimler sonrasında yönetim panelinin kuyruk ve SMTP göstergeleri güncellendi ve iki kuyruk tablosu boş kaldı. Gerçek sağlayıcı ile alıcı kutusuna teslimat yayın provasında doğrulanacak. [Yayın öncesi teknik kontrol](README.md#yayın-öncesi-teknik-kontrol)
+
+## 24 Kasım 2026 zamanlayıcı ve bekleme listesi provası
+
+Teslim sürümü `5258e5a` yerel HTTPS, PostgreSQL 17 ve ortak veritabanı önbelleğiyle çalıştırıldı. Zamanlayıcı için beş dakikalık çalışma anı testte sabitlendi. Yaklaşan onaylı randevu ilgili hastaya, saati gelen CRM takibi atanan şube personeline birer bildirim gönderdi. Her iki bildirim doğru kaydı açtı. Başka hasta ve diğer şube personelinin erişimi reddedildi. Süresi dolan teklif hasta hesabında süresi dolmuş olarak göründü.
+
+Klinik iptal işlemiyle saat açıldıktan sonra zamanlayıcı ayrı işlemlerde eşzamanlı ve art arda çalıştırıldı. Aktif bekleme isteğine bir bildirim ulaştı. İsteğini iptal eden hasta bildirim almadı. Bildirim aynı gün, tedavi ve hekim seçimini açtı. Hasta randevuyu aldığında bekleme isteği tamamlandı. Yönetim panelinde zamanlayıcı çalışması göründü. Canlı sunucunun dakikalık tetiklemesi yayın provasında doğrulanacak. [Zamanlayıcı kayıtları](tests/Feature/ReminderScheduleTest.php) · [Bekleme listesi testleri](tests/Feature/AppointmentWaitingListTest.php)
+
+## 24 Kasım 2026 paket randevusu ve sağlık kontrolü provası
+
+Teslim sürümü `5258e5a` yerel HTTPS üzerinden izole PostgreSQL 17 veritabanıyla çalıştırıldı. Hasta iki seanslı özel teklifi kabul etti. Başka hastanın teklife erişimi reddedildi. Hasta ve klinik aynı hekim ve saat için ayrı HTTP işçileri üzerinden eşzamanlı istek gönderdi. İki isteğin aynı PostgreSQL satır kilidini beklediği görüldü. Bir randevu kaydedildi ve diğer istek saat uygunluğu uyarısı aldı.
+
+Dolu saat içeren iki seanslı paketin hiçbir randevusu kaydedilmedi. İki uygun saat seçilince iki ayrı randevu oluşturuldu. Yetkili şube personeli ilk seansı onayladı ve hasta sonucu zaman çizelgesinde gördü. Tekrar gönderim yeni kayıt üretmedi. Test veritabanı durdurulunca HTTPS sağlık kontrolü HTTP 500, yeniden başlatılınca HTTP 200 döndürdü. Her iki seans erişilebilir kaldı. [Paket randevusu testi](tests/Feature/LaunchWorkflowTest.php) · [Eşzamanlı randevu testi](tests/Feature/AppointmentConcurrencyTest.php) · [Sağlık kontrolü testi](tests/Feature/ApplicationHealthTest.php)
+
+## 24 Kasım 2026 toplu son prova
+
+Yayın kontrolü, istek sınırlandırmasında yanlış veritabanı tablosunu ve zamanlayıcı ile işletim göstergelerinde kalıcı depo veya benzersiz kilit anahtarı eksikliğini yakalıyor. Dört yeni olumsuz senaryo eklendi. Temiz kurulumdaki üretim PHP paketleri, Vite derlemesi ve Laravel önbellekleriyle, sentetik ayarlarda yayın kontrolü başarılı oldu. Bellek deposu ve uyumsuz kilit tablosu kullanan yapılandırmalar hata verdi. [Teknik kontrol testi](tests/Feature/ReleaseReadinessTest.php)
+
+Yerel HTTPS ve test SMTP ile şifre yenileme e-postası teslim edildi. Form belirteci eksik istek reddedildi, kuyruk yükünde yenileme belirteci şifreli kaldı ve bağlantı bir kez kullanıldı. Önceki API oturumu kapandı, yeni şifreyle giriş yapıldı. Kapalı test ortamında taslak politikalar indeks dışı kaldı, yayımlanmamış KVKK aydınlatmasına erişim reddedildi. İndeksleme açıldığında site haritası aktif kliniği içerdi. Askıdaki klinik ve yönetim alanı dışarıda kaldı. [Toplu çalışma kaydı](MEDLOBY-TAMAMLAMA-ENVANTERI.md#13-toplu-yayın-hazırlığı-ve-kabul)
